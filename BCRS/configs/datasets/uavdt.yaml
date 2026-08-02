@@ -1,0 +1,37 @@
+name: uavdt
+root: ${UAVDT_ROOT:-../../data/UAVDT}
+num_classes: 3
+classes: [car, truck, bus]
+
+splits: {train: {}, val: {}, test: {}}
+
+adapters:
+  esod:
+    splits:
+      train: {list: split/train_ds.txt}
+      val: {list: split/test_ds.txt}
+      test: {list: split/test.txt}
+  querydet:
+    runner: visdrone
+    splits:
+      train:
+        images: images/UAV-benchmark-M
+        annotations: annotations/instances_UAVDTtrain.json
+      val:
+        images: images/UAV-benchmark-M
+        annotations: annotations/instances_UAVDTval.json
+      test:
+        images: images/UAV-benchmark-M
+        annotations: annotations/instances_UAVDTval.json
+  ceasc:
+    dataset_type: UAVDTDataset
+    splits:
+      train:
+        images: images/UAV-benchmark-M
+        annotations: annotations/instances_UAVDTtrain.json
+      val:
+        images: images/UAV-benchmark-M
+        annotations: annotations/instances_UAVDTval.json
+      test:
+        images: images/UAV-benchmark-M
+        annotations: annotations/instances_UAVDTval.json

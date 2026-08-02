@@ -1,0 +1,28 @@
+name: aitod
+# Dataset license: CC BY-NC-SA 4.0. Confirm that the intended use is permitted.
+# Category order follows the original AI-TOD release/presentation.
+root: ${AITOD_ROOT:-../../data/AI-TOD}
+num_classes: 8
+classes: [airplane, bridge, storage-tank, ship, swimming-pool, vehicle, person, wind-mill]
+
+splits:
+  train:
+    images: images/train
+    annotations: annotations/train.json
+  val:
+    images: images/val
+    annotations: annotations/val.json
+  test:
+    images: images/test
+    annotations: annotations/test.json
+
+adapters:
+  esod:
+    splits:
+      train: {images: images/train}
+      val: {images: images/val}
+      test: {images: images/test}
+  querydet:
+    runner: visdrone
+  ceasc:
+    dataset_type: CocoDataset

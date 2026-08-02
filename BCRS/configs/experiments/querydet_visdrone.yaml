@@ -1,0 +1,23 @@
+schema_version: 1
+name: querydet_visdrone
+
+backend:
+  name: querydet
+  root: vendor/querydet
+  python: ${BCRS_PYTHON:-python}
+
+model:
+  name: querydet_retinanet_r50
+  config: vendor/querydet/configs/visdrone/querydet_train.yaml
+  weights: detectron2://ImageNetPretrained/MSRA/R-50.pkl
+
+dataset: {config: configs/datasets/visdrone.yaml}
+runtime: {output_dir: work_dirs/querydet_visdrone, devices: "0", workers: 4}
+
+train:
+  config_options: []
+
+test:
+  model_config: vendor/querydet/configs/visdrone/querydet_test.yaml
+  checkpoint: work_dirs/querydet_visdrone/model_final.pth
+  config_options: []

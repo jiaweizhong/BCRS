@@ -1,0 +1,52 @@
+name: visdrone
+root: ${VISDRONE_ROOT:-../../data/VisDrone}
+num_classes: 10
+classes:
+  - pedestrian
+  - people
+  - bicycle
+  - car
+  - van
+  - truck
+  - tricycle
+  - awning-tricycle
+  - bus
+  - motor
+
+splits:
+  train: {}
+  val: {}
+  test: {}
+
+adapters:
+  esod:
+    splits:
+      train: {list: split/train.txt}
+      val: {list: split/val.txt}
+      test: {list: split/test-dev.txt}
+  querydet:
+    runner: visdrone
+    short_length: "[1200]"
+    max_length: 1999
+    splits:
+      train:
+        images: coco_format/train_images
+        annotations: coco_format/annotations/train_label.json
+      val:
+        images: coco_format/val_images
+        annotations: coco_format/annotations/val_label.json
+      test:
+        images: coco_format/test_images
+        annotations: coco_format/annotations/test_label.json
+  ceasc:
+    dataset_type: UAVDataset
+    splits:
+      train:
+        images: images/UAVtrain
+        annotations: annotations/instances_UAVtrain_v1.json
+      val:
+        images: images/UAVval
+        annotations: annotations/instances_UAVval_v1.json
+      test:
+        images: images/UAVval
+        annotations: annotations/instances_UAVval_v1.json

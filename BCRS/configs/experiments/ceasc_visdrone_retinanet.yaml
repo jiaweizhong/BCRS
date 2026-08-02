@@ -1,0 +1,19 @@
+schema_version: 1
+name: ceasc_visdrone_retinanet_r18
+
+backend:
+  name: ceasc
+  root: vendor/ceasc
+  python: ${BCRS_PYTHON:-python}
+
+model:
+  name: ceasc_retinanet_r18
+  config: vendor/ceasc/configs/UAV/dynamic_retinanet_res18_visdrone.py
+
+dataset: {config: configs/datasets/visdrone.yaml}
+runtime: {output_dir: work_dirs/ceasc_visdrone_retinanet_r18, devices: "0", workers: 2}
+
+train: {seed: 17, deterministic: true, config_options: []}
+test:
+  checkpoint: work_dirs/ceasc_visdrone_retinanet_r18/latest.pth
+  config_options: []
