@@ -33,7 +33,8 @@ See [the environment notes](environments/torch1.10-cu113/README.md). A different
 
 ## Configure datasets
 
-Dataset metadata is centralized under `configs/datasets`. One logical dataset can describe the different layouts expected by each backend. Set the relevant root before running:
+Dataset metadata is centralized under `configs/datasets`. One logical dataset is
+shared by every backend. Set the relevant root before running:
 
 ```powershell
 $env:VISDRONE_ROOT = "D:\datasets\VisDrone"
@@ -43,13 +44,33 @@ $env:AITOD_ROOT = "D:\datasets\AI-TOD"
 
 AI-TOD data is distributed under CC BY-NC-SA 4.0; confirm that the intended use is non-commercial or otherwise permitted before downloading or training on it.
 
-The default VisDrone layout includes:
+The default VisDrone layout stores each image once and keeps the source annotations
+for reproducibility:
 
-- ESOD split lists under `split/`;
-- QueryDet COCO conversion under `coco_format/`;
-- CEASC COCO conversion under `annotations/` and `images/`.
+```text
+VisDrone/
+  images/{train,val,test}/
+  raw_annotations/{train,val,test}/
+  labels/{train,val,test}/
+  annotations/{train,val,test}.json
+```
 
-If your conversion uses another layout, edit only the dataset YAML; backend code does not need to change.
+After copying the official or Kaggle VisDrone2019-DET splits into `images/` and
+`raw_annotations/`, generate both backend formats in one pass:
+
+```bash
+export VISDRONE_ROOT=/root/autodl-tmp/VisDrone
+python tools/prepare_visdrone.py --dry-run
+python tools/prepare_visdrone.py
+```
+
+The converter skips ignored regions and the unused `others` category, writes
+zero-based normalized YOLO labels for ESOD, and writes contiguous category IDs
+1-10 in COCO JSON for QueryDet and CEASC. It is safe to rerun and does not copy
+or modify images or `raw_annotations/`.
+
+If another conversion uses a different layout, edit only the dataset YAML;
+backend code does not need to change.
 
 ## Validate and run
 
