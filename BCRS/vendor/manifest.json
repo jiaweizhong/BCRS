@@ -292,7 +292,7 @@
       "repository": "esod",
       "source": "train.py",
       "target": "vendor/esod/train.py",
-      "sha256": "42e932fc870ffa33ac9132837e34d73ca59b5506b29616a6487513db0e6a9238"
+      "sha256": "9c2e1c1495f441ef1ec625b59b04d48f6ca2a2eb0d005c79a4f63f7b8236cce1"
     },
     {
       "repository": "esod",
