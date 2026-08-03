@@ -22,13 +22,10 @@ class EsodAdapter(BackendAdapter):
         data_config = self._materialize_dataset(experiment)
         section = experiment.train if stage == "train" else experiment.test
         output_dir = experiment.output_dir
-        argv = [
-            experiment.python,
-            str(
-                experiment.backend_root
-                / ("train.py" if stage == "train" else "test.py")
-            ),
-        ]
+        entrypoint = experiment.backend_root / (
+            "train.py" if stage == "train" else "test.py"
+        )
+        argv = self._python_cmd(experiment, entrypoint)
 
         if stage == "train":
             argv += [

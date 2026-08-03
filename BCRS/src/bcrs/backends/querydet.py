@@ -20,9 +20,7 @@ class QueryDetAdapter(BackendAdapter):
         entrypoint = experiment.backend_root / f"{prefix}_{runner}.py"
         section = experiment.train if stage == "train" else experiment.test
         devices = [item for item in experiment.devices.split(",") if item.strip()]
-        argv = [
-            experiment.python,
-            str(entrypoint),
+        argv = self._python_cmd(experiment, entrypoint) + [
             "--config-file",
             str(experiment.model_config_for(stage)),
             "--num-gpus",

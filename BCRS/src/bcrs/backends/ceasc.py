@@ -24,9 +24,7 @@ class CeascAdapter(BackendAdapter):
             )
         section = experiment.train if stage == "train" else experiment.test
         entrypoint = experiment.backend_root / "bcrs_entry.py"
-        argv = [
-            experiment.python,
-            str(entrypoint),
+        argv = self._python_cmd(experiment, entrypoint) + [
             stage,
             str(experiment.model_config_for(stage)),
         ]

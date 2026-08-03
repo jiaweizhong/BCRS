@@ -99,6 +99,15 @@ class BackendAdapter(ABC):
         return env
 
     @staticmethod
+    def _python_cmd(experiment: ExperimentConfig, entrypoint: Path) -> list[str]:
+        script = (
+            "import distutils.version, runpy, sys; "
+            "sys.argv = sys.argv[1:]; "
+            "runpy.run_path(sys.argv[0], run_name='__main__')"
+        )
+        return [experiment.python, "-c", script, str(entrypoint)]
+
+    @staticmethod
     def _extra_args(section: Mapping[str, object]) -> list[str]:
         value = section.get("extra_args", [])
         if value is None:

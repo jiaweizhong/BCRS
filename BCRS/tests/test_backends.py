@@ -115,7 +115,7 @@ def test_esod_builds_generated_dataset_and_exact_top_level_command(
     assert str((tmp_path / "data/train.txt").resolve()) in generated
 
     test_command = get_backend("esod").build("test", experiment)
-    assert Path(test_command.argv[1]).name == "test.py"
+    assert Path(test_command.argv[3]).name == "test.py"
     assert "--weights" in test_command.argv
 
 
@@ -124,13 +124,13 @@ def test_querydet_builds_path_overrides_and_preserves_weight_uri(
 ) -> None:
     experiment = load_experiment(build_experiment(tmp_path, "querydet"))
     command = get_backend("querydet").build("train", experiment)
-    assert command.argv[1].endswith("train_visdrone.py")
+    assert command.argv[3].endswith("train_visdrone.py")
     assert "MODEL.RETINANET.NUM_CLASSES" in command.argv
     assert "detectron2://pretrained/model.pkl" in command.argv
     assert str((tmp_path / "data/train.json").resolve()) in command.argv
 
     test_command = get_backend("querydet").build("test", experiment)
-    assert Path(test_command.argv[1]).name == "infer_visdrone.py"
+    assert Path(test_command.argv[3]).name == "infer_visdrone.py"
     assert "--eval-only" in test_command.argv
     assert str((tmp_path / "checkpoint.pth").resolve()) in test_command.argv
 
@@ -138,8 +138,8 @@ def test_querydet_builds_path_overrides_and_preserves_weight_uri(
 def test_ceasc_builds_mmdet_config_overrides(tmp_path: Path) -> None:
     experiment = load_experiment(build_experiment(tmp_path, "ceasc"))
     command = get_backend("ceasc").build("train", experiment)
-    assert Path(command.argv[1]).name == "bcrs_entry.py"
-    assert command.argv[2] == "train"
+    assert Path(command.argv[3]).name == "bcrs_entry.py"
+    assert command.argv[4] == "train"
     assert "--cfg-options" in command.argv
     assert "model.bbox_head.num_classes=2" in command.argv
     assert "data.train.dataset.type=CocoDataset" in command.argv
@@ -147,8 +147,8 @@ def test_ceasc_builds_mmdet_config_overrides(tmp_path: Path) -> None:
     assert any(item.startswith("data.train.dataset.ann_file=") for item in command.argv)
 
     test_command = get_backend("ceasc").build("test", experiment)
-    assert Path(test_command.argv[1]).name == "bcrs_entry.py"
-    assert test_command.argv[2] == "test"
+    assert Path(test_command.argv[3]).name == "bcrs_entry.py"
+    assert test_command.argv[4] == "test"
     assert "--eval" in test_command.argv
     assert "bbox" in test_command.argv
 
