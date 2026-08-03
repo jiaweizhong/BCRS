@@ -2,7 +2,7 @@
 --find-links https://download.openmmlab.com/mmcv/dist/cu113/torch1.10.0/index.html
 
 # One ABI shared by ESOD, QueryDet, and CEASC.
-setuptools<81
+setuptools<60
 torch==1.10.1+cu113
 torchvision==0.11.2+cu113
 mmcv-full==1.5.1

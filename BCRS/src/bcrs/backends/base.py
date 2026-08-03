@@ -93,7 +93,10 @@ class BackendAdapter(ABC):
     @staticmethod
     def _device_environment(experiment: ExperimentConfig) -> dict[str, str]:
         devices = experiment.devices.strip()
-        return {"CUDA_VISIBLE_DEVICES": devices} if devices else {}
+        env = {"SETUPTOOLS_USE_DISTUTILS": "stdlib"}
+        if devices:
+            env["CUDA_VISIBLE_DEVICES"] = devices
+        return env
 
     @staticmethod
     def _extra_args(section: Mapping[str, object]) -> list[str]:

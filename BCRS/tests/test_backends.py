@@ -105,7 +105,10 @@ def test_esod_builds_generated_dataset_and_exact_top_level_command(
     assert command.cwd == tmp_path / "backend"
     assert "--cfg" in command.argv
     assert "--data" in command.argv
-    assert command.env == {"CUDA_VISIBLE_DEVICES": "0"}
+    assert command.env == {
+        "SETUPTOOLS_USE_DISTUTILS": "stdlib",
+        "CUDA_VISIBLE_DEVICES": "0",
+    }
     assert command.generated_files[0].is_file()
     generated = command.generated_files[0].read_text(encoding="utf-8")
     assert "nc: 2" in generated
