@@ -17,7 +17,6 @@ import shutil
 import subprocess
 import sys
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_ROOT = PROJECT_ROOT.parent
 MANIFEST = PROJECT_ROOT / "vendor" / "manifest.json"
@@ -156,7 +155,9 @@ def digest(path: Path) -> str:
 def selected_files(rule: CopyRule) -> list[Path]:
     selected: set[Path] = set()
     for pattern in rule.patterns:
-        selected.update(path for path in rule.source_root.glob(pattern) if path.is_file())
+        selected.update(
+            path for path in rule.source_root.glob(pattern) if path.is_file()
+        )
     return sorted(selected)
 
 
@@ -208,7 +209,9 @@ def write_snapshot() -> int:
 
 def load_manifest() -> dict[str, object]:
     if not MANIFEST.is_file():
-        raise FileNotFoundError(f"Missing {MANIFEST}; run with --write while sources exist")
+        raise FileNotFoundError(
+            f"Missing {MANIFEST}; run with --write while sources exist"
+        )
     payload = json.loads(MANIFEST.read_text(encoding="utf-8"))
     if payload.get("schema_version") != 1 or not isinstance(payload.get("files"), list):
         raise ValueError(f"Unsupported vendor manifest: {MANIFEST}")
@@ -259,7 +262,9 @@ def compare_sources() -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     action = parser.add_mutually_exclusive_group()
-    action.add_argument("--write", action="store_true", help="refresh copies and manifest")
+    action.add_argument(
+        "--write", action="store_true", help="refresh copies and manifest"
+    )
     action.add_argument(
         "--against-source",
         action="store_true",

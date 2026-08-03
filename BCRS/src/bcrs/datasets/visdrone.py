@@ -12,7 +12,6 @@ from pathlib import Path
 import tempfile
 from typing import Any, Sequence
 
-
 VISDRONE_CLASSES = (
     "pedestrian",
     "people",
@@ -65,7 +64,11 @@ def _atomic_write_text(path: Path, content: str) -> None:
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
         ) as handle:
             temporary = Path(handle.name)
             handle.write(content)
@@ -81,7 +84,11 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
         ) as handle:
             temporary = Path(handle.name)
             json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
@@ -135,14 +142,14 @@ def _parse_annotation_file(
                 )
 
             category_id = int(category_value)
-            if score <= 0 or category_id not in range(1, len(VISDRONE_CLASSES) + 1):
+            if (
+                score <= 0
+                or category_id not in range(1, len(VISDRONE_CLASSES) + 1)
+                or box_width <= 0
+                or box_height <= 0
+            ):
                 skipped_rows += 1
                 continue
-            if box_width <= 0 or box_height <= 0:
-                raise ValueError(
-                    f"Non-positive bounding box at {path}:{line_number}: "
-                    f"{box_width}x{box_height}"
-                )
 
             center_x = (x + box_width / 2.0) / width
             center_y = (y + box_height / 2.0) / height
@@ -183,7 +190,9 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
     if not images_dir.is_dir():
         raise ValueError(f"Missing VisDrone image directory: {images_dir}")
     if not raw_annotations_dir.is_dir():
-        raise ValueError(f"Missing VisDrone raw annotation directory: {raw_annotations_dir}")
+        raise ValueError(
+            f"Missing VisDrone raw annotation directory: {raw_annotations_dir}"
+        )
 
     images = sorted(
         path
@@ -289,7 +298,9 @@ def prepare_visdrone(
     if len(set(splits)) != len(splits):
         raise ValueError("VisDrone splits must not be repeated")
 
-    return tuple(prepare_split(dataset_root, split, dry_run=dry_run) for split in splits)
+    return tuple(
+        prepare_split(dataset_root, split, dry_run=dry_run) for split in splits
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -323,7 +334,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.root is None:
         parser.error("--root is required when VISDRONE_ROOT is not set")
     try:
-        summaries = prepare_visdrone(args.root, splits=args.splits, dry_run=args.dry_run)
+        summaries = prepare_visdrone(
+            args.root, splits=args.splits, dry_run=args.dry_run
+        )
     except (OSError, RuntimeError, ValueError) as exc:
         parser.error(str(exc))
 

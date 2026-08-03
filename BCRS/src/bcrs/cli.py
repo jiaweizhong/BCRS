@@ -40,7 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
         command = subparsers.add_parser(stage, help=f"run the {stage} adapter")
         _add_config_arguments(command)
         command.add_argument(
-            "--dry-run", action="store_true", help="render the command without executing it"
+            "--dry-run",
+            action="store_true",
+            help="render the command without executing it",
         )
     return parser
 
@@ -83,4 +85,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

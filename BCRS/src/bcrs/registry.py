@@ -10,16 +10,19 @@ from bcrs.backends.base import BackendAdapter
 
 def _load_esod() -> BackendAdapter:
     from bcrs.backends.esod import EsodAdapter
+
     return EsodAdapter()
 
 
 def _load_querydet() -> BackendAdapter:
     from bcrs.backends.querydet import QueryDetAdapter
+
     return QueryDetAdapter()
 
 
 def _load_ceasc() -> BackendAdapter:
     from bcrs.backends.ceasc import CeascAdapter
+
     return CeascAdapter()
 
 
@@ -41,4 +44,3 @@ def get_backend(name: str) -> BackendAdapter:
         raise ConfigError(
             f"Unknown backend {name!r}; choose one of {', '.join(backend_names())}"
         ) from exc
-

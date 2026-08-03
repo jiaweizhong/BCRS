@@ -8,7 +8,9 @@ from .base import BackendAdapter, CommandSpec, Diagnostic
 
 class CeascAdapter(BackendAdapter):
     name = "ceasc"
-    description = "CEASC activation masks loaded into an installed MMDetection 2.x runtime"
+    description = (
+        "CEASC activation masks loaded into an installed MMDetection 2.x runtime"
+    )
     required_modules = ("torch", "mmcv", "mmdet", "sparse_conv")
 
     def build(self, stage: str, experiment: ExperimentConfig) -> CommandSpec:
@@ -39,8 +41,16 @@ class CeascAdapter(BackendAdapter):
                 section.get("checkpoint", experiment.model.get("weights"))
             )
             if checkpoint is None:
-                raise ConfigError("CEASC test requires test.checkpoint or model.weights")
-            argv += [str(checkpoint), "--work-dir", str(experiment.output_dir / "test"), "--eval", "bbox"]
+                raise ConfigError(
+                    "CEASC test requires test.checkpoint or model.weights"
+                )
+            argv += [
+                str(checkpoint),
+                "--work-dir",
+                str(experiment.output_dir / "test"),
+                "--eval",
+                "bbox",
+            ]
         cfg_options = self._config_options(experiment, stage)
         if cfg_options:
             argv.append("--cfg-options")
@@ -55,7 +65,9 @@ class CeascAdapter(BackendAdapter):
     def diagnostics(self, stage: str, experiment: ExperimentConfig) -> list[Diagnostic]:
         checks = super().diagnostics(stage, experiment)
         checks.append(
-            self._path_diagnostic("BCRS plugin entrypoint", experiment.backend_root / "bcrs_entry.py")
+            self._path_diagnostic(
+                "BCRS plugin entrypoint", experiment.backend_root / "bcrs_entry.py"
+            )
         )
         checks.append(
             self._path_diagnostic(
@@ -83,7 +95,11 @@ class CeascAdapter(BackendAdapter):
             if checkpoint is not None:
                 checks.append(self._path_diagnostic("checkpoint", checkpoint))
         sparse_extension = experiment.backend_root / "Sparse_conv"
-        checks.append(self._path_diagnostic("sparse extension source", sparse_extension, directory=True))
+        checks.append(
+            self._path_diagnostic(
+                "sparse extension source", sparse_extension, directory=True
+            )
+        )
         return checks
 
     def _config_options(self, experiment: ExperimentConfig, stage: str) -> list[str]:
@@ -109,8 +125,12 @@ class CeascAdapter(BackendAdapter):
             f"data.test.ann_file={val_ann}",
             f"data.test.img_prefix={val_images}",
         ]
-        extra = (experiment.train if stage == "train" else experiment.test).get("config_options", [])
+        extra = (experiment.train if stage == "train" else experiment.test).get(
+            "config_options", []
+        )
         if not isinstance(extra, list):
-            raise ConfigError("CEASC config_options must be a list of key=value strings")
+            raise ConfigError(
+                "CEASC config_options must be a list of key=value strings"
+            )
         result.extend(str(item) for item in extra)
         return result

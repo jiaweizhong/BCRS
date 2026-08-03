@@ -31,7 +31,8 @@ def test_prepare_visdrone_writes_yolo_and_coco(tmp_path: Path) -> None:
         "000001",
         "10,5,20,10,1,4,0,0\n"
         "0,0,5,5,0,0,0,0\n"
-        "0,0,5,5,1,11,0,0\n",
+        "0,0,5,5,1,11,0,0\n"
+        "10,5,4,0,1,4,0,0\n",
     )
     write_raw_annotation(root, "train", "000002", "20,10,40,20,1,1,0,0\n")
 
@@ -40,7 +41,7 @@ def test_prepare_visdrone_writes_yolo_and_coco(tmp_path: Path) -> None:
     assert len(summaries) == 1
     assert summaries[0].images == 2
     assert summaries[0].annotations == 2
-    assert summaries[0].skipped_rows == 2
+    assert summaries[0].skipped_rows == 3
     assert (root / "labels/train/000001.txt").read_text(encoding="utf-8") == (
         "3 0.200000 0.200000 0.200000 0.200000\n"
     )
@@ -56,7 +57,9 @@ def test_prepare_visdrone_writes_yolo_and_coco(tmp_path: Path) -> None:
     assert coco["annotations"][0]["bbox"] == [10, 5, 20, 10]
     assert coco["annotations"][0]["category_id"] == 4
     assert [category["id"] for category in coco["categories"]] == list(range(1, 11))
-    assert [category["name"] for category in coco["categories"]] == list(VISDRONE_CLASSES)
+    assert [category["name"] for category in coco["categories"]] == list(
+        VISDRONE_CLASSES
+    )
 
 
 def test_prepare_visdrone_dry_run_does_not_write_outputs(tmp_path: Path) -> None:

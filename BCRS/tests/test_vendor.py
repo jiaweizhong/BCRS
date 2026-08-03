@@ -6,16 +6,19 @@ from pathlib import Path
 
 import yaml
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_vendor_manifest_is_complete_and_self_verifying() -> None:
-    manifest = json.loads((PROJECT_ROOT / "vendor/manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (PROJECT_ROOT / "vendor/manifest.json").read_text(encoding="utf-8")
+    )
     assert manifest["schema_version"] == 1
     repositories = manifest["repositories"]
     assert set(repositories) == {"ceasc", "esod", "querydet"}
-    assert all(repository["commit"] != "unknown" for repository in repositories.values())
+    assert all(
+        repository["commit"] != "unknown" for repository in repositories.values()
+    )
 
     files = manifest["files"]
     assert len(files) >= 90
@@ -35,7 +38,9 @@ def test_experiments_only_launch_vendored_backends() -> None:
 
 
 def test_ceasc_glue_is_not_mixed_with_upstream_checksums() -> None:
-    manifest = json.loads((PROJECT_ROOT / "vendor/manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (PROJECT_ROOT / "vendor/manifest.json").read_text(encoding="utf-8")
+    )
     targets = {entry["target"] for entry in manifest["files"]}
     assert "vendor/ceasc/bcrs_entry.py" not in targets
     assert (PROJECT_ROOT / "vendor/ceasc/bcrs_entry.py").is_file()

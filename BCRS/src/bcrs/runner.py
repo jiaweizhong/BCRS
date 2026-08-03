@@ -10,7 +10,9 @@ from bcrs.backends.base import CommandSpec
 
 
 def format_command(command: CommandSpec) -> str:
-    environment = " ".join(f"{key}={shlex.quote(value)}" for key, value in command.env.items())
+    environment = " ".join(
+        f"{key}={shlex.quote(value)}" for key, value in command.env.items()
+    )
     argv = shlex.join(command.argv)
     return f"{environment} {argv}".strip()
 
@@ -25,4 +27,3 @@ def run(command: CommandSpec) -> int:
         check=False,
     )
     return int(completed.returncode)
-

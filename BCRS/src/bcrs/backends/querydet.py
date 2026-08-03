@@ -23,8 +23,10 @@ class QueryDetAdapter(BackendAdapter):
         argv = [
             experiment.python,
             str(entrypoint),
-            "--config-file", str(experiment.model_config_for(stage)),
-            "--num-gpus", str(max(1, len(devices))),
+            "--config-file",
+            str(experiment.model_config_for(stage)),
+            "--num-gpus",
+            str(max(1, len(devices))),
         ]
         if bool(section.get("resume", False)):
             argv.append("--resume")
@@ -41,7 +43,9 @@ class QueryDetAdapter(BackendAdapter):
 
     def diagnostics(self, stage: str, experiment: ExperimentConfig) -> list[Diagnostic]:
         checks = super().diagnostics(stage, experiment)
-        runner = str(experiment.dataset.adapter_options("querydet").get("runner", "visdrone"))
+        runner = str(
+            experiment.dataset.adapter_options("querydet").get("runner", "visdrone")
+        )
         prefix = "train" if stage == "train" else "infer"
         checks.append(
             self._path_diagnostic(
@@ -76,28 +80,42 @@ class QueryDetAdapter(BackendAdapter):
         options = experiment.dataset.adapter_options("querydet")
         runner = str(options.get("runner", "visdrone"))
         result = [
-            "OUTPUT_DIR", str(experiment.output_dir),
-            "MODEL.RETINANET.NUM_CLASSES", str(experiment.dataset.num_classes),
+            "OUTPUT_DIR",
+            str(experiment.output_dir),
+            "MODEL.RETINANET.NUM_CLASSES",
+            str(experiment.dataset.num_classes),
         ]
         if runner == "visdrone":
             result += [
-                "VISDRONE.TRAIN_JSON", str(experiment.dataset.split_path("train", "annotations", "querydet")),
-                "VISDRONE.TRING_IMG_ROOT", str(experiment.dataset.split_path("train", "images", "querydet")),
-                "VISDRONE.TEST_JSON", str(experiment.dataset.split_path("val", "annotations", "querydet")),
-                "VISDRONE.TEST_IMG_ROOT", str(experiment.dataset.split_path("val", "images", "querydet")),
+                "VISDRONE.TRAIN_JSON",
+                str(experiment.dataset.split_path("train", "annotations", "querydet")),
+                "VISDRONE.TRING_IMG_ROOT",
+                str(experiment.dataset.split_path("train", "images", "querydet")),
+                "VISDRONE.TEST_JSON",
+                str(experiment.dataset.split_path("val", "annotations", "querydet")),
+                "VISDRONE.TEST_IMG_ROOT",
+                str(experiment.dataset.split_path("val", "images", "querydet")),
             ]
         if "short_length" in options:
             result += ["VISDRONE.SHORT_LENGTH", str(options["short_length"])]
         if "max_length" in options:
             result += ["VISDRONE.MAX_LENGTH", str(options["max_length"])]
-        weights = experiment.test.get("checkpoint") if stage == "test" else experiment.model.get("weights")
+        weights = (
+            experiment.test.get("checkpoint")
+            if stage == "test"
+            else experiment.model.get("weights")
+        )
         if weights not in (None, ""):
             weight_value = str(weights)
             if "://" not in weight_value:
                 weight_value = str(experiment.optional_project_path(weight_value))
             result += ["MODEL.WEIGHTS", weight_value]
-        extra = (experiment.train if stage == "train" else experiment.test).get("config_options", [])
+        extra = (experiment.train if stage == "train" else experiment.test).get(
+            "config_options", []
+        )
         if not isinstance(extra, list):
-            raise ConfigError("QueryDet config_options must be a list of alternating keys and values")
+            raise ConfigError(
+                "QueryDet config_options must be a list of alternating keys and values"
+            )
         result.extend(str(item) for item in extra)
         return result

@@ -20,7 +20,9 @@ def create_files(root: Path, *relative_paths: str) -> None:
 
 
 def build_experiment(tmp_path: Path, backend: str) -> Path:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='test'\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname='test'\n", encoding="utf-8"
+    )
     create_files(
         tmp_path,
         "data/train",
@@ -79,7 +81,14 @@ def build_experiment(tmp_path: Path, backend: str) -> Path:
         "schema_version": 1,
         "name": f"sample_{backend}",
         "backend": {"name": backend, "root": "backend", "python": "python"},
-        "model": {"config": "model.yaml", "weights": "detectron2://pretrained/model.pkl" if backend == "querydet" else "checkpoint.pth"},
+        "model": {
+            "config": "model.yaml",
+            "weights": (
+                "detectron2://pretrained/model.pkl"
+                if backend == "querydet"
+                else "checkpoint.pth"
+            ),
+        },
         "dataset": {"config": "configs/datasets/sample.yaml"},
         "runtime": {"output_dir": f"work/{backend}", "devices": "0", "workers": 2},
         "train": {"epochs": 2, "batch_size": 1, "image_size": 64, "seed": 17},
@@ -88,7 +97,9 @@ def build_experiment(tmp_path: Path, backend: str) -> Path:
     return write_yaml(tmp_path / f"configs/experiments/{backend}.yaml", payload)
 
 
-def test_esod_builds_generated_dataset_and_exact_top_level_command(tmp_path: Path) -> None:
+def test_esod_builds_generated_dataset_and_exact_top_level_command(
+    tmp_path: Path,
+) -> None:
     experiment = load_experiment(build_experiment(tmp_path, "esod"))
     command = get_backend("esod").build("train", experiment)
     assert command.cwd == tmp_path / "backend"
@@ -105,7 +116,9 @@ def test_esod_builds_generated_dataset_and_exact_top_level_command(tmp_path: Pat
     assert "--weights" in test_command.argv
 
 
-def test_querydet_builds_path_overrides_and_preserves_weight_uri(tmp_path: Path) -> None:
+def test_querydet_builds_path_overrides_and_preserves_weight_uri(
+    tmp_path: Path,
+) -> None:
     experiment = load_experiment(build_experiment(tmp_path, "querydet"))
     command = get_backend("querydet").build("train", experiment)
     assert command.argv[1].endswith("train_visdrone.py")

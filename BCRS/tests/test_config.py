@@ -9,7 +9,9 @@ from conftest import write_yaml
 
 
 def make_project(tmp_path: Path) -> tuple[Path, Path]:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='test'\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname='test'\n", encoding="utf-8"
+    )
     dataset = write_yaml(
         tmp_path / "configs" / "datasets" / "sample.yaml",
         {
@@ -62,4 +64,3 @@ def test_rejects_class_count_mismatch(tmp_path: Path) -> None:
     write_yaml(dataset_path, dataset)
     with pytest.raises(ConfigError, match="declares 3 classes"):
         load_experiment(experiment_path)
-

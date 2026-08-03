@@ -22,6 +22,7 @@ _ENV_PATTERN = re.compile(
 
 def _expand_environment(value: Any) -> Any:
     if isinstance(value, str):
+
         def replace(match: re.Match[str]) -> str:
             name = match.group("name")
             if name in os.environ:
@@ -194,7 +195,9 @@ def _load_dataset(path: Path, root_override: Any = None) -> DatasetSpec:
     classes = raw.get("classes", [])
     if not name:
         raise ConfigError(f"Dataset name is required: {path}")
-    if not isinstance(classes, list) or not all(isinstance(item, str) for item in classes):
+    if not isinstance(classes, list) or not all(
+        isinstance(item, str) for item in classes
+    ):
         raise ConfigError(f"Dataset classes must be a list of strings: {path}")
     num_classes = int(raw.get("num_classes", len(classes)))
     if classes and len(classes) != num_classes:
@@ -243,7 +246,11 @@ def load_experiment(
     dataset_ref = raw.get("dataset", {})
     if not name:
         raise ConfigError("Experiment name is required")
-    if not isinstance(backend, Mapping) or not backend.get("name") or not backend.get("root"):
+    if (
+        not isinstance(backend, Mapping)
+        or not backend.get("name")
+        or not backend.get("root")
+    ):
         raise ConfigError("backend.name and backend.root are required")
     if not isinstance(model, Mapping) or not model.get("config"):
         raise ConfigError("model.config is required")

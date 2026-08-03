@@ -77,7 +77,11 @@ class BackendAdapter(ABC):
         except (OSError, subprocess.TimeoutExpired) as exc:
             return Diagnostic(False, "runtime modules", str(exc))
         missing = completed.stdout.strip()
-        detail = "available" if completed.returncode == 0 else f"missing: {missing or 'unknown'}"
+        detail = (
+            "available"
+            if completed.returncode == 0
+            else f"missing: {missing or 'unknown'}"
+        )
         return Diagnostic(completed.returncode == 0, "runtime modules", detail)
 
     @staticmethod
