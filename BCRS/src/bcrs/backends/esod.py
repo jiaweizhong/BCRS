@@ -112,9 +112,13 @@ class EsodAdapter(BackendAdapter):
         checks.append(self._path_diagnostic(f"{stage} entrypoint", entrypoint))
         section = experiment.train if stage == "train" else experiment.test
         for role in (("train", "val") if stage == "train" else ("val",)):
+            split = experiment.dataset.split(role, "esod")
+            is_dir = not bool(split.get("list"))
             checks.append(
                 self._path_diagnostic(
-                    f"dataset {role}", self._split_input(experiment, role)
+                    f"dataset {role}",
+                    self._split_input(experiment, role),
+                    directory=is_dir,
                 )
             )
         if stage == "train" and section.get("hyp"):
