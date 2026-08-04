@@ -28,7 +28,7 @@
       "repository": "ceasc",
       "source": "Sparse_conv/setup.py",
       "target": "vendor/ceasc/Sparse_conv/setup.py",
-      "sha256": "e0fb9a0c3f937e2f591ef87330ce9b8a9668676d82e95b1895f717bc890df9e1"
+      "sha256": "e77d2727ef154a965932870838772c0bdbd5001b0d89fbe3937435608715bb92"
     },
     {
       "repository": "ceasc",
@@ -286,13 +286,13 @@
       "repository": "esod",
       "source": "test.py",
       "target": "vendor/esod/test.py",
-      "sha256": "18c1a4ec4845015727c163d696a3abb65ee950ba9688538b5504d6659a6c2f54"
+      "sha256": "edbbadd7fa0ad88fed4e9b4f15bd5db7cc46afb063a8d919f01ef02a5bebe770"
     },
     {
       "repository": "esod",
       "source": "train.py",
       "target": "vendor/esod/train.py",
-      "sha256": "9c2e1c1495f441ef1ec625b59b04d48f6ca2a2eb0d005c79a4f63f7b8236cce1"
+      "sha256": "848167900804bef92f2ab7fd8210255af9c581dbccdd2b371690d72803ae8207"
     },
     {
       "repository": "esod",
@@ -316,7 +316,7 @@
       "repository": "esod",
       "source": "utils/general.py",
       "target": "vendor/esod/utils/general.py",
-      "sha256": "b214ab86ad98c9cbc523dee841cc4bbf816e594bd742e0293c5e54d041272838"
+      "sha256": "92f610ccb14ead2113c26852dabd1f74717c0d5ea2553151bee22b28177c6305"
     },
     {
       "repository": "esod",
