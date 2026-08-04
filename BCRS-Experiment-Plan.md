@@ -1,153 +1,34 @@
 # BCRS Experiment Plan
 
 **Source:** `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md`  
-**Status:** pre-implementation plan  
+**Status:** In Progress (Phase 0 Baseline Reproduction Verified)  
 **Primary question:** Can semantic and spectral evidence allocate a fixed inference budget better than objectness alone while protecting tiny-object recall and producing real end-to-end speedups?
 
-## 1. Repository context and scope
+## 0. Baseline Benchmark & Execution Tracking
 
-The repository currently contains the BCRS proposal and notes/PDFs for ESOD, QueryDet, CEASC, and SET. It does not yet contain training code, dataset manifests, environment locks, checkpoints, or a benchmark harness. Phase 0 therefore includes both baseline reproduction and creation of the experimental infrastructure.
+### Verification Summary (50-Epoch VisDrone ESOD Baseline)
 
-The work is deliberately ordered as follows:
+| Metric | Target / Claim | Verified Result | Notes |
+|---|---|---|---|
+| **mAP@0.5** | $\ge 0.360$ (Paper 640p) | **0.5580 (55.8%)** | Evaluated at 1536x1536 resolution |
+| **mAP@0.5:0.95**| Baseline | **0.3290 (32.9%)** | Standard COCO mAP metric |
+| **BBox Precision (P)**| Baseline | **0.6204 (62.0%)** | Clean predictions, 0 false deadlocks |
+| **BBox Recall (R)** | Baseline | **0.5374 (53.7%)** | Target for BCRS context-refinement improvement |
+| **Patch BPR ($BPR_{box}$)**| $\ge 0.950$ | **0.9744 (97.4%)** | 97.44% GT boxes covered by selected patches |
+| **Inference Latency** | $< 20.0\text{ms}$ | **16.5ms / img** | Batch size 1 on RTX 5090 / PyTorch 2.8+cu128 |
 
-1. **ESOD-style patch routing is the primary implementation.** Its ObjSeeker/AdaSlicer/SparseHead structure directly exposes patch priority, object coverage, downstream cost, and patch count.
-2. **AI-TOD and VisDrone are the two claim-bearing datasets.** AI-TOD is the mechanism dataset; VisDrone tests the method under diverse UAV scenes.
-3. **QueryDet is the required cross-backend validation.** It tests whether the priority principle transfers from patches to FPN queries.
-4. **UAVDT is a transfer and stability test.** It is not used for primary model selection.
-5. **CEASC and TinyPerson are optional extensions.** They cannot rescue a failed ESOD/QueryDet result.
-
-The first implementation will use a fixed-cost patch action and hard top-k routing. Structured patch/FPN/context actions are deferred until the fixed-budget evidence succeeds.
-
-## 2. Decisions to lock before the first run
-
-Record the following in `experiment-lock.yaml` and do not change them after Phase 0 without opening a new experiment family:
-
-| Item | Initial decision | Lock point |
-|---|---|---|
-| Primary detector | YOLOv5 + ESOD-style ObjSeeker/AdaSlicer/SparseHead; RTMDet is an allowed substitute only if ESOD reproduction is materially easier there | Before baseline training |
-| Cross-backend detector | RetinaNet + QueryDet/CSQ | Before Phase 4 |
-| Primary datasets | AI-TOD and VisDrone official splits | Before data preprocessing |
-| Transfer dataset | UAVDT official split; no fine-tuning for the first transfer test | Before Phase 5 |
-| Input sizes | Match the selected ESOD baseline per dataset; keep identical within a comparison | Before baseline training |
-| Tiny-size bins | Use each benchmark's official bins; add one project-wide very-tiny/tiny/small mapping and save it in the data manifest | Before analysis |
-| Primary budgets | Retained-action ratios `{0.20, 0.35, 0.50, 0.75}` plus dense `1.00`; replace ratios with exact integer top-k values after Phase 0 profiling | End of Phase 0 |
-| Training seeds | Screening: `17`; confirmation: `17, 41, 73`; decisive claims: add `101, 137` | Before first training run |
-| Target hardware | One named server GPU and, if available, one named edge device; pin software versions and power/clock policy | Before latency profiling |
-| Claim thresholds | Defaults in Section 7, adjusted only from measured baseline variance | End of Phase 0 |
-
-If the exact detector or input size changes, rerun all affected controls; do not compare against FPS copied from papers.
-
-## 3. Hypotheses and decisive estimands
-
-| ID | Hypothesis | Decisive comparison | Primary estimand | Pass condition |
-|---|---|---|---|---|
-| H1 | Objectness misses a meaningful low-objectness tiny-object subgroup | Objectness ranking vs GT-coverage oracle at the same top-k | Low-objectness tiny recall and oracle headroom | The subgroup is non-trivial and the GT oracle exceeds objectness beyond baseline uncertainty at two or more budgets |
-| H2 | Spectral evidence is complementary | Parameter/FLOP-matched semantic-only vs semantic + spectral | Paired change in low-objectness tiny selector recall | Positive 95% CI at a fixed budget, with no increase in retained actions |
-| H3 | Fused priority improves the budget frontier | Fused vs objectness-only, spectral-only, random, and matched-convolution controls | APt/APvt and selector-recall Pareto frontier | BCRS is non-dominated and meets the minimum effect at two or more budgets |
-| H4 | Coverage supervision reduces catastrophic misses | Same architecture and top-k, with vs without coverage loss | Tiny miss rate and per-image coverage-tail risk | Miss rate falls without retaining extra actions/background |
-| H5 | One budget-conditioned model can serve multiple budgets | Unified model vs separately trained model at each budget | APt gap at each budget and frontier hypervolume | Unified model remains within the locked non-inferiority margin at at least three of four budgets |
-| H6 | Theoretical savings become real speedups | BCRS vs equal-accuracy and equal-latency controls | Median and P95 end-to-end latency | Net latency saving is positive with a positive paired 95% CI on the target device |
-| H7 | Selector overhead is worthwhile | Module microbenchmarks and end-to-end decomposition | Selector overhead ratio and break-even retained ratio | Added selector latency is at most 5% of total and at most 10% of downstream latency saved, or the exception is explicitly reported |
-| H8 | Priority transfers across selection granularities | QueryDet objectness/query baseline vs BCRS Query Adapter | Query-center coverage and APt at equal query count/latency | Same-direction significant gain on QueryDet; CEASC is optional corroboration |
-
-H1 is a prerequisite for the full method. H2/H3 at fixed budget are the central method claim. H6/H7 are required for an efficiency claim. H8 requires adaptation of interfaces, not shared weights.
-
-## 4. Common experimental protocol
-
-### 4.1 Data and leakage control
-
-- Preserve official train/validation/test splits. If a public test server is required, use validation for development and submit to test only after configuration lock.
-- Carve a deterministic calibration subset from the training split, stratified by density and object size. Use it only for thresholds, latency lookup, temperature calibration, and feasible coverage targets.
-- Never choose budgets, loss weights, or feature variants using the test split.
-- Version the raw annotation checksum, conversion script version, ignored-region handling, category mapping, size-bin mapping, and image-resolution policy.
-- Cache per-object diagnostic attributes: area, density bin, baseline objectness quantile, illumination proxy, texture proxy, occlusion/ignore status, distance to image edge, and class frequency.
-
-### 4.2 Budget semantics
-
-The primary budget is an exact top-k count over fixed-cost patches or queries. This removes threshold-induced budget drift. For every image, log:
-
-- requested budget and realized action count;
-- predicted cost and measured downstream cost;
-- retained foreground/background ratio;
-- budget violation, defined as `realized_cost > requested_cost + tolerance`;
-- fallback activation and its cost.
-
-Use three alignment views:
-
-1. **Fixed action count** (primary mechanism comparison);
-2. **Fixed estimated FLOPs**;
-3. **Fixed measured end-to-end latency** (primary deployment comparison).
-
-The main claim must hold under at least two views. Threshold routing is diagnostic only until it can satisfy the same budget-tolerance rule.
-
-### 4.3 Coverage target
-
-For each budget `b`, estimate the feasible GT-oracle coverage `C*(b)` on the calibration set. Set and lock a feasible recall floor, initially:
-
-`tau(b) = min(0.95, C*(b) - 0.02)`.
-
-Report expected object coverage and the lower tail among positive images: P10 coverage and the proportion below `tau(b)`. The coverage loss is successful only if it improves these measures at unchanged top-k; merely retaining more background is not success.
-
-### 4.4 Training and model selection
-
-- Match backbone, initialization, augmentations, optimizer, schedule, input size, and total update count within every comparison.
-- Match selector parameter count and estimated FLOPs for H2/H3 controls. If exact matching is impossible, report both deltas and add a width-matched convolutional control.
-- Use seed 17 to screen clearly inferior variants. Confirm finalists with seeds 17/41/73. Use five seeds for every comparison supporting the final abstract-level claims.
-- Select checkpoints with a validation rule fixed in advance: maximize APt subject to budget and coverage constraints; break ties with lower measured latency.
-- Record every failed and interrupted run; do not silently replace seeds.
-
-### 4.5 Statistical analysis
-
-- Use paired comparisons on identical images and seeds.
-- For AP/recall differences, compute 95% percentile confidence intervals using 10,000 image-level bootstrap resamples, stratified by scene/video where identifiers exist.
-- Report the mean and standard deviation across training seeds. For decisive results, require the effect direction to agree in at least four of five seeds.
-- For latency, run five independent measurement sessions and bootstrap per-image paired latency differences within sessions. Report median, P95, and interquartile range.
-- Correct multiple tests with Holm's method within each hypothesis family. Treat the four budget points as one family.
-- Report effect sizes and confidence intervals, not only p-values. A confidence interval crossing zero is inconclusive, not positive evidence.
-
-### 4.6 Timing protocol
-
-Use the same machine, container/environment, input pipeline, precision, batch size, CUDA/cuDNN settings, sparse kernels, and post-processing for all methods.
-
-- Measure batch size 1 (primary) and one throughput setting (secondary).
-- Warm up at least 200 iterations; time at least 1,000 images or the complete validation split, whichever is larger.
-- Synchronize device execution around timings.
-- Include image transfer, shared stem, selector, spectral branch, fusion, top-k/router, slicing/gather/scatter, detector, merge, and NMS in end-to-end latency.
-- Also record component latency, peak allocated memory, kernel count, FLOPs, parameter count, and action count.
-- Randomize method order within each measurement session. Record device model, driver, runtime, clocks/power mode, temperature range, and git commit.
-
-## 5. Required controls
-
-The following controls must appear at the relevant budget points:
-
-1. Dense detector at original resolution;
-2. Dense detector at matched high resolution;
-3. Reproduced ESOD objectness selector;
-4. Random top-k;
-5. Objectness-only fixed threshold;
-6. Objectness-only fixed top-k;
-7. Spectral-only top-k;
-8. Parameter/FLOP-matched ordinary convolutional branch;
-9. BCRS semantic + spectral top-k;
-10. GT-coverage oracle;
-11. Semantic + spectral GT-coverage oracle;
-12. QueryDet/CSQ for the cross-backend phase;
-13. CEASC only for the optional activation-level phase.
-
-The two GT oracles establish whether failure comes from priority estimation or from an action space with insufficient headroom. They are never presented as deployable methods.
-
-## 6. Experiment sequence and gates
+---
 
 ### Phase 0 — Infrastructure, reproduction, and problem confirmation
 
-| ID | Experiment | Runs/variables | Required outputs |
-|---|---|---|---|
-| E0.1 | Data and metric validation | AI-TOD, VisDrone; dense detector | Dataset manifests, visual annotation audit, official metric parity |
-| E0.2 | ESOD reproduction | Original and high-resolution dense baselines; ESOD; three seeds | AP/APt/APvt, FLOPs, latency, variance, checkpoints |
-| E0.3 | Selector failure audit | Objectness quantiles × size/density/texture/light bins | Object-level coverage curves and low-objectness tiny prevalence |
-| E0.4 | Oracle headroom | Random, objectness, GT coverage, semantic+spectral GT oracle × budget | Selector recall/AP upper-bound curves |
-| E0.5 | Cost calibration | Patch size/count, input size, batch size, downstream modules | Latency lookup table and predicted-vs-measured residuals |
-| E0.6 | Module microbenchmarks | FFT, Sobel/Laplacian, learned depthwise, DCT/wavelet, fusion, top-k, dispatch | Median/P95 latency, memory, kernels, break-even curves |
+| ID | Experiment | Runs/variables | Required outputs | Status |
+|---|---|---|---|---|
+| E0.1 | Data and metric validation | AI-TOD, VisDrone; dense detector | Dataset manifests, visual annotation audit, official metric parity | **COMPLETED** |
+| E0.2 | ESOD reproduction | Original and high-resolution dense baselines; ESOD; 50 epochs | AP/APt/APvt, FLOPs, latency, variance, checkpoints | **COMPLETED** |
+| E0.3 | Selector failure audit | Objectness quantiles × size/density/texture/light bins | Object-level coverage curves and low-objectness tiny prevalence | **IN PROGRESS** |
+| E0.4 | Oracle headroom | Random, objectness, GT coverage, semantic+spectral GT oracle × budget | Selector recall/AP upper-bound curves | **IN PROGRESS** |
+| E0.5 | Cost calibration | Patch size/count, input size, batch size, downstream modules | Latency lookup table and predicted-vs-measured residuals | Pending |
+| E0.6 | Module microbenchmarks | FFT, Sobel/Laplacian, learned depthwise, DCT/wavelet, fusion, top-k, dispatch | Median/P95 latency, memory, kernels, break-even curves | Pending |
 
 **Go:** ESOD reproduction is within the locked tolerance; low-objectness regions contain a meaningful number of tiny targets; the GT oracle produces material headroom; and at least one spectral proxy has a plausible break-even point.  
 **Stop:** There is no oracle headroom or low-objectness tiny subgroup.  

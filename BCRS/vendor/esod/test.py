@@ -352,34 +352,47 @@ def test(data,
     # Save JSON
     if save_json and len(jdict):
         w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
-        if 'visdrone' in opt.data.lower():
-            anno_json = './datasets/VisDrone/annotations/val.json'  # annotations json
-        elif 'tinyperson' in opt.data.lower():
-            anno_json = './datasets/TinyPerson/test.json'  # annotations json
+        data_str = str(opt.data).lower()
+        if 'visdrone' in data_str:
+            cand_paths = [
+                Path(opt.data).parent / 'annotations' / 'val.json',
+                Path('./datasets/VisDrone/annotations/val.json'),
+                Path('/root/autodl-tmp/VisDrone/annotations/val.json'),
+            ]
+            anno_json = str(next((p for p in cand_paths if p.exists()), cand_paths[0]))
+        elif 'tinyperson' in data_str:
+            cand_paths = [
+                Path(opt.data).parent / 'test.json',
+                Path('./datasets/TinyPerson/test.json'),
+            ]
+            anno_json = str(next((p for p in cand_paths if p.exists()), cand_paths[0]))
             format_tinyperson(jdict)
         else:
-            raise NotImplementedError(f'Ground-Truth file for {os.path.basename(opt.data)} not found.')
+            anno_json = None
 
         pred_json = str(save_dir / f"{w}_predictions.json")  # predictions json
-        print('\nEvaluating pycocotools mAP... saving %s...' % pred_json)
+        print('\nSaving COCO predictions JSON to %s...' % pred_json)
         with open(pred_json, 'w') as f:
             json.dump(jdict, f)
 
-        try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
-            from pycocotools.coco import COCO
-            from pycocotools.cocoeval import COCOeval
-        
-            anno = COCO(anno_json)  # init annotations api
-            pred = anno.loadRes(pred_json)  # init predictions api
-            eval = COCOeval(anno, pred, 'bbox')
-            if is_coco:
-                eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.img_files]  # image IDs to evaluate
-            eval.evaluate()
-            eval.accumulate()
-            eval.summarize()
-            # map, map50 = eval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
-        except Exception as e:
-            print(f'pycocotools unable to run: \n{e}')
+        if anno_json and os.path.exists(anno_json):
+            try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
+                from pycocotools.coco import COCO
+                from pycocotools.cocoeval import COCOeval
+
+                print(f'Evaluating pycocotools mAP with ground-truth {anno_json}...')
+                anno = COCO(anno_json)  # init annotations api
+                pred = anno.loadRes(pred_json)  # init predictions api
+                eval = COCOeval(anno, pred, 'bbox')
+                if is_coco:
+                    eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.img_files]  # image IDs to evaluate
+                eval.evaluate()
+                eval.accumulate()
+                eval.summarize()
+            except Exception as e:
+                print(f'pycocotools unable to run: \n{e}')
+        elif anno_json:
+            print(f'pycocotools evaluation skipped (COCO annotation JSON not found at {anno_json}). Standard YOLO/VisDrone metrics computed above.')
 
     # Return results
     model.float()  # for training
