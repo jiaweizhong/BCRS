@@ -151,10 +151,10 @@ def _parse_annotation_file(
                 skipped_rows += 1
                 continue
 
-            center_x = (x + box_width / 2.0) / width
-            center_y = (y + box_height / 2.0) / height
-            normalized_width = box_width / width
-            normalized_height = box_height / height
+            center_x = min(max((x + box_width / 2.0) / width, 0.0), 1.0)
+            center_y = min(max((y + box_height / 2.0) / height, 0.0), 1.0)
+            normalized_width = min(max(box_width / width, 0.0), 1.0)
+            normalized_height = min(max(box_height / height, 0.0), 1.0)
             labels.append(
                 f"{category_id - 1} {center_x:.6f} {center_y:.6f} "
                 f"{normalized_width:.6f} {normalized_height:.6f}\n"
@@ -176,6 +176,7 @@ def _parse_annotation_file(
             )
             annotation_id += 1
 
+    labels = list(dict.fromkeys(labels))
     return labels, annotations, skipped_rows, annotation_id
 
 
@@ -183,15 +184,36 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
     """Prepare one canonical VisDrone split below ``root``."""
 
     images_dir = root / "images" / split
+    if not images_dir.is_dir():
+        for cand in [
+            root / split / "images",
+            root / f"VisDrone2019-DET-{split}" / "images",
+            root / f"VisDrone2019-DET-{split}",
+            root / split,
+        ]:
+            if cand.is_dir():
+                images_dir = cand
+                break
+
     raw_annotations_dir = root / "raw_annotations" / split
-    labels_dir = root / "labels" / split
-    coco_file = root / "annotations" / f"{split}.json"
+    if not raw_annotations_dir.is_dir():
+        for cand in [
+            root / "annotations" / split,
+            root / f"VisDrone2019-DET-{split}" / "annotations",
+            root / split / "annotations",
+            root / f"VisDrone2019-DET-{split}" / "annotations_txt",
+        ]:
+            if cand.is_dir():
+                raw_annotations_dir = cand
+                break
 
     if not images_dir.is_dir():
-        raise ValueError(f"Missing VisDrone image directory: {images_dir}")
+        raise ValueError(
+            f"Missing VisDrone image directory for split {split!r}: {images_dir}"
+        )
     if not raw_annotations_dir.is_dir():
         raise ValueError(
-            f"Missing VisDrone raw annotation directory: {raw_annotations_dir}"
+            f"Missing VisDrone raw annotation directory for split {split!r}: {raw_annotations_dir}"
         )
 
     images = sorted(
@@ -268,6 +290,10 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
         for label_path, content in label_outputs:
             _atomic_write_text(label_path, content)
         _atomic_write_json(coco_file, payload)
+        # Automatically clean up stale YOLO dataset cache files
+        cache_file = labels_dir.parent / f"{split}.cache"
+        if cache_file.is_file():
+            cache_file.unlink(missing_ok=True)
 
     return SplitSummary(
         split=split,

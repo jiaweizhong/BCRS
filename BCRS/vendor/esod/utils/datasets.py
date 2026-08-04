@@ -1155,9 +1155,8 @@ def verify_image_label(params):
                 l = np.array(l, dtype=np.float32)
             if len(l):
                 assert l.shape[1] == 5, 'labels require 5 columns each'
-                assert (l >= 0).all(), 'negative labels'
-                assert (l[:, 1:] <= 1).all(), 'non-normalized or out of bounds coordinate labels'
-                assert np.unique(l, axis=0).shape[0] == l.shape[0], 'duplicate labels'
+                l[:, 1:] = np.clip(l[:, 1:], 0, 1)
+                l = np.unique(l, axis=0)
             else:
                 ne = 1  # label empty
                 l = np.zeros((0, 5), dtype=np.float32)

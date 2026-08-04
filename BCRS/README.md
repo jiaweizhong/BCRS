@@ -56,13 +56,16 @@ VisDrone/
 ```
 
 After copying the official or Kaggle VisDrone2019-DET splits into `images/` and
-`raw_annotations/`, generate both backend formats in one pass:
+`raw_annotations/`, generate both backend formats (YOLO text labels & COCO JSON) in one pass:
 
 ```bash
 export VISDRONE_ROOT=/root/autodl-tmp/VisDrone
-python tools/prepare_visdrone.py --dry-run
-python tools/prepare_visdrone.py
+rm -f $VISDRONE_ROOT/labels/*.cache
+python -m bcrs.datasets.visdrone --root $VISDRONE_ROOT --splits train val test
 ```
+
+> [!IMPORTANT]
+> **Dataset Labels Prerequisite**: You MUST run the `python -m bcrs.datasets.visdrone` command above before running `bcrs train`. Otherwise, the validation split will find 0 labels (`Labels: 0`), causing evaluation metrics (`P`, `R`, `mAP@0.5`) to report `0.0`.
 
 The converter skips ignored regions and the unused `others` category, writes
 zero-based normalized YOLO labels for ESOD, and writes contiguous category IDs
