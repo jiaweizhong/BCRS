@@ -1,0 +1,13 @@
+# BCRS Root Requirements (Python 3.12, PyTorch 2.8+, CUDA 12.8, RTX 5090, NumPy 2.x)
+torch==2.8.0
+torchvision==0.23.0
+numpy==2.2.3
+opencv-python==4.11.0.86
+pillow==11.1.0
+PyYAML==6.0.2
+tqdm==4.67.1
+scikit-image==0.25.2
+scipy==1.15.2
+matplotlib==3.10.0
+thop==0.1.1.post2209072238
+pycocotools==2.0.8

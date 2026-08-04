@@ -21,7 +21,10 @@ import torch
 _orig_torch_load = torch.load
 def _safe_torch_load(*args, **kwargs):
     if "weights_only" not in kwargs and len(args) < 2:
-        kwargs["weights_only"] = False
+        try:
+            return _orig_torch_load(*args, weights_only=False, **kwargs)
+        except TypeError:
+            pass
     return _orig_torch_load(*args, **kwargs)
 torch.load = _safe_torch_load
 

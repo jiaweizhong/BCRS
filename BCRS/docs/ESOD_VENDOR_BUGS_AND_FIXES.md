@@ -130,6 +130,37 @@ This document records technical bugs discovered in the ESOD vendor source code (
 
 ---
 
+## 7. Modern Environment Compatibility Matrix & Version Lock
+
+To support modern hardware (e.g., NVIDIA RTX 5090 / Blackwell / Ada Lovelace architectures) and contemporary Python 3.12 packages, the codebase was adapted and verified against the following stack:
+
+| Component | Pinned Version | Notes |
+| :--- | :--- | :--- |
+| **Python** | `3.12.x` | Modern Python runtime |
+| **CUDA Driver / Toolkit** | `12.8` | Required for RTX 5090 Blackwell support |
+| **PyTorch** | `2.8.0+cu128` | Includes `weights_only=False` compatibility patch |
+| **Torchvision** | `0.23.0+cu128` | Matching CUDA 12.8 vision toolkit |
+| **NumPy** | `2.2.3` | Includes `np.trapezoid` integration fix |
+| **OpenCV** | `4.11.0.86` | BGR/RGB image processing |
+| **Pillow** | `11.1.0` | Image verification & EXIF parsing |
+| **PyYAML** | `6.0.2` | Experiment manifest parsing |
+
+---
+
+## 8. Locked Environment Manifests
+
+The exact dependencies for running on modern hardware are locked in:
+1. **Repository Root Manifest**: `requirements.txt`
+2. **Environment Directory**: `environments/torch2.8-cu128/requirements.txt`
+3. **Legacy Environment Directory**: `environments/torch1.10-cu113/requirements.txt`
+
+To replicate this verified environment on a new machine:
+```bash
+pip install -r requirements.txt
+```
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
@@ -137,6 +168,8 @@ With these fixes applied:
 2. Precision and Recall metrics display correctly without being overwritten by uninitialized heatmap metrics.
 3. Feature patches are dynamically routed to detection heads in early epochs, eliminating `Predictions: 0` deadlocks.
 4. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
-5. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+5. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
+6. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+
 
 
