@@ -34,10 +34,8 @@ def mask_pr(true, posi, targets, precision :list, recall: list, threshold=0.5):
     for bi, x1, y1, x2, y2 in bboxes:
         ins_true = true[bi, 0, y1:y2, x1:x2]
         ins_posi = posi[bi, 0, y1:y2, x1:x2]
-        assert ins_true.sum() > 0
-
-        # precision.append(((ins_true & ins_posi).sum() + 1e-9) / (ins_posi.sum() + 1e-9))
-        recall.append((ins_true & ins_posi).sum() / ins_true.sum())
+        if ins_true.sum() > 0:
+            recall.append((ins_true & ins_posi).sum() / ins_true.sum())
     precision.append(((true & posi).sum() + 1e-9) / (posi.sum() + 1e-9))
     # recall.append((true & posi).sum() / (true.sum() + 1e-9))
 
