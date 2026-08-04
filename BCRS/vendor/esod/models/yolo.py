@@ -84,6 +84,8 @@ class Detect(nn.Module):
         eff_thresh = thresh if (mask >= thresh).any() else max(0.05, float(mask.max()) * 0.5)
         response = mask >= eff_thresh
         indices = (maxima & response).to(dtype)
+        if not indices.any():
+            indices = torch.ones_like(mask, dtype=dtype)
         indices = F.max_pool2d(indices, 3, stride=1, padding=1)  # expansion  
 
         slices = indices[ob, 0, oy, ox].view(offsets.shape[0], 1, patch_h, patch_w)

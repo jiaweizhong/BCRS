@@ -194,10 +194,10 @@ pip install -r requirements.txt
   1. **Threshold Fallback Failure**: `HeatMapParser` in `vendor/esod/models/common.py` natively supported only fixed threshold-based patch selection (`mask_pred >= threshold`). When raw heatmap output values were below `threshold = 0.5`, zero patches were selected, causing `ada_slicer_fast` to return empty cluster lists (`Predictions: 0`).
   2. **Unparsed CLI Arguments**: `vendor/esod/test.py` lacked `--top-k` and `--hm-threshold` CLI flags and did not pass `topk_patches` to `HeatMapParser` instances.
   3. **Adapter Propagation Gap**: `EsodAdapter` in `src/bcrs/backends/esod.py` did not forward `top_k` or `hm_threshold` settings from `ExperimentConfig` to `test.py`.
-- **Fix**:
   1. **Top-K Patch Slicing**: Updated `HeatMapParser` and `ada_slicer_fast` in `vendor/esod/models/common.py`. When `topk` is specified, `ada_slicer_fast` computes 2D max pooled patch scores and dynamically calculates the cutoff score to select the exact Top-$K$ highest response patches per image.
-  2. **CLI Argument Parser**: Added `--top-k` and `--hm-threshold` arguments to `vendor/esod/test.py` and configured `topk_patches` and `threshold` attributes on `HeatMapParser` modules when `--sparse-head` is active.
-  3. **Backend Adapter Forwarding**: Updated `EsodAdapter` in `src/bcrs/backends/esod.py` to forward `top_k` and `hm_threshold` configuration options seamlessly during `bcrs test`.
+  2. **Pixel Index Fallback**: Updated `Detect.get_indices` in `vendor/esod/models/yolo.py` with an automatic fallback (`if not indices.any(): indices = torch.ones_like(mask)`). If sub-patch local-maxima filtering returns zero hit pixels, it preserves full patch features across all selected Top-$K$ patches.
+  3. **CLI Argument Parser**: Added `--top-k` and `--hm-threshold` arguments to `vendor/esod/test.py` and configured `topk_patches` and `threshold` attributes on `HeatMapParser` modules when `--sparse-head` is active.
+  4. **Backend Adapter Forwarding**: Updated `EsodAdapter` in `src/bcrs/backends/esod.py` to forward `top_k` and `hm_threshold` configuration options seamlessly during `bcrs test`.
 
 ---
 
