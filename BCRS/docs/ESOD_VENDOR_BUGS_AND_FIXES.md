@@ -4,27 +4,29 @@ This document records technical bugs discovered in the ESOD vendor source code (
 
 ---
 
-## 1. Variable Shadowing Overwrites Detection Precision & Recall
+## 1. Variable Shadowing Overwrites Detection Precision, Recall & BPR
 
-- **Location**: `vendor/esod/test.py#L305-L311`
-- **Symptom**: During validation, `Precision` and `Recall` metrics in the output table were consistently forced to `0.0`, even when bounding box detection models were converging.
+- **Location**: [`vendor/esod/test.py#L304-L324`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L304-L324)
+- **Symptom**: During validation with `--hm-metric` enabled, `Precision`, `Recall`, and `BPR` (Bounding-box Patch Recall) in the output table were consistently forced to `0.0`, even when bounding box detection models and feature patch slicers were converging.
 - **Root Cause**:
-  In `test.py`, line 298 calculates bounding box detection mean precision (`mp`) and mean recall (`mr`):
-  ```python
-  mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
-  ```
-  However, when the `--hm-metric` flag is enabled, lines 309-310 re-assigned local scalar metrics for heatmap mask precision (`m_p`) and mask recall (`m_r`) to the same variable names `mp` and `mr`:
-  ```python
-  mp = m_p.mean().item() if len(m_p) else 0.0
-  mr = m_r.mean().item() if len(m_r) else 0.0
-  ```
-  During early training epochs, heatmap predictions were unpopulated (`len(m_p) == 0`), evaluating to `0.0`. This shadowed and completely overwritten the bounding box detection `mp` and `mr` values previously calculated.
+  1. **Precision & Recall Shadowing**: In `test.py`, line 298 calculates bounding box detection mean precision (`mp`) and mean recall (`mr`). However, when `--hm-metric` is enabled, lines 309-310 re-assigned local scalar metrics for heatmap mask precision (`m_p`) and mask recall (`m_r`) to the same variable names `mp` and `mr`.
+  2. **BPR Shadowing**: Line 304 calculates the true paper BPR (Bounding-box Patch Recall) from AdaSlicer's feature clusters:
+     ```python
+     bpr, occupy = statistic_items[0] / (nt.sum() + 1e-6), ...
+     ```
+     However, line 311 under `if hm_metric:` re-assigned `bpr` to heatmap pixel-level sparse recall (`sp_r.mean().item()`):
+     ```python
+     bpr = sp_r.mean().item() if len(sp_r) else 0.0
+     ```
+     Because raw heatmap predictions were unpopulated or below the 0.3 threshold during training (`len(sp_r) == 0` or evaluating to `0.0`), this shadowed and completely overwritten the true detection `mp`, `mr`, and patch `bpr` values calculated earlier.
 - **Fix**:
-  Renamed heatmap mask scalar metrics to `hm_p` and `hm_r` in `vendor/esod/test.py`:
+  Renamed heatmap mask scalar metrics to `hm_p`, `hm_r`, and `hm_bpr` in `vendor/esod/test.py`:
   ```python
   hm_p = m_p.mean().item() if len(m_p) else 0.0
   hm_r = m_r.mean().item() if len(m_r) else 0.0
+  hm_bpr = sp_r.mean().item() if len(sp_r) else 0.0
   ```
+  This preserves `bpr` (patch-level recall from AdaSlicer) for evaluation logging and fitness calculation while reporting `hm_bpr` separately.
 
 ---
 
