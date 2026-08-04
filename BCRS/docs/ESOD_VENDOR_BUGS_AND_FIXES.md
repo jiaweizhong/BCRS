@@ -132,7 +132,25 @@ This document records technical bugs discovered in the ESOD vendor source code (
 
 ---
 
-## 7. Modern Environment Compatibility Matrix & Version Lock
+## 7. Python 3.12+ `pkg_resources` Deprecation Guard
+
+- **Location**: [`vendor/esod/utils/general.py#L143-L160`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/utils/general.py#L143-L160)
+- **Symptom**: `AttributeError: 'NoneType' object has no attribute 'parse_version'` when executing `test.py` directly under Python 3.12+.
+- **Root Cause**:
+  In Python 3.12+, `setuptools` removed `pkg_resources`. In `general.py`, the import fallback set `pkg = None`:
+  ```python
+  try:
+      import pkg_resources as pkg
+  except ImportError:
+      pkg = None
+  ```
+  However, `check_python()` and `check_requirements()` subsequently executed `pkg.parse_version(current)` and `pkg.parse_requirements(...)` without verifying whether `pkg` was `None`, causing an `AttributeError` crash on start.
+- **Fix**:
+  Added safe guards `if pkg is None: return` in `check_python` and `check_requirements` in [`vendor/esod/utils/general.py`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/utils/general.py#L143-L155).
+
+---
+
+## 8. Modern Environment Compatibility Matrix & Version Lock
 
 To support modern hardware (e.g., NVIDIA RTX 5090 / Blackwell / Ada Lovelace architectures) and contemporary Python 3.12 packages, the codebase was adapted and verified against the following stack:
 

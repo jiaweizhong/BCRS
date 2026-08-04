@@ -143,6 +143,8 @@ def check_git_status(err_msg=', for updates see https://github.com/ultralytics/y
 
 def check_python(minimum='3.6.0', required=True):
     # Check current python version vs. required python version
+    if pkg is None:
+        return True
     current = platform.python_version()
     result = pkg.parse_version(current) >= pkg.parse_version(minimum)
     if required:
@@ -152,6 +154,8 @@ def check_python(minimum='3.6.0', required=True):
 
 def check_requirements(requirements='requirements.txt', exclude=()):
     # Check installed dependencies meet requirements (pass *.txt file or list of packages)
+    if pkg is None:
+        return
     prefix = colorstr('red', 'bold', 'requirements:')
     check_python()  # check python version
     if isinstance(requirements, (str, Path)):  # requirements.txt file
