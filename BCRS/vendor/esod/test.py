@@ -7,6 +7,18 @@ from threading import Thread
 
 import numpy as np
 import torch
+
+# PyTorch 2.6+ compatibility: default weights_only to False when loading legacy checkpoints/caches
+try:
+    _orig_torch_load = torch.load
+    def _compat_torch_load(*args, **kwargs):
+        if 'weights_only' not in kwargs:
+            kwargs['weights_only'] = False
+        return _orig_torch_load(*args, **kwargs)
+    torch.load = _compat_torch_load
+except Exception:
+    pass
+
 import torch.nn.functional as F
 import yaml
 from tqdm import tqdm
