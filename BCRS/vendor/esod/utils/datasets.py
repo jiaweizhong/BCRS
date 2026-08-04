@@ -17,6 +17,14 @@ from threading import Thread
 import cv2
 import numpy as np
 import torch
+
+_orig_torch_load = torch.load
+def _safe_torch_load(*args, **kwargs):
+    if "weights_only" not in kwargs and len(args) < 2:
+        kwargs["weights_only"] = False
+    return _orig_torch_load(*args, **kwargs)
+torch.load = _safe_torch_load
+
 import torch.nn.functional as F
 import yaml
 from PIL import Image, ExifTags

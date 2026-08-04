@@ -54,7 +54,7 @@ def inspect_dataset(val_path: str) -> None:
     print(f"\nChecking cache file: {cache_file}")
     if cache_file.is_file():
         try:
-            cache = torch.load(cache_file)
+            cache = torch.load(cache_file, weights_only=False)
             print("Cache keys:", [k for k in cache.keys() if isinstance(k, str)][:5])
             results = cache.get("results")
             print(
