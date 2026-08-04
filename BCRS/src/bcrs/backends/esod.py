@@ -93,6 +93,10 @@ class EsodAdapter(BackendAdapter):
             ):
                 if bool(section.get(flag, False)):
                     argv.append(option)
+            if section.get("top_k"):
+                argv.extend(["--top-k", str(section["top_k"])])
+            if section.get("hm_threshold"):
+                argv.extend(["--hm-threshold", str(section["hm_threshold"])])
         argv.extend(self._extra_args(section))
         return CommandSpec(
             argv=tuple(argv),

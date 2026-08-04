@@ -1,0 +1,85 @@
+{
+  "experiment": "bcrs_dual_evidence_visdrone_yolov5m_test",
+  "prediction_file": "work_dirs/bcrs_dual_evidence_visdrone_yolov5m_test/best_predictions.json",
+  "total_predictions": 260435,
+  "label_files_count": 548,
+  "size_bin_breakdown": {
+    "Very Tiny (<16x16)": {
+      "gt_count": 11955,
+      "recalled": 9269,
+      "recall_rate_percent": 77.53
+    },
+    "Tiny (16x16 - 32x32)": {
+      "gt_count": 14631,
+      "recalled": 13400,
+      "recall_rate_percent": 91.59
+    },
+    "Small (32x32 - 96x96)": {
+      "gt_count": 11105,
+      "recalled": 10626,
+      "recall_rate_percent": 95.69
+    },
+    "Medium/Large (>96x96)": {
+      "gt_count": 1068,
+      "recalled": 1044,
+      "recall_rate_percent": 97.75
+    },
+    "TOTAL": {
+      "gt_count": 38759,
+      "recalled": 34339,
+      "recall_rate_percent": 88.60
+    }
+  },
+  "class_breakdown": {
+    "pedestrian": {
+      "gt_count": 8844,
+      "recalled": 7669,
+      "recall_rate_percent": 86.71
+    },
+    "people": {
+      "gt_count": 5125,
+      "recalled": 4105,
+      "recall_rate_percent": 80.10
+    },
+    "bicycle": {
+      "gt_count": 1287,
+      "recalled": 1005,
+      "recall_rate_percent": 78.09
+    },
+    "car": {
+      "gt_count": 14064,
+      "recalled": 13393,
+      "recall_rate_percent": 95.23
+    },
+    "van": {
+      "gt_count": 1975,
+      "recalled": 1772,
+      "recall_rate_percent": 89.72
+    },
+    "truck": {
+      "gt_count": 750,
+      "recalled": 620,
+      "recall_rate_percent": 82.67
+    },
+    "tricycle": {
+      "gt_count": 1045,
+      "recalled": 808,
+      "recall_rate_percent": 77.32
+    },
+    "awning-tricycle": {
+      "gt_count": 532,
+      "recalled": 373,
+      "recall_rate_percent": 70.11
+    },
+    "bus": {
+      "gt_count": 251,
+      "recalled": 214,
+      "recall_rate_percent": 85.26
+    },
+    "motor": {
+      "gt_count": 4886,
+      "recalled": 4380,
+      "recall_rate_percent": 89.64
+    }
+  }
+}

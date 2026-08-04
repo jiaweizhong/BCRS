@@ -97,6 +97,13 @@ def test(data,
     # Configure
     if sparse_head:
         model.model[-1].set_sparse()
+        from models.common import HeatMapParser
+        for m in model.modules():
+            if isinstance(m, HeatMapParser):
+                if hasattr(opt, 'top_k') and opt.top_k > 0:
+                    m.topk_patches = opt.top_k
+                if hasattr(opt, 'hm_threshold') and opt.hm_threshold > 0:
+                    m.threshold = opt.hm_threshold
     model.eval()
     if isinstance(data, str):
         is_coco = data.endswith('coco.yaml')
@@ -441,6 +448,8 @@ if __name__ == '__main__':
     parser.add_argument('--compute-loss', action='store_true', help='compute loss')
     parser.add_argument('--sparse-head', action='store_true', help='use sparse detection head')
     parser.add_argument('--hm-metric', action='store_true', help='use heatmap-related evaluation metrics')
+    parser.add_argument('--top-k', '--topk', type=int, default=0, help='top-k patches to select')
+    parser.add_argument('--hm-threshold', type=float, default=0.0, help='heatmap activation threshold')
     opt = parser.parse_args()
     opt.save_json |= opt.data.endswith('coco.yaml')
     opt.data = check_file(opt.data)  # check file

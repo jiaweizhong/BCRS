@@ -384,7 +384,7 @@ class HeatMapParser(nn.Module):
             return self.uni_slicer(x, mask_pred, self.ratio, self.threshold * 1. + 0., device=device)
         else:
             # total_clusters = self.ada_slicer(mask_pred, self.ratio, self.threshold * 1.0 + 0.)
-            total_clusters = self.ada_slicer_fast(mask_pred, self.ratio, self.threshold * 1.0 + 0.)
+            total_clusters = self.ada_slicer_fast(mask_pred, self.ratio, self.threshold * 1.0 + 0., topk=self.topk_patches)
             if getattr(self, 'cluster_only', False):
                 return self.get_offsets_by_clusters(total_clusters).to(device)
             # t1 = time_synchronized()
