@@ -297,7 +297,7 @@ def test(data,
         nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
     else:
         nt = torch.zeros(1)
-    bpr, occupy = statistic_items[0] / nt.sum(), (statistic_items[1] + 1e-6) / (statistic_items[2] + 1e-6)
+    bpr, occupy = statistic_items[0] / (nt.sum() + 1e-6), (statistic_items[1] + 1e-6) / (statistic_items[2] + 1e-6)
     if hm_metric:
         sp_r = torch.stack(sp_r) if len(sp_r) else torch.tensor([], device=device)
         m_p = torch.stack(m_p) if len(m_p) else torch.tensor([], device=device)
