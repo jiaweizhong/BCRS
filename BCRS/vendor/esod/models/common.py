@@ -500,7 +500,7 @@ class HeatMapParser(nn.Module):
         return outs
     
     @torch.no_grad()
-    def ada_slicer_fast(self, mask_pred: torch.Tensor, ratio=8, threshold=0.3):   # faster
+    def ada_slicer_fast(self, mask_pred: torch.Tensor, ratio=8, threshold=0.3, topk=None):   # faster
         # t0 = time_synchronized()
         bs, height, width = mask_pred.shape
         # assert width % ratio == 0 and height % ratio == 0, f'{width} // {height}'
@@ -527,9 +527,19 @@ class HeatMapParser(nn.Module):
         gy, gx = self.grid
 
         # t1 = time_synchronized()
-        activated = mask_pred >= threshold
-        if not activated.any():
-            activated = mask_pred >= max(0.05, float(mask_pred.max().item()) * 0.5)
+        if topk is not None and topk > 0:
+            padded_mask = F.pad(mask_pred, (0, ratio_x * cluster_w - width, 0, ratio_y * cluster_h - height))
+            patch_scores = F.max_pool2d(padded_mask.unsqueeze(1), (cluster_h, cluster_w), stride=(cluster_h, cluster_w)).squeeze(1)
+            activated = torch.zeros_like(mask_pred, dtype=torch.bool)
+            for bi in range(bs):
+                flat_scores = patch_scores[bi].view(-1)
+                k = min(topk, flat_scores.numel())
+                topk_val = torch.topk(flat_scores, k).values[-1]
+                activated[bi] = mask_pred[bi] >= topk_val
+        else:
+            activated = mask_pred >= threshold
+            if not activated.any():
+                activated = mask_pred >= max(0.05, float(mask_pred.max().item()) * 0.5)
         maxima: torch.Tensor = F.max_pool2d(mask_pred, 3, stride=1, padding=1) == mask_pred
         obj_centers = activated & maxima
         if not obj_centers.any():

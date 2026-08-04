@@ -183,15 +183,31 @@ pip install -r requirements.txt
 
 ---
 
+## 9. Missing Top-K Patch Selection Support in HeatMapParser & Adapter CLI
+
+- **Locations**:
+  - [`vendor/esod/models/common.py#L352-L580`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/common.py#L352-L580)
+  - [`vendor/esod/test.py#L98-L106`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L98-L106), [`#L448-L452`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L448-L452)
+  - [`src/bcrs/backends/esod.py#L93-L98`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L93-L98)
+- **Symptom**: Passing `--set test.top_k=16` during `bcrs test` resulted in zero predictions (`Predictions: 0`).
+- **Root Cause**:
+  1. **Threshold Fallback Failure**: `HeatMapParser` in `vendor/esod/models/common.py` natively supported only fixed threshold-based patch selection (`mask_pred >= threshold`). When raw heatmap output values were below `threshold = 0.5`, zero patches were selected, causing `ada_slicer_fast` to return empty cluster lists (`Predictions: 0`).
+  2. **Unparsed CLI Arguments**: `vendor/esod/test.py` lacked `--top-k` and `--hm-threshold` CLI flags and did not pass `topk_patches` to `HeatMapParser` instances.
+  3. **Adapter Propagation Gap**: `EsodAdapter` in `src/bcrs/backends/esod.py` did not forward `top_k` or `hm_threshold` settings from `ExperimentConfig` to `test.py`.
+- **Fix**:
+  1. **Top-K Patch Slicing**: Updated `HeatMapParser` and `ada_slicer_fast` in `vendor/esod/models/common.py`. When `topk` is specified, `ada_slicer_fast` computes 2D max pooled patch scores and dynamically calculates the cutoff score to select the exact Top-$K$ highest response patches per image.
+  2. **CLI Argument Parser**: Added `--top-k` and `--hm-threshold` arguments to `vendor/esod/test.py` and configured `topk_patches` and `threshold` attributes on `HeatMapParser` modules when `--sparse-head` is active.
+  3. **Backend Adapter Forwarding**: Updated `EsodAdapter` in `src/bcrs/backends/esod.py` to forward `top_k` and `hm_threshold` configuration options seamlessly during `bcrs test`.
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
 1. Ground truth label counts report accurately as **38,759** across all validation passes.
 2. Precision and Recall metrics display correctly without being overwritten by uninitialized heatmap metrics.
 3. Feature patches are dynamically routed to detection heads in early epochs, eliminating `Predictions: 0` deadlocks.
-4. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
-5. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
-6. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
-
-
-
+4. Top-$K$ patch selection ($K=16, 24, 32$) functions reliably during sparse evaluation, enabling precise compute budget experiments.
+5. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
+6. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
+7. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
