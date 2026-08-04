@@ -216,6 +216,9 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
             f"Missing VisDrone raw annotation directory for split {split!r}: {raw_annotations_dir}"
         )
 
+    labels_dir = root / "labels" / split
+    coco_file = root / "annotations" / f"{split}.json"
+
     images = sorted(
         path
         for path in images_dir.iterdir()
