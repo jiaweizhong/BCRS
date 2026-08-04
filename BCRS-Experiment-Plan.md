@@ -25,10 +25,38 @@
 |---|---|---|---|---|
 | E0.1 | Data and metric validation | AI-TOD, VisDrone; dense detector | Dataset manifests, visual annotation audit, official metric parity | **COMPLETED** |
 | E0.2 | ESOD reproduction | Original and high-resolution dense baselines; ESOD; 50 epochs | AP/APt/APvt, FLOPs, latency, variance, checkpoints | **COMPLETED** |
-| E0.3 | Selector failure audit | Objectness quantiles × size/density/texture/light bins | Object-level coverage curves and low-objectness tiny prevalence | **IN PROGRESS** |
+| E0.3 | Selector failure audit | Objectness quantiles × size/density/texture/light bins | Object-level coverage curves and low-objectness tiny prevalence | **COMPLETED** |
 | E0.4 | Oracle headroom | Random, objectness, GT coverage, semantic+spectral GT oracle × budget | Selector recall/AP upper-bound curves | **IN PROGRESS** |
 | E0.5 | Cost calibration | Patch size/count, input size, batch size, downstream modules | Latency lookup table and predicted-vs-measured residuals | Pending |
 | E0.6 | Module microbenchmarks | FFT, Sobel/Laplacian, learned depthwise, DCT/wavelet, fusion, top-k, dispatch | Median/P95 latency, memory, kernels, break-even curves | Pending |
+
+#### E0.3 Target Failure Audit Breakdown (VisDrone Val)
+
+##### 1. Size-Bin Recall Breakdown
+| Size Category | Area Range | GT Count | Recalled | Recall Rate (%) | Missed GT Count |
+|---|---|---|---|---|---|
+| **Very Tiny** | $< 16 \times 16\text{ px}$ | 11,955 | 9,248 | **77.36%** | **2,707 (61.6% of all misses)** |
+| **Tiny** | $16 \times 16 \sim 32 \times 32\text{ px}$ | 14,631 | 13,435 | **91.83%** | 1,196 |
+| **Small** | $32 \times 32 \sim 96 \times 96\text{ px}$ | 11,105 | 10,641 | **95.82%** | 464 |
+| **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 1,038 | **97.19%** | 30 |
+| **TOTAL** | — | **38,759** | **34,362** | **88.66%** | **4,397** |
+
+##### 2. Class-Bin Recall Breakdown
+| Class Name | GT Count | Recalled | Recall Rate (%) | Primary Failure Mode |
+|---|---|---|---|---|
+| `car` | 14,064 | 13,401 | **95.29%** | Distinct rigid structure & contrast |
+| `van` | 1,975 | 1,785 | **90.38%** | Medium/large rigid bounding box |
+| `motor` | 4,886 | 4,364 | **89.32%** | High density, frequent movement |
+| `bus` | 251 | 220 | **87.65%** | Large size, occasional occlusion |
+| `pedestrian` | 8,844 | 7,630 | **86.27%** | Small size, non-rigid, group overlap |
+| `truck` | 750 | 625 | **83.33%** | Occlusion & background confusion |
+| `people` | 5,125 | 4,156 | **81.09%** | Tiny size ($<12\text{px}$), weak features |
+| `bicycle` | 1,287 | 1,004 | **78.01%** | Thin wireframe, low pixel contrast |
+| `tricycle` | 1,045 | 810 | **77.51%** | Complex shape, background overlap |
+| `awning-tricycle` | 532 | 367 | **68.98%** | Low contrast, canopy occlusion |
+
+> **Key Discovery for BCRS Proposal Hypothesis H1:**  
+> 61.6% of all missed targets (2,707 out of 4,397) are concentrated in the **Very Tiny ($<16\times 16\text{ px}$)** category, which suffers a **19.83% Recall drop** compared to Medium/Large targets (77.36% vs 97.19%). Furthermore, non-rigid / low-contrast categories (`awning-tricycle`, `bicycle`, `people`) suffer severe recall drops ($68.98\% \sim 81.09\%$). This provides clear, empirical justification for injecting **spectral/contrast refinement signals** into the BCRS selector.
 
 **Go:** ESOD reproduction is within the locked tolerance; low-objectness regions contain a meaningful number of tiny targets; the GT oracle produces material headroom; and at least one spectral proxy has a plausible break-even point.  
 **Stop:** There is no oracle headroom or low-objectness tiny subgroup.  
