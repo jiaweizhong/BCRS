@@ -310,14 +310,54 @@ class MaskedTransformerBlock(nn.Module):
                           torch.sin(out_h), torch.cos(out_h)], axis=1)[None, :, :].to(dtype).to(device)
 
 
+class BCRSPriorityHead(nn.Module):
+    """
+    BCRS Dual-Evidence Priority Head:
+    Fuses backbone semantic features with lightweight 3x3 depthwise spatial contrast / Laplacian gradient proxies.
+    """
+
+    def __init__(self, in_channels, out_channels=1):
+        super().__init__()
+        self.sem_conv = nn.Sequential(
+            nn.Conv2d(
+                in_channels, in_channels // 2, kernel_size=3, padding=1, bias=False
+            ),
+            nn.BatchNorm2d(in_channels // 2),
+            nn.SiLU(),
+            nn.Conv2d(in_channels // 2, out_channels, kernel_size=1),
+        )
+        self.spatial_contrast = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, padding=1, bias=False
+        )
+        laplacian_kernel = torch.tensor(
+            [[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]], dtype=torch.float32
+        ).view(1, 1, 3, 3)
+        self.spatial_contrast.weight = nn.Parameter(
+            laplacian_kernel, requires_grad=True
+        )
+
+        self.gate = nn.Sequential(
+            nn.Conv2d(2 * out_channels, 8, kernel_size=3, padding=1),
+            nn.SiLU(),
+            nn.Conv2d(8, out_channels, kernel_size=1),
+        )
+
+    def forward(self, x):
+        f_sem = self.sem_conv(x)
+        f_edge = self.spatial_contrast(f_sem)
+        f_cat = torch.cat([f_sem, f_edge], dim=1)
+        return self.gate(f_cat)
+
+
 class HeatMapParser(nn.Module):
-    def __init__(self, c, ratio=8, threshold=0.5, mask_only=False, cluster_only=False):
+    def __init__(self, c, ratio=8, threshold=0.5, mask_only=False, cluster_only=False, topk_patches=None):
         super().__init__()
         self.c = c
         self.ratio = ratio
         self.threshold = threshold
         self.mask_only = mask_only
         self.cluster_only = cluster_only
+        self.topk_patches = topk_patches
 
         self.grid = None
     

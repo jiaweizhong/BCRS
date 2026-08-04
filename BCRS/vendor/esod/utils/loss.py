@@ -330,20 +330,14 @@ class ComputeLoss:
         lpixl, larea, ldist = torch.zeros(1, device=device), torch.zeros(1, device=device), \
                               torch.zeros(1, device=device)
         
-        # weight = None
-        lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight)
+        pos_weight = torch.tensor([5.0], device=device)
+        lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight, pos_weight=pos_weight)
 
         nt = targets.shape[0]
         if nt:  # number of targets
-            pass
+            larea += self.quality_dice_loss(p, masks, weight=weight)
+            ldist += self.sigmoid_quality_focal_loss(p, masks, weight=weight) * 5.0
 
-            # larea += self.dice_loss(p, masks)
-            # ldist += self.sigmoid_focal_loss(p, masks) * 20
-            
-            # larea += self.quality_dice_loss(p, masks, weight=weight)
-            # ldist += self.sigmoid_quality_focal_loss(p, masks, weight=weight) * 20
-
-    
         return lpixl, larea, ldist
 
     @staticmethod
