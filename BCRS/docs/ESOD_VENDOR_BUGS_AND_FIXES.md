@@ -119,11 +119,24 @@ This document records technical bugs discovered in the ESOD vendor source code (
 
 ---
 
+## 6. Deprecated `np.trapz` Method in NumPy 2.0+
+
+- **Location**: `vendor/esod/utils/metrics.py#L210`
+- **Symptom**: `AttributeError: module 'numpy' has no attribute 'trapz'` when computing mAP trapezoidal area integration.
+- **Root Cause**:
+  In `compute_ap`, precision-recall AUC integration called `np.trapz`. In NumPy 2.0+, `np.trapz` was removed and replaced by `np.trapezoid`.
+- **Fix**:
+  Updated `vendor/esod/utils/metrics.py` to dynamically fallback to `np.trapezoid` or `np.trapz` (`getattr(np, 'trapezoid', getattr(np, 'trapz', None))`), ensuring cross-version compatibility on NumPy 1.x and 2.x.
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
 1. Ground truth label counts report accurately as **38,759** across all validation passes.
 2. Precision and Recall metrics display correctly without being overwritten by uninitialized heatmap metrics.
 3. Feature patches are dynamically routed to detection heads in early epochs, eliminating `Predictions: 0` deadlocks.
-4. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+4. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
+5. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+
 

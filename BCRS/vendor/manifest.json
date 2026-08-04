@@ -334,7 +334,7 @@
       "repository": "esod",
       "source": "utils/metrics.py",
       "target": "vendor/esod/utils/metrics.py",
-      "sha256": "7babb2c24add8c0a8d5974ea3abab928116f1922a1e95baecde62fb0c7382eb9"
+      "sha256": "b26330dae386c6f8a44cf714ef0f0ae549690f4d45e3a7d2b213e720cb2605a0"
     },
     {
       "repository": "esod",
