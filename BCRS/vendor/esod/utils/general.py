@@ -20,7 +20,10 @@ from subprocess import check_output
 import cv2
 import numpy as np
 import pandas as pd
-import pkg_resources as pkg
+try:
+    import pkg_resources as pkg
+except ImportError:
+    pkg = None
 import torch
 import torch.nn.functional as F
 import torchvision
