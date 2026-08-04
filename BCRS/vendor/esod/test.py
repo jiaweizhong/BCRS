@@ -299,9 +299,14 @@ def test(data,
         nt = torch.zeros(1)
     bpr, occupy = statistic_items[0] / nt.sum(), (statistic_items[1] + 1e-6) / (statistic_items[2] + 1e-6)
     if hm_metric:
-        sp_r, m_p, m_r = torch.stack(sp_r), torch.stack(m_p), torch.stack(m_r)
-        mp, mr, bpr = m_p.mean().item(), m_r.mean().item(), sp_r.mean().item()
-        print('\n'.join([str(res) for res in hm_verbose(sp_r, torch.cat(attr))]))
+        sp_r = torch.stack(sp_r) if len(sp_r) else torch.tensor([], device=device)
+        m_p = torch.stack(m_p) if len(m_p) else torch.tensor([], device=device)
+        m_r = torch.stack(m_r) if len(m_r) else torch.tensor([], device=device)
+        mp = m_p.mean().item() if len(m_p) else 0.0
+        mr = m_r.mean().item() if len(m_r) else 0.0
+        bpr = sp_r.mean().item() if len(sp_r) else 0.0
+        if len(sp_r) and len(attr):
+            print('\n'.join([str(res) for res in hm_verbose(sp_r, torch.cat(attr))]))
 
 
     # Print results
