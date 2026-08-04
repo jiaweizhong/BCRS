@@ -81,7 +81,8 @@ class Detect(nn.Module):
         ob, ox, oy = (ob1 + gb).view(-1), (ox1 + gx).view(-1), (oy1 + gy).view(-1)
         
         maxima = F.max_pool2d(mask, 3, stride=1, padding=1) == mask
-        response = mask >= thresh
+        eff_thresh = thresh if (mask >= thresh).any() else max(0.05, float(mask.max()) * 0.5)
+        response = mask >= eff_thresh
         indices = (maxima & response).to(dtype)
         indices = F.max_pool2d(indices, 3, stride=1, padding=1)  # expansion  
 

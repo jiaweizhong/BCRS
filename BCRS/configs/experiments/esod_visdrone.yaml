@@ -30,6 +30,6 @@ test:
   checkpoint: work_dirs/esod_visdrone_yolov5m/weights/best.pt
   batch_size: 1
   image_size: 1536
-  sparse_head: true
-  hm_metric: true
+  sparse_head: false
+  hm_metric: false
   save_json: true

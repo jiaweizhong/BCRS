@@ -110,14 +110,16 @@ This document records technical bugs discovered in the ESOD vendor source code (
 
 ---
 
-## 5. Hard Threshold Blocking in HeatMapParser During Early Training
+## 5. Hard Threshold Blocking in HeatMapParser & Sparse Head
 
-- **Location**: `vendor/esod/models/common.py#L484-L490`
-- **Symptom**: `Predictions: 0` during validation in early to mid epochs, preventing candidate boxes from reaching the detection head and reporting mAP.
+- **Locations**:
+  - `vendor/esod/models/common.py#L484-L490`
+  - `vendor/esod/models/yolo.py#L83-L85`
+- **Symptom**: `Predictions: 0` during validation in early to mid epochs or when `--sparse-head` is enabled, preventing candidate boxes from reaching the detection head and reporting mAP.
 - **Root Cause**:
-  `HeatMapParser` uses a strict hard threshold (`threshold = 0.5`) to activate feature patch regions (`activated = mask_pred >= threshold`). During early training epochs, `ObjSeeker`'s predicted heatmap values `mask_pred` are relatively low (< 0.5). When zero pixels pass the 0.5 threshold, `ada_slicer_fast` returned `[torch.zeros((0, 4))]` (zero active patches), causing `model.forward` to return `(None, None)`. As a result, zero feature patches were sent to the detection neck and head, yielding 0 candidate predictions (`Predictions: 0`).
+  Both `HeatMapParser` (`threshold = 0.5`) and `Detect.get_indices` (`thresh = 0.3`) used strict hard thresholds to activate feature patch regions and sparse convolution indices. When predicted heatmap values `mask_pred` were relatively low (< 0.3), zero pixels passed the threshold, causing `ada_slicer_fast` to return `[torch.zeros((0, 4))]` or `get_indices` to yield empty indices (`Predictions: 0`).
 - **Fix**:
-  Added a dynamic threshold fallback in `ada_slicer` and `ada_slicer_fast` (`vendor/esod/models/common.py`). If zero pixels exceed `threshold = 0.5`, it dynamically relaxes the activation threshold to relative local maxima (`max(0.05, float(mask_pred.max()) * 0.5)`), ensuring feature patches are reliably routed to the detection neck and head across all training epochs.
+  Added dynamic threshold fallbacks in `ada_slicer`/`ada_slicer_fast` (`vendor/esod/models/common.py`) and `Detect.get_indices` (`vendor/esod/models/yolo.py`). If zero pixels exceed `threshold`, the system dynamically relaxes the activation threshold to relative local maxima (`max(0.05, float(mask.max()) * 0.5)`), ensuring feature patches and sparse convolutions function reliably across all training and evaluation modes.
 
 ---
 
