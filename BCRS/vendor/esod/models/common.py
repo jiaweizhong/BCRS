@@ -383,8 +383,12 @@ class HeatMapParser(nn.Module):
 
         # t1 = time_synchronized()
         activated = mask_pred >= threshold
+        if not activated.any():
+            activated = mask_pred >= max(0.05, float(mask_pred.max().item()) * 0.5)
         maxima = F.max_pool2d(mask_pred, 3, stride=1, padding=1) == mask_pred
         obj_centers = activated & maxima
+        if not obj_centers.any():
+            obj_centers = maxima
         padding = half_clus_w // 2
         obj_sizes = F.avg_pool2d(mask_pred, padding * 2 + 1, stride=1, padding=padding)
         
@@ -484,8 +488,12 @@ class HeatMapParser(nn.Module):
 
         # t1 = time_synchronized()
         activated = mask_pred >= threshold
+        if not activated.any():
+            activated = mask_pred >= max(0.05, float(mask_pred.max().item()) * 0.5)
         maxima: torch.Tensor = F.max_pool2d(mask_pred, 3, stride=1, padding=1) == mask_pred
         obj_centers = activated & maxima
+        if not obj_centers.any():
+            obj_centers = maxima
         if (~obj_centers).all():
             return [torch.zeros((0, 4), device=device) for _ in range(bs)]
         padding = max(half_clus_w, half_clus_h) // 2

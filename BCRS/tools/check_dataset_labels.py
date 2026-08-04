@@ -82,5 +82,5 @@ def inspect_dataset(val_path: str) -> None:
 
 
 if __name__ == "__main__":
-    val_root = sys.argv[1] if len(sys.argv) > 1 else "/root/autodl-tmp/VisDrone"
+    val_root = sys.argv[1] if len(sys.argv) > 1 else "data/VisDrone"
     inspect_dataset(val_root)
