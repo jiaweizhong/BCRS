@@ -93,7 +93,9 @@ class BackendAdapter(ABC):
     @staticmethod
     def _device_environment(experiment: ExperimentConfig) -> dict[str, str]:
         devices = experiment.devices.strip()
-        env = {"SETUPTOOLS_USE_DISTUTILS": "stdlib"}
+        env = {}
+        if sys.version_info < (3, 12):
+            env["SETUPTOOLS_USE_DISTUTILS"] = "stdlib"
         if devices:
             env["CUDA_VISIBLE_DEVICES"] = devices
         return env
@@ -101,7 +103,11 @@ class BackendAdapter(ABC):
     @staticmethod
     def _python_cmd(experiment: ExperimentConfig, entrypoint: Path) -> list[str]:
         script = (
-            "import distutils.version, runpy, sys; "
+            "try:\n"
+            "    import distutils.version\n"
+            "except ImportError:\n"
+            "    pass\n"
+            "import runpy, sys; "
             "sys.argv = sys.argv[1:]; "
             "runpy.run_path(sys.argv[0], run_name='__main__')"
         )
