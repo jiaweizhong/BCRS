@@ -1,10 +1,8 @@
 from setuptools import setup
-import torch.utils.cpp_extension
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 # Bypass CUDA version mismatch check (host nvcc 12.x vs PyTorch 11.3)
-torch.utils.cpp_extension._check_cuda_version = lambda *args, **kwargs: None
-
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+BuildExtension._check_cuda_version = lambda self: None
 
 setup(
     name='sparse_conv',
@@ -18,4 +16,5 @@ setup(
     ],
     cmdclass={
         'build_ext': BuildExtension
-    })
+    })
+
