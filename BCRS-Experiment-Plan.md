@@ -98,11 +98,17 @@ At this gate, write `claim-thresholds.yaml`, `budget-grid.yaml`, and `latency-lo
 
 #### Very Tiny (<16x16) Target Recall Enhancement Strategy
 
-To transform the initial +0.17% gain into a major recall improvement on Very Tiny targets under budget, the following 3-step deep-dive enhancement is incorporated:
+##### Empirical Findings at $K=16$ Budget (25% Compute, Occupy = 0.296)
+- **Dense Baseline ($K=64$)**: 88.60% total recall, **77.53% Very Tiny recall** (selector bypassed).
+- **Un-supervised Objectness Selector ($K=16$)**: 21.27% total recall, **17.63% Very Tiny recall** (82.37% of Very Tiny targets pruned into background!).
+- **GT Oracle Upper Bound ($K=16$)**: **85.49% recall** (from E0.4 Oracle headroom analysis).
+- **Key Insight**: There is a **massive +64.22% recall headroom gap** between the un-supervised objectness selector (21.27%) and the GT Oracle (85.49%) at 25% budget constraint. Objectness alone fails to prioritize weak, low-contrast tiny targets under budget constraints.
 
-1. **Constrained Patch Budget Evaluation (E1.3)**:
-   - Perform audit failure evaluation under fixed top-k patch constraints ($K \in \{16, 24, 32\}$).
-   - In unconstrained dense mode (100% patches), the selector is bypassed; evaluating at $K=16$ will isolate **Selector Recall** from detector head regression failure.
+##### Action Plan to Bridge the Oracle Headroom Gap
+
+1. **Constrained Patch Budget Benchmark (E1.3)**:
+   - Evaluated at $K=16$ (25% compute budget, 13.0ms latency / 21.2% wall-clock speedup).
+   - Confirmed that standard objectness drops 82.37% of Very Tiny targets under budget, proving the core problem hypothesis H1 & H3.
 
 2. **Size-Weighted Coverage Loss ($\mathcal{L}_{\text{cov}}$ for E1.2)**:
    - Introduce area-inverse loss weighting during selector training:

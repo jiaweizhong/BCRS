@@ -186,7 +186,8 @@ class ComputeLoss:
             assert len(p_seg) == 1
             lpixl, larea, ldist = self.compute_loss_seg(p_seg[0], masks, targets, weight=m_weights)
         
-        loss = (lbox + lobj + lcls) * 1.0 + (lpixl + larea + ldist) * 0.2
+        lambda_cov = float(self.hyp.get('lambda_cov', 0.2))
+        loss = (lbox + lobj + lcls) * 1.0 + (lpixl + larea + ldist) * lambda_cov
         loss_items = torch.cat((lbox, lobj, lcls, lpixl, larea, ldist, loss)).detach()
         return loss * bs, loss_items
 
@@ -330,7 +331,25 @@ class ComputeLoss:
         lpixl, larea, ldist = torch.zeros(1, device=device), torch.zeros(1, device=device), \
                               torch.zeros(1, device=device)
         
-        pos_weight = torch.tensor([5.0], device=device)
+        # Configure pos_weight from hyperparams if provided
+        pos_w_val = float(self.hyp.get('pos_weight', 5.0))
+        pos_weight = torch.tensor([pos_w_val], device=device)
+
+        # Size-weighted coverage enhancement for tiny targets (<16x16 px)
+        if weight is None and targets.shape[0] > 0:
+            weight = torch.ones_like(masks)
+            img_h, img_w = ny * 8, nx * 8
+            for t in targets:
+                b_idx = int(t[0].item())
+                w_px, h_px = t[4].item() * img_w, t[5].item() * img_h
+                area_px = w_px * h_px
+                if area_px < 256.0:  # < 16x16
+                    boost = 1.0 + 3.0 * max(0.0, (256.0 - area_px) / 256.0)
+                    xc_m, yc_m = int(t[2].item() * nx), int(t[3].item() * ny)
+                    y1_m, y2_m = max(0, yc_m - 1), min(ny, yc_m + 2)
+                    x1_m, x2_m = max(0, xc_m - 1), min(nx, xc_m + 2)
+                    weight[b_idx, 0, y1_m:y2_m, x1_m:x2_m] *= boost
+
         lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight, pos_weight=pos_weight)
 
         nt = targets.shape[0]

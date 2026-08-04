@@ -549,6 +549,8 @@ if __name__ == '__main__':
     parser.add_argument('--hm-only', action='store_true', help='training on heatmap prediction only')
     parser.add_argument('--hm-metric', action='store_true', help='use heatmap-related evaluation metrics')
     parser.add_argument('--disable-half', action='store_true', help='disable FP16 half-precision training')
+    parser.add_argument('--lambda-cov', type=float, default=0.2, help='coverage supervision loss weight')
+    parser.add_argument('--pos-weight', type=float, default=5.0, help='positive class weight for coverage loss')
     opt = parser.parse_args()
 
     # Set DDP variables
@@ -598,6 +600,10 @@ if __name__ == '__main__':
     # Hyperparameters
     with open(opt.hyp) as f:
         hyp = yaml.safe_load(f)  # load hyps
+    if hasattr(opt, 'lambda_cov') and opt.lambda_cov is not None:
+        hyp['lambda_cov'] = opt.lambda_cov
+    if hasattr(opt, 'pos_weight') and opt.pos_weight is not None:
+        hyp['pos_weight'] = opt.pos_weight
 
     # Train
     logger.info(opt)

@@ -1,0 +1,87 @@
+{
+  "experiment": "bcrs_dual_evidence_visdrone_yolov5m_test_k16",
+  "budget": "K=16 patches (25% compute budget)",
+  "prediction_file": "results/bcrs_dual_evidence_visdrone_yolov5m_test_k16/best_predictions.json",
+  "total_predictions": 163887,
+  "label_files_count": 548,
+  "occupy_ratio": 0.296,
+  "size_bin_breakdown": {
+    "Very Tiny (<16x16)": {
+      "gt_count": 11955,
+      "recalled": 2108,
+      "recall_rate_percent": 17.63
+    },
+    "Tiny (16x16 - 32x32)": {
+      "gt_count": 14631,
+      "recalled": 3093,
+      "recall_rate_percent": 21.14
+    },
+    "Small (32x32 - 96x96)": {
+      "gt_count": 11105,
+      "recalled": 2702,
+      "recall_rate_percent": 24.33
+    },
+    "Medium/Large (>96x96)": {
+      "gt_count": 1068,
+      "recalled": 340,
+      "recall_rate_percent": 31.84
+    },
+    "TOTAL": {
+      "gt_count": 38759,
+      "recalled": 8243,
+      "recall_rate_percent": 21.27
+    }
+  },
+  "class_breakdown": {
+    "pedestrian": {
+      "gt_count": 8844,
+      "recalled": 1787,
+      "recall_rate_percent": 20.21
+    },
+    "people": {
+      "gt_count": 5125,
+      "recalled": 921,
+      "recall_rate_percent": 17.97
+    },
+    "bicycle": {
+      "gt_count": 1287,
+      "recalled": 224,
+      "recall_rate_percent": 17.40
+    },
+    "car": {
+      "gt_count": 14064,
+      "recalled": 3286,
+      "recall_rate_percent": 23.36
+    },
+    "van": {
+      "gt_count": 1975,
+      "recalled": 434,
+      "recall_rate_percent": 21.97
+    },
+    "truck": {
+      "gt_count": 750,
+      "recalled": 224,
+      "recall_rate_percent": 29.87
+    },
+    "tricycle": {
+      "gt_count": 1045,
+      "recalled": 218,
+      "recall_rate_percent": 20.86
+    },
+    "awning-tricycle": {
+      "gt_count": 532,
+      "recalled": 83,
+      "recall_rate_percent": 15.60
+    },
+    "bus": {
+      "gt_count": 251,
+      "recalled": 48,
+      "recall_rate_percent": 19.12
+    },
+    "motor": {
+      "gt_count": 4886,
+      "recalled": 1018,
+      "recall_rate_percent": 20.84
+    }
+  }
+}

@@ -61,6 +61,10 @@ class EsodAdapter(BackendAdapter):
             ):
                 if bool(section.get(flag, False)):
                     argv.append(option)
+            if section.get("lambda_cov") is not None:
+                argv.extend(["--lambda-cov", str(section["lambda_cov"])])
+            if section.get("pos_weight") is not None:
+                argv.extend(["--pos-weight", str(section["pos_weight"])])
         else:
             checkpoint = experiment.optional_project_path(
                 section.get("checkpoint", experiment.model.get("weights"))

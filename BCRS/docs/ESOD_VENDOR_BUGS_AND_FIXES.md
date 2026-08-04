@@ -201,6 +201,21 @@ pip install -r requirements.txt
 
 ---
 
+## 10. Size-Weighted Coverage Loss Supervision ($\mathcal{L}_{\text{cov}}$) & Training Integration
+
+- **Locations**:
+  - [`vendor/esod/utils/loss.py#L185-L191`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/utils/loss.py#L185-L191), [`#L326-L352`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/utils/loss.py#L326-L352)
+  - [`vendor/esod/train.py#L549-L555`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/train.py#L549-L555), [`#L598-L605`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/train.py#L598-L605)
+  - [`src/bcrs/backends/esod.py#L61-L68`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L61-L68)
+- **Symptom / Motivation**:
+  In vanilla ESOD, segmentation loss (`compute_loss_seg`) relied on fixed hardcoded weights (`pos_weight = 5.0`, `lambda_cov = 0.2`) and uniform target pixel weighting. Standard objectness supervision treats large targets and tiny targets equally per patch, allowing large objects to dominate selector priority scores and causing 82.37% of Very Tiny targets ($<16\times 16\text{ px}$) to be pruned away under $K=16$ budget constraints.
+- **Fix**:
+  1. **Tiny-Target Size-Weighted Boost**: Modified `compute_loss_seg` in `vendor/esod/utils/loss.py`. For each ground-truth target with area $< 16\times 16\text{ px}$ (area $< 256\text{ px}^2$), it calculates an inverse-size weight boost factor ($1.0 + 3.0 \times \frac{256 - \text{Area}}{256}$) applied directly to the positive mask loss map, penalizing selector misses on tiny objects heavily.
+  2. **Configurable Loss Hyperparameters**: Updated `ComputeLoss` and `compute_loss_seg` in `vendor/esod/utils/loss.py` to read `lambda_cov` and `pos_weight` dynamically from `self.hyp`.
+  3. **CLI & Adapter Integration**: Added `--lambda-cov` and `--pos-weight` CLI flags to `vendor/esod/train.py` and updated `EsodAdapter` in `src/bcrs/backends/esod.py` to forward `train.lambda_cov` and `train.pos_weight` settings during `bcrs train`.
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
@@ -208,6 +223,7 @@ With these fixes applied:
 2. Precision and Recall metrics display correctly without being overwritten by uninitialized heatmap metrics.
 3. Feature patches are dynamically routed to detection heads in early epochs, eliminating `Predictions: 0` deadlocks.
 4. Top-$K$ patch selection ($K=16, 24, 32$) functions reliably during sparse evaluation, enabling precise compute budget experiments.
-5. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
-6. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
-7. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+5. Size-weighted coverage loss ($\mathcal{L}_{\text{cov}}$) supervision forces the patch selector to prioritize Very Tiny targets ($<16\times 16\text{ px}$), enabling recall recovery under tight budget constraints.
+6. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
+7. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
+8. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
