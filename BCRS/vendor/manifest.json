@@ -286,7 +286,7 @@
       "repository": "esod",
       "source": "test.py",
       "target": "vendor/esod/test.py",
-      "sha256": "daf213926b96095bcc181c3c5342b2b92c9a50c1f2c663c22767f435855b164f"
+      "sha256": "949c36fae18e07084a59e7c6323551128641d00f5984ad693445d79a13652b06"
     },
     {
       "repository": "esod",

@@ -290,24 +290,38 @@ def test(data,
 
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
-    if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
-        ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
-        mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+    if len(stats):
         nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
+        if stats[0].any():
+            p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+            ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
+            mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+        else:
+            mp, mr, map50, map = 0.0, 0.0, 0.0, 0.0
     else:
         nt = torch.zeros(1)
+        mp, mr, map50, map = 0.0, 0.0, 0.0, 0.0
     bpr, occupy = statistic_items[0] / (nt.sum() + 1e-6), (statistic_items[1] + 1e-6) / (statistic_items[2] + 1e-6)
     if hm_metric:
         sp_r = torch.stack(sp_r) if len(sp_r) else torch.tensor([], device=device)
         m_p = torch.stack(m_p) if len(m_p) else torch.tensor([], device=device)
         m_r = torch.stack(m_r) if len(m_r) else torch.tensor([], device=device)
-        mp = m_p.mean().item() if len(m_p) else 0.0
-        mr = m_r.mean().item() if len(m_r) else 0.0
+        hm_p = m_p.mean().item() if len(m_p) else 0.0
+        hm_r = m_r.mean().item() if len(m_r) else 0.0
         bpr = sp_r.mean().item() if len(sp_r) else 0.0
         if len(sp_r) and len(attr):
             print('\n'.join([str(res) for res in hm_verbose(sp_r, torch.cat(attr))]))
 
+
+    # Diagnostic logging
+    num_preds = len(stats[1]) if len(stats) > 1 else 0
+    num_correct_hits = int(stats[0].sum()) if len(stats) > 0 and hasattr(stats[0], 'sum') else 0
+    print(
+        f"\n[ESOD Validation Diagnostic] GT Targets: {nt.sum():.0f} | "
+        f"Predictions: {num_preds} | Correct IoU>0.5 Hits: {num_correct_hits} | "
+        f"BBox Precision (mp): {mp:.4f} | BBox Recall (mr): {mr:.4f} | "
+        f"mAP@0.5: {map50:.4f} | Heatmap BPR: {bpr:.4f}"
+    )
 
     # Print results
     pf = '%20s' + '%11i' * 2 + '%11.3g' * 6  # print format
