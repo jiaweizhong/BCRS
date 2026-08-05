@@ -61,8 +61,11 @@ class EsodAdapter(BackendAdapter):
             ):
                 if bool(section.get(flag, False)):
                     argv.append(option)
-            if section.get("lambda_cov") is not None:
-                argv.extend(["--lambda-cov", str(section["lambda_cov"])])
+            lambda_cov = section.get("lambda_cov") or section.get(
+                "coverage_loss_weight"
+            )
+            if lambda_cov is not None:
+                argv.extend(["--lambda-cov", str(lambda_cov)])
             if section.get("pos_weight") is not None:
                 argv.extend(["--pos-weight", str(section["pos_weight"])])
         else:

@@ -1,5 +1,5 @@
 schema_version: 1
-name: bcrs_dual_evidence_visdrone_spectral_yolov5m
+name: bcrs_dual_evidence_concat_visdrone_yolov5m
 
 backend:
   name: esod
@@ -7,18 +7,15 @@ backend:
   python: ${BCRS_PYTHON:-python}
 
 model:
-  name: bcrs_dual_evidence_visdrone_spectral_yolov5m
-  config: vendor/esod/configs/models/visdrone_yolov5m_spectral.yaml
+  name: bcrs_dual_evidence_concat_visdrone_yolov5m
+  config: vendor/esod/configs/models/visdrone_yolov5m_concat.yaml
   weights: artifacts/pretrained/yolov5m.pt
-  spectral_enabled: true
-  spectral_kernels: [3, 5]
-  fusion_type: gated
 
 dataset:
   config: configs/datasets/visdrone.yaml
 
 runtime:
-  output_dir: work_dirs/bcrs_dual_evidence_visdrone_spectral_yolov5m
+  output_dir: work_dirs/bcrs_dual_evidence_concat_visdrone_yolov5m
   devices: "0"
   workers: 8
 
@@ -32,7 +29,7 @@ train:
   pos_weight: 2.0
 
 test:
-  checkpoint: work_dirs/bcrs_dual_evidence_visdrone_spectral_yolov5m/weights/best.pt
+  checkpoint: work_dirs/bcrs_dual_evidence_concat_visdrone_yolov5m/weights/best.pt
   batch_size: 1
   image_size: 1536
   sparse_head: true

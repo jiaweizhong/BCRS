@@ -216,6 +216,59 @@ pip install -r requirements.txt
 
 ---
 
+## 11. Backend Adapter Parameter Alias Mismatches (`patch_budget` & `coverage_loss_weight`)
+
+- **Locations**:
+  - [`src/bcrs/backends/esod.py#L64-L68`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L64-L68)
+  - [`src/bcrs/backends/esod.py#L100-L103`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L100-L103)
+- **Symptom**:
+  1. Setting `test.patch_budget: 16` in experiment manifests resulted in `top_k=0` (unconstrained dense evaluation mode, 260k bounding boxes) during `bcrs test`.
+  2. Setting `train.coverage_loss_weight: 0.5` failed to forward `--lambda-cov 0.5` to `train.py`, falling back to default `0.2` coverage weight.
+- **Root Cause**:
+  `EsodAdapter` in `src/bcrs/backends/esod.py` strictly checked `section.get("top_k")` for testing and `section.get("lambda_cov")` for training. When configuration manifests used YAML key aliases (`patch_budget` and `coverage_loss_weight`), the adapter returned `None`, leaving CLI flags unpopulated.
+- **Fix**:
+  Updated `EsodAdapter` in `src/bcrs/backends/esod.py` to transparently resolve parameter aliases:
+  ```python
+  lambda_cov = section.get("lambda_cov") or section.get("coverage_loss_weight")
+  top_k = section.get("top_k") or section.get("patch_budget")
+  ```
+
+---
+
+## 12. Sparse Head Flag Requirement Gate for Top-K Evaluation
+
+- **Locations**:
+  - [`src/bcrs/backends/esod.py#L90-L105`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L90-L105)
+  - [`vendor/esod/test.py#L98-L106`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L98-L106)
+- **Symptom**: Passing `--top-k 16` during evaluation failed to activate patch pruning, executing in unconstrained dense mode (`Occupy: 1.04`, 260,713 predictions).
+- **Root Cause**:
+  In `vendor/esod/test.py`, the patch selection initialization logic (`m.topk_patches = opt.top_k`) was nested inside `if sparse_head:`. If `--sparse-head` was omitted from the command line, `test.py` ignored `opt.top_k` and executed the dense backbone pipeline.
+- **Fix**:
+  Updated `EsodAdapter` in `src/bcrs/backends/esod.py` to automatically inject `--sparse-head` whenever `top_k` / `patch_budget` is set to a value $> 0$:
+  ```python
+  is_sparse = bool(section.get("sparse_head", False)) or (top_k is not None and int(top_k) > 0)
+  if is_sparse:
+      argv.append("--sparse-head")
+  ```
+
+---
+
+## 13. Integrated Phase 2 Dual-Evidence Selection Head (`DualEvidenceSegmenter`)
+
+- **Locations**:
+  - [`vendor/esod/models/spectral.py`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/spectral.py)
+  - [`vendor/esod/models/yolo.py#L236-L255`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/yolo.py#L236-L255), [`#L479`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/yolo.py#L479), [`#L538`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/yolo.py#L538), [`#L631`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/yolo.py#L631)
+  - [`vendor/esod/configs/models/visdrone_yolov5m_spectral.yaml`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/configs/models/visdrone_yolov5m_spectral.yaml)
+- **Symptom**: Models trained with `spectral.py` present in the repository did not execute frequency branch operations, returning single-semantic objectness scores.
+- **Root Cause**:
+  While `spectral.py` implemented `SpectralBranch` and `GatedEvidenceFusion`, the model architecture YAML (`visdrone_yolov5m.yaml`) instantiated `Segmenter` (which only contained 1x1 semantic convs). `yolo.py` lacked a combined module wrapper that executed semantic, spectral, and gated fusion forward steps within a single segmenter head.
+- **Fix**:
+  1. Implemented `DualEvidenceSegmenter` in `vendor/esod/models/yolo.py`, combining 1x1 semantic convolution, multi-kernel Laplacian/Sobel depthwise spectral filtering (`SpectralBranch`), and gated fusion (`GatedEvidenceFusion`).
+  2. Updated `parse_model`, `_initialize_biases`, and forward checks in `yolo.py` to register `DualEvidenceSegmenter`.
+  3. Created `vendor/esod/configs/models/visdrone_yolov5m_spectral.yaml` mapping backbone layer 6 to `DualEvidenceSegmenter`.
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
@@ -224,6 +277,8 @@ With these fixes applied:
 3. Feature patches are dynamically routed to detection heads in early epochs, eliminating `Predictions: 0` deadlocks.
 4. Top-$K$ patch selection ($K=16, 24, 32$) functions reliably during sparse evaluation, enabling precise compute budget experiments.
 5. Size-weighted coverage loss ($\mathcal{L}_{\text{cov}}$) supervision forces the patch selector to prioritize Very Tiny targets ($<16\times 16\text{ px}$), enabling recall recovery under tight budget constraints.
-6. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
-7. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
-8. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+6. Parameter aliases (`patch_budget` and `coverage_loss_weight`) and `--sparse-head` flag injection resolve seamlessly in the backend CLI adapter.
+7. `DualEvidenceSegmenter` integrates semantic Objectness, multi-kernel Laplacian/Sobel spectral filtering, and gated fusion into the PyTorch execution graph.
+8. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
+9. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
+10. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).

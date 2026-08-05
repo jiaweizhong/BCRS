@@ -28,6 +28,7 @@ except:
     SpatialPriorModule = GPViTAdapterSingleStageESOD = None
 from models.spconv import SPYOLOv5Head, SPYOLOv6Head
 from models.experimental import *
+from models.spectral import SpectralBranch, GatedEvidenceFusion
 from utils.autoanchor import check_anchor_order
 from utils.general import make_divisible, check_file, set_logging, xyxy2xywh
 from utils.torch_utils import time_synchronized, fuse_conv_and_bn, model_info, scale_img, initialize_weights, \
@@ -231,6 +232,54 @@ class Segmenter(nn.Module):
     
     def forward(self, x):
         return [self.m[i](x[i]) for i in range(len(x))]
+
+
+class DualEvidenceSegmenter(nn.Module):
+    def __init__(self, nc=10, ch=()):
+        super(DualEvidenceSegmenter, self).__init__()
+        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
+        self.spectral_branches = nn.ModuleList(SpectralBranch(x, nc) for x in ch)
+        self.gated_fusions = nn.ModuleList(GatedEvidenceFusion(x, x) for x in ch)
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_semantic = self.m[i](x[i])
+            p_spectral, f_spectral = self.spectral_branches[i](x[i])
+            p_fused, _ = self.gated_fusions[i](p_semantic, p_spectral, x[i], f_spectral)
+            res.append(p_fused)
+        return res
+
+
+class SpectralOnlySegmenter(nn.Module):
+    def __init__(self, nc=10, ch=()):
+        super(SpectralOnlySegmenter, self).__init__()
+        self.spectral_branches = nn.ModuleList(SpectralBranch(x, nc) for x in ch)
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_spectral, _ = self.spectral_branches[i](x[i])
+            res.append(p_spectral)
+        return res
+
+
+class ConcatEvidenceSegmenter(nn.Module):
+    def __init__(self, nc=10, ch=()):
+        super(ConcatEvidenceSegmenter, self).__init__()
+        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
+        self.spectral_branches = nn.ModuleList(SpectralBranch(x, nc) for x in ch)
+        self.concat_convs = nn.ModuleList(nn.Conv2d(nc * 2, nc, 1) for _ in ch)
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_semantic = self.m[i](x[i])
+            p_spectral, _ = self.spectral_branches[i](x[i])
+            p_concat = self.concat_convs[i](torch.cat([p_semantic, p_spectral], dim=1))
+            res.append(p_concat)
+        return res
+
     
 
 class Center(nn.Module):
@@ -457,7 +506,7 @@ class Model(nn.Module):
             
             x = m(x)  # run
 
-            if isinstance(m, Segmenter):
+            if isinstance(m, (Segmenter, DualEvidenceSegmenter, SpectralOnlySegmenter, ConcatEvidenceSegmenter)):
                 pred_masks = x
                 if hm_only:
                     return (None, None), pred_masks
@@ -516,11 +565,12 @@ class Model(nn.Module):
                 mi.cls_pred.bias.data.fill_(math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum()))
 
         for m_ in self.model:
-            if str(m_.type) == 'models.yolo.Segmenter':  # stupid
-                for mi in m_.m:
-                    b = mi.bias.view(-1)
-                    b.data += math.log(0.6 / (m.nc - 0.99) if cf is None else torch.log(cf / cf.sum()))  # cls
-                    mi.bias = torch.nn.Parameter(b, requires_grad=True)
+            if str(m_.type) in ("models.yolo.Segmenter", "models.yolo.DualEvidenceSegmenter", "models.yolo.SpectralOnlySegmenter", "models.yolo.ConcatEvidenceSegmenter"):  # stupid
+                if hasattr(m_, "m"):
+                    for mi in m_.m:
+                        b = mi.bias.view(-1)
+                        b.data += math.log(0.6 / (m.nc - 0.99) if cf is None else torch.log(cf / cf.sum()))  # cls
+                        mi.bias = torch.nn.Parameter(b, requires_grad=True)
                 break
 
     def _print_biases(self):
@@ -609,7 +659,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             c2 = sum([ch[x] for x in f])
         elif m in [Add, nn.Identity]:
             pass
-        elif m in [Detect, Segmenter]:  # Detect2 deprecated
+        elif m in [Detect, Segmenter, DualEvidenceSegmenter, SpectralOnlySegmenter, ConcatEvidenceSegmenter]:  # Detect2 deprecated
             args.append([ch[x] for x in f])
             if len(args) > 1 and isinstance(args[1], int):  # number of anchors
                 args[1] = [list(range(args[1] * 2))] * len(f)
