@@ -25,7 +25,6 @@ from detectron2.modeling.meta_arch.build import META_ARCH_REGISTRY
 from torch.cuda import Event
 from utils.loop_matcher import LoopMatcher
 
-
 __all__ = ["RetinaNet_D2"]
 
 
@@ -63,9 +62,12 @@ def permute_all_cls_and_box_to_N_HWA_K_and_concat(box_cls, box_delta, num_classe
 
 
 def permute_all_to_NHWA_K_not_concat(box_cls, box_delta, num_classes=80):
-    box_cls_flattened = [permute_to_N_HWA_K(x, num_classes).view(-1, num_classes) for x in box_cls]
+    box_cls_flattened = [
+        permute_to_N_HWA_K(x, num_classes).view(-1, num_classes) for x in box_cls
+    ]
     box_delta_flattened = [permute_to_N_HWA_K(x, 4).view(-1, 4) for x in box_delta]
     return box_cls_flattened, box_delta_flattened
+
 
 @META_ARCH_REGISTRY.register()
 class RetinaNet_D2(nn.Module):
@@ -104,7 +106,9 @@ class RetinaNet_D2(nn.Module):
         self.anchor_generator = build_anchor_generator(cfg, feature_shapes)
 
         # Matching and loss
-        self.box2box_transform = Box2BoxTransform(weights=cfg.MODEL.RPN.BBOX_REG_WEIGHTS)
+        self.box2box_transform = Box2BoxTransform(
+            weights=cfg.MODEL.RPN.BBOX_REG_WEIGHTS
+        )
         if cfg.MODEL.CUSTOM.USE_LOOP_MATCHER:
             self.matcher = LoopMatcher(
                 cfg.MODEL.RETINANET.IOU_THRESHOLDS,
@@ -118,8 +122,12 @@ class RetinaNet_D2(nn.Module):
                 allow_low_quality_matches=True,
             )
 
-        self.register_buffer("pixel_mean", torch.Tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1))
-        self.register_buffer("pixel_std", torch.Tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1))
+        self.register_buffer(
+            "pixel_mean", torch.Tensor(cfg.MODEL.PIXEL_MEAN).view(-1, 1, 1)
+        )
+        self.register_buffer(
+            "pixel_std", torch.Tensor(cfg.MODEL.PIXEL_STD).view(-1, 1, 1)
+        )
 
         """
         In Detectron1, loss is normalized by number of foreground samples in the batch.
@@ -127,7 +135,9 @@ class RetinaNet_D2(nn.Module):
         using it lead to lower performance. Here we maintain an EMA of #foreground to
         stabilize the normalizer.
         """
-        self.loss_normalizer = 100  # initialize with any reasonable #fg that's not too small
+        self.loss_normalizer = (
+            100  # initialize with any reasonable #fg that's not too small
+        )
         self.loss_normalizer_momentum = 0.9
 
         self.iter = 0
@@ -136,7 +146,6 @@ class RetinaNet_D2(nn.Module):
     @property
     def device(self):
         return self.pixel_mean.device
-
 
     def visualize_training(self, batched_inputs, results):
         from detectron2.utils.visualizer import Visualizer
@@ -154,9 +163,13 @@ class RetinaNet_D2(nn.Module):
             img = img[::-1, :, :]
         img = img.transpose(1, 2, 0)
         v_gt = Visualizer(img, None)
-        v_gt = v_gt.overlay_instances(boxes=batched_inputs[image_index]["instances"].gt_boxes)
+        v_gt = v_gt.overlay_instances(
+            boxes=batched_inputs[image_index]["instances"].gt_boxes
+        )
         anno_img = v_gt.get_image()
-        processed_results = detector_postprocess(results[image_index], img.shape[0], img.shape[1])
+        processed_results = detector_postprocess(
+            results[image_index], img.shape[0], img.shape[1]
+        )
         predicted_boxes = processed_results.pred_boxes.tensor.detach().cpu().numpy()
 
         v_pred = Visualizer(img, None)
@@ -164,9 +177,10 @@ class RetinaNet_D2(nn.Module):
         prop_img = v_pred.get_image()
         vis_img = np.vstack((anno_img, prop_img))
         vis_img = vis_img.transpose(2, 0, 1)
-        vis_name = f"Top: GT bounding boxes; Bottom: {max_boxes} Highest Scoring Results"
+        vis_name = (
+            f"Top: GT bounding boxes; Bottom: {max_boxes} Highest Scoring Results"
+        )
         storage.put_image(vis_name, vis_img)
-
 
     def forward(self, batched_inputs):
         start_event = Event(enable_timing=True)
@@ -177,12 +191,14 @@ class RetinaNet_D2(nn.Module):
             gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
         elif "targets" in batched_inputs[0]:
             log_first_n(
-                logging.WARN, "'targets' in the model inputs is now renamed to 'instances'!", n=10
+                logging.WARN,
+                "'targets' in the model inputs is now renamed to 'instances'!",
+                n=10,
             )
             gt_instances = [x["targets"].to(self.device) for x in batched_inputs]
         else:
             gt_instances = None
-        
+
         start_event.record()
 
         features = self.backbone(images.tensor)
@@ -196,13 +212,23 @@ class RetinaNet_D2(nn.Module):
             # losses = self.losses(gt_classes, gt_anchors_reg_deltas, box_cls, box_delta)
 
             gt_classes, gt_deltas = self.get_det_gt(anchors, gt_instances)
-            losses = self.det_loss(gt_classes, gt_deltas, box_cls, box_delta, self.focal_loss_alpha, self.focal_loss_gamma, self.cls_weights, self.reg_weights)
-
+            losses = self.det_loss(
+                gt_classes,
+                gt_deltas,
+                box_cls,
+                box_delta,
+                self.focal_loss_alpha,
+                self.focal_loss_gamma,
+                self.cls_weights,
+                self.reg_weights,
+            )
 
             if self.vis_period > 0:
                 storage = get_event_storage()
                 if storage.iter % self.vis_period == 0:
-                    results = self.inference(box_cls, box_delta, anchors, images.image_sizes)
+                    results = self.inference(
+                        box_cls, box_delta, anchors, images.image_sizes
+                    )
                     self.visualize_training(batched_inputs, results)
 
             return losses
@@ -218,9 +244,8 @@ class RetinaNet_D2(nn.Module):
                 height = input_per_image.get("height", image_size[0])
                 width = input_per_image.get("width", image_size[1])
                 r = detector_postprocess(results_per_image, height, width)
-                processed_results.append({"instances": r, 'time':total_time})
+                processed_results.append({"instances": r, "time": total_time})
             return processed_results
-
 
     @torch.no_grad()
     def get_det_gt(self, anchors, targets):
@@ -229,16 +254,18 @@ class RetinaNet_D2(nn.Module):
         anchor_layers = len(anchors)
         anchor_lens = [len(x) for x in anchors]
         start_inds = [0] + [sum(anchor_lens[:i]) for i in range(1, len(anchor_lens))]
-        end_inds = [sum(anchor_lens[:i+1]) for i in range(len(anchor_lens))]
+        end_inds = [sum(anchor_lens[: i + 1]) for i in range(len(anchor_lens))]
         anchors = Boxes.cat(anchors)  # Rx4
 
         for targets_per_image in targets:
             if type(self.matcher) == Matcher:
                 match_quality_matrix = pairwise_iou(targets_per_image.gt_boxes, anchors)
                 gt_matched_idxs, anchor_labels = self.matcher(match_quality_matrix)
-                del(match_quality_matrix)
+                del match_quality_matrix
             else:
-                gt_matched_idxs, anchor_labels = self.matcher(targets_per_image.gt_boxes, anchors)
+                gt_matched_idxs, anchor_labels = self.matcher(
+                    targets_per_image.gt_boxes, anchors
+                )
 
             has_gt = len(targets_per_image) > 0
             if has_gt:
@@ -259,18 +286,33 @@ class RetinaNet_D2(nn.Module):
                 gt_anchors_reg_deltas_i = torch.zeros_like(anchors.tensor)
 
             gt_classes.append([gt_classes_i[s:e] for s, e in zip(start_inds, end_inds)])
-            gt_anchors_deltas.append([gt_anchors_reg_deltas_i[s:e] for s, e in zip(start_inds, end_inds)])
-        
-        gt_classes = [torch.stack([x[i] for x in gt_classes]) for i in range(anchor_layers)]
-        gt_anchors_deltas = [torch.stack([x[i] for x in gt_anchors_deltas]) for i in range(anchor_layers)]
+            gt_anchors_deltas.append(
+                [gt_anchors_reg_deltas_i[s:e] for s, e in zip(start_inds, end_inds)]
+            )
+
+        gt_classes = [
+            torch.stack([x[i] for x in gt_classes]) for i in range(anchor_layers)
+        ]
+        gt_anchors_deltas = [
+            torch.stack([x[i] for x in gt_anchors_deltas]) for i in range(anchor_layers)
+        ]
 
         gt_classes = torch.cat([x.flatten() for x in gt_classes])
         gt_anchors_deltas = torch.cat([x.reshape(-1, 4) for x in gt_anchors_deltas])
 
         return gt_classes, gt_anchors_deltas
 
-
-    def det_loss(self, gt_classes, gt_anchors_deltas, pred_logits, pred_deltas, alphas, gammas, cls_weights, reg_weights):
+    def det_loss(
+        self,
+        gt_classes,
+        gt_anchors_deltas,
+        pred_logits,
+        pred_deltas,
+        alphas,
+        gammas,
+        cls_weights,
+        reg_weights,
+    ):
         def convert_gt_cls(logits, gt_class, f_idxs):
             gt_classes_target = torch.zeros_like(logits)
             gt_classes_target[f_idxs, gt_class[f_idxs]] = 1
@@ -279,12 +321,14 @@ class RetinaNet_D2(nn.Module):
         assert len(cls_weights) == len(pred_logits)
         assert len(cls_weights) == len(reg_weights)
 
-        pred_logits, pred_deltas = permute_all_to_NHWA_K_not_concat(pred_logits, pred_deltas, self.num_classes)
-        
+        pred_logits, pred_deltas = permute_all_to_NHWA_K_not_concat(
+            pred_logits, pred_deltas, self.num_classes
+        )
+
         lengths = [x.shape[0] for x in pred_logits]
         start_inds = [0] + [sum(lengths[:i]) for i in range(1, len(lengths))]
-        end_inds = [sum(lengths[:i+1]) for i in range(len(lengths))]
-        
+        end_inds = [sum(lengths[: i + 1]) for i in range(len(lengths))]
+
         gt_classes = gt_classes.flatten()
         gt_anchors_deltas = gt_anchors_deltas.view(-1, 4)
 
@@ -297,35 +341,47 @@ class RetinaNet_D2(nn.Module):
             + (1 - self.loss_normalizer_momentum) * num_foreground
         )
         gt_clsses_list = [gt_classes[s:e] for s, e in zip(start_inds, end_inds)]
-        gt_anchors_deltas_list = [gt_anchors_deltas[s:e] for s, e in zip(start_inds, end_inds)]
+        gt_anchors_deltas_list = [
+            gt_anchors_deltas[s:e] for s, e in zip(start_inds, end_inds)
+        ]
         valid_idxs_list = [valid_idxs[s:e] for s, e in zip(start_inds, end_inds)]
-        foreground_idxs_list = [foreground_idxs[s:e] for s, e in zip(start_inds, end_inds)]
+        foreground_idxs_list = [
+            foreground_idxs[s:e] for s, e in zip(start_inds, end_inds)
+        ]
 
         loss_cls = [
-            w * sigmoid_focal_loss_jit(
+            w
+            * sigmoid_focal_loss_jit(
                 x[v],
                 convert_gt_cls(x, g, f)[v].detach(),
                 alpha=alpha,
                 gamma=gamma,
-                reduction="sum"
-            ) 
-            for w, x, g, v, f, alpha, gamma in zip(cls_weights, pred_logits, gt_clsses_list, valid_idxs_list, foreground_idxs_list, alphas, gammas)
-        ]
-        
-        loss_box_reg = [
-            w * smooth_l1_loss(
-                x[f], 
-                g[f].detach(),
-                beta=self.smooth_l1_loss_beta,
-                reduction="sum"
+                reduction="sum",
             )
-            for w, x, g, f in zip(reg_weights, pred_deltas, gt_anchors_deltas_list, foreground_idxs_list)
+            for w, x, g, v, f, alpha, gamma in zip(
+                cls_weights,
+                pred_logits,
+                gt_clsses_list,
+                valid_idxs_list,
+                foreground_idxs_list,
+                alphas,
+                gammas,
+            )
         ]
-        
-        loss_cls = sum(loss_cls) / max(1., self.loss_normalizer)
-        loss_box_reg = sum(loss_box_reg) / max(1., self.loss_normalizer)
-        return {"loss_cls": loss_cls, "loss_box_reg": loss_box_reg}
 
+        loss_box_reg = [
+            w
+            * smooth_l1_loss(
+                x[f], g[f].detach(), beta=self.smooth_l1_loss_beta, reduction="sum"
+            )
+            for w, x, g, f in zip(
+                reg_weights, pred_deltas, gt_anchors_deltas_list, foreground_idxs_list
+            )
+        ]
+
+        loss_cls = sum(loss_cls) / max(1.0, self.loss_normalizer)
+        loss_box_reg = sum(loss_box_reg) / max(1.0, self.loss_normalizer)
+        return {"loss_cls": loss_cls, "loss_box_reg": loss_box_reg}
 
     def inference(self, box_cls, box_delta, anchors, image_sizes):
         """
@@ -345,14 +401,20 @@ class RetinaNet_D2(nn.Module):
         box_delta = [permute_to_N_HWA_K(x, 4) for x in box_delta]
 
         for img_idx, image_size in enumerate(image_sizes):
-            box_cls_per_image = [box_cls_per_level[img_idx] for box_cls_per_level in box_cls]
-            box_reg_per_image = [box_reg_per_level[img_idx] for box_reg_per_level in box_delta]
+            box_cls_per_image = [
+                box_cls_per_level[img_idx] for box_cls_per_level in box_cls
+            ]
+            box_reg_per_image = [
+                box_reg_per_level[img_idx] for box_reg_per_level in box_delta
+            ]
             results_per_image = self.inference_single_image(
-                box_cls_per_image, box_reg_per_image, anchors, (image_size[0]*self.scale_factor, image_size[1]*self.scale_factor)
+                box_cls_per_image,
+                box_reg_per_image,
+                anchors,
+                (image_size[0] * self.scale_factor, image_size[1] * self.scale_factor),
             )
             results.append(results_per_image)
         return results
-
 
     def inference_single_image(self, box_cls, box_delta, anchors, image_size):
         """
@@ -398,7 +460,9 @@ class RetinaNet_D2(nn.Module):
             box_reg_i = box_reg_i[anchor_idxs]
             anchors_i = anchors_i[anchor_idxs]
             # predict boxes
-            predicted_boxes = self.box2box_transform.apply_deltas(box_reg_i, anchors_i.tensor)
+            predicted_boxes = self.box2box_transform.apply_deltas(
+                box_reg_i, anchors_i.tensor
+            )
 
             boxes_all.append(predicted_boxes)
             scores_all.append(predicted_prob)
@@ -407,9 +471,9 @@ class RetinaNet_D2(nn.Module):
         boxes_all, scores_all, class_idxs_all = [
             cat(x) for x in [boxes_all, scores_all, class_idxs_all]
         ]
- 
+
         keep = batched_nms(boxes_all, scores_all, class_idxs_all, self.nms_threshold)
-        
+
         keep = keep[: self.max_detections_per_image]
 
         result = Instances(image_size)
@@ -417,7 +481,6 @@ class RetinaNet_D2(nn.Module):
         result.scores = scores_all[keep]
         result.pred_classes = class_idxs_all[keep]
         return result
-
 
     def preprocess_image(self, batched_inputs):
         """
@@ -466,16 +529,23 @@ class RetinaNetHead(nn.Module):
         self.cls_score = nn.Conv2d(
             in_channels, num_anchors * num_classes, kernel_size=3, stride=1, padding=1
         )
-        self.bbox_pred = nn.Conv2d(in_channels, num_anchors * 4, kernel_size=3, stride=1, padding=1)
+        self.bbox_pred = nn.Conv2d(
+            in_channels, num_anchors * 4, kernel_size=3, stride=1, padding=1
+        )
 
         # Initialization
-        for modules in [self.cls_subnet, self.bbox_subnet, self.cls_score, self.bbox_pred]:
+        for modules in [
+            self.cls_subnet,
+            self.bbox_subnet,
+            self.cls_score,
+            self.bbox_pred,
+        ]:
             for layer in modules.modules():
                 if isinstance(layer, nn.Conv2d):
-                    #torch.nn.init.xavier_normal_(layer.weight)
+                    # torch.nn.init.xavier_normal_(layer.weight)
                     torch.nn.init.normal_(layer.weight, mean=0, std=0.01)
                     torch.nn.init.constant_(layer.bias, 0)
-                    
+
         # Use prior in model initialization to improve stability
         bias_value = -(math.log((1 - prior_prob) / prior_prob))
         torch.nn.init.constant_(self.cls_score.bias, bias_value)

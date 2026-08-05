@@ -6,9 +6,7 @@ from train_tools.coco_infer import default_argument_parser, start_train
 from models.retinanet.retinanet import RetinaNet_D2
 from models.querydet.detector import RetinaNetQueryDet
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = default_argument_parser().parse_args()
     print("Command Line Args:", args)
     launch(

@@ -44,20 +44,21 @@ class Mapper:
         self.load_proposals = False
         self.keypoint_hflip_indices = None
         # fmt: on
-        
+
         self.is_train = is_train
 
     def __call__(self, dataset_dict):
 
-        dataset_dict = copy.deepcopy(dataset_dict)  
+        dataset_dict = copy.deepcopy(dataset_dict)
         image = utils.read_image(dataset_dict["file_name"], format=self.img_format)
         utils.check_image_size(dataset_dict, image)
 
         image, transforms = T.apply_transform_gens(self.tfm_gens, image)
         image_shape = image.shape[:2]  # h, w
 
-        dataset_dict["image"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
-
+        dataset_dict["image"] = torch.as_tensor(
+            np.ascontiguousarray(image.transpose(2, 0, 1))
+        )
 
         if not self.is_train:
             dataset_dict.pop("annotations", None)
@@ -71,9 +72,7 @@ class Mapper:
 
             # USER: Implement additional transformations if you have other types of data
             annos = [
-                utils.transform_instance_annotations(
-                    obj, transforms, image_shape
-                )
+                utils.transform_instance_annotations(obj, transforms, image_shape)
                 for obj in dataset_dict.pop("annotations")
                 if obj.get("iscrowd", 0) == 0
             ]
@@ -88,40 +87,26 @@ def build_transform_gen(cfg, is_train):
     if is_train:
         sample_style = cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING
     else:
-        sample_style = 'choice'
-    
+        sample_style = "choice"
+
     logger = logging.getLogger(__name__)
     tfm_gens = []
     if is_train:
         tfm_gens.append(T.RandomFlip(horizontal=True, vertical=False))
-        tfm_gens.append(T.ResizeShortestEdge(short_edge_length=cfg.VISDRONE.SHORT_LENGTH, max_size=cfg.VISDRONE.MAX_LENGTH, sample_style=sample_style))
+        tfm_gens.append(
+            T.ResizeShortestEdge(
+                short_edge_length=cfg.VISDRONE.SHORT_LENGTH,
+                max_size=cfg.VISDRONE.MAX_LENGTH,
+                sample_style=sample_style,
+            )
+        )
     else:
-        tfm_gens.append(T.ResizeShortestEdge(short_edge_length=[cfg.VISDRONE.TEST_LENGTH], max_size=cfg.VISDRONE.TEST_LENGTH, sample_style=sample_style))
-        
+        tfm_gens.append(
+            T.ResizeShortestEdge(
+                short_edge_length=[cfg.VISDRONE.TEST_LENGTH],
+                max_size=cfg.VISDRONE.TEST_LENGTH,
+                sample_style=sample_style,
+            )
+        )
+
     return tfm_gens
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,18 +1,19 @@
 import os
-import csv 
+import csv
 import json
 import torch
 import logging
 import itertools
-import numpy as np 
+import numpy as np
 
 from detectron2.evaluation.evaluator import DatasetEvaluator
 import detectron2.utils.comm as comm
 import itertools
-from collections import OrderedDict 
+from collections import OrderedDict
 from detectron2.evaluation.coco_evaluation import instances_to_coco_json
 
-import numpy as np 
+import numpy as np
+
 
 class JsonEvaluator(DatasetEvaluator):
     def __init__(self, out_json, distributed=True, class_add_1=True):
@@ -26,20 +27,20 @@ class JsonEvaluator(DatasetEvaluator):
 
         self.reset()
 
-    
     def reset(self):
         self._predictions = []
 
-
     def process(self, inputs, outputs):
         for input, output in zip(inputs, outputs):
-            img_name = os.path.split(input['file_name'])[-1].split('.')[0] 
+            img_name = os.path.split(input["file_name"])[-1].split(".")[0]
             if "instances" in output:
                 prediction = {"img_name": img_name}
                 instances = output["instances"].to(self._cpu_device)
                 if self.class_add_1:
                     instances.pred_classes += 1
-                prediction["instances"] = instances_to_coco_json(instances, input['image_id'])
+                prediction["instances"] = instances_to_coco_json(
+                    instances, input["image_id"]
+                )
                 self._predictions.append(prediction)
 
     def evaluate(self):
@@ -51,18 +52,16 @@ class JsonEvaluator(DatasetEvaluator):
                 return {}
         else:
             predictions = self._predictions
-        
+
         if len(predictions) == 0:
             return {}
-        
+
         det_preds = []
         for pred in predictions:
-            det_preds = det_preds + pred['instances']
+            det_preds = det_preds + pred["instances"]
 
         with open(self._out_json, "w") as f:
             f.write(json.dumps(det_preds))
             f.flush()
 
         return {}
-
-

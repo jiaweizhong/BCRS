@@ -17,8 +17,18 @@ from .custom import CustomDataset
 
 @DATASETS.register_module()
 class UAVDataset(CustomDataset):
-    CLASSES = ('pedestrian', 'people', 'bicycle', 'car', 'van',
-               'truck', 'tricycle', 'awning-tricycle', 'bus', 'motor')
+    CLASSES = (
+        "pedestrian",
+        "people",
+        "bicycle",
+        "car",
+        "van",
+        "truck",
+        "tricycle",
+        "awning-tricycle",
+        "bus",
+        "motor",
+    )
 
     def load_annotations(self, ann_file):
         self.coco = COCO(ann_file)
@@ -28,30 +38,30 @@ class UAVDataset(CustomDataset):
         data_infos = []
         for i in self.img_ids:
             info = self.coco.loadImgs([i])[0]
-            info['filename'] = info['file_name']
+            info["filename"] = info["file_name"]
             data_infos.append(info)
         return data_infos
 
     def get_ann_info(self, idx):
-        img_id = self.data_infos[idx]['id']
+        img_id = self.data_infos[idx]["id"]
         ann_ids = self.coco.getAnnIds(imgIds=[img_id])
         ann_info = self.coco.loadAnns(ann_ids)
         return self._parse_ann_info(self.data_infos[idx], ann_info)
 
     def get_cat_ids(self, idx):
-        img_id = self.data_infos[idx]['id']
+        img_id = self.data_infos[idx]["id"]
         ann_ids = self.coco.getAnnIds(imgIds=[img_id])
         ann_info = self.coco.loadAnns(ann_ids)
-        return [ann['category_id'] for ann in ann_info]
+        return [ann["category_id"] for ann in ann_info]
 
     def _filter_imgs(self, min_size=32):
         """Filter images too small or without ground truths."""
         valid_inds = []
-        ids_with_ann = set(_['image_id'] for _ in self.coco.anns.values())
+        ids_with_ann = set(_["image_id"] for _ in self.coco.anns.values())
         for i, img_info in enumerate(self.data_infos):
             if self.filter_empty_gt and self.img_ids[i] not in ids_with_ann:
                 continue
-            if min(img_info['width'], img_info['height']) >= min_size:
+            if min(img_info["width"], img_info["height"]) >= min_size:
                 valid_inds.append(i)
         return valid_inds
 
@@ -76,7 +86,6 @@ class UAVDataset(CustomDataset):
                 continue
             return data
 
-    
     def get_subset_by_classes(self):
         """Get img ids that contain any category in class_ids.
 
@@ -98,7 +107,7 @@ class UAVDataset(CustomDataset):
         data_infos = []
         for i in self.img_ids:
             info = self.coco.loadImgs([i])[0]
-            info['filename'] = info['file_name']
+            info["filename"] = info["file_name"]
             data_infos.append(info)
         return data_infos
 
@@ -118,24 +127,30 @@ class UAVDataset(CustomDataset):
         gt_labels = []
         gt_bboxes_ignore = []
         gt_masks_ann = []
-        width = img_info['width']
-        height = img_info['height']
+        width = img_info["width"]
+        height = img_info["height"]
 
         for i, ann in enumerate(ann_info):
-            if ann.get('ignore', False):
+            if ann.get("ignore", False):
                 continue
-            x1, y1, w, h = ann['bbox']
-            if ann['area'] <= 0 or w < 1 or h < 1 or x1 > width - 10 or y1 > height - 10:
+            x1, y1, w, h = ann["bbox"]
+            if (
+                ann["area"] <= 0
+                or w < 1
+                or h < 1
+                or x1 > width - 10
+                or y1 > height - 10
+            ):
                 continue
-            if ann['category_id'] not in self.cat_ids:
+            if ann["category_id"] not in self.cat_ids:
                 continue
             bbox = [x1, y1, x1 + w, y1 + h]
-            if ann.get('iscrowd', False):
+            if ann.get("iscrowd", False):
                 gt_bboxes_ignore.append(bbox)
             else:
                 gt_bboxes.append(bbox)
-                gt_labels.append(self.cat2label[ann['category_id']])
-                gt_masks_ann.append(ann['segmentation'])
+                gt_labels.append(self.cat2label[ann["category_id"]])
+                gt_masks_ann.append(ann["segmentation"])
 
         if gt_bboxes:
             gt_bboxes = np.array(gt_bboxes, dtype=np.float32)
@@ -149,14 +164,15 @@ class UAVDataset(CustomDataset):
         else:
             gt_bboxes_ignore = np.zeros((0, 4), dtype=np.float32)
 
-        seg_map = img_info['filename'].replace('jpg', 'png')
+        seg_map = img_info["filename"].replace("jpg", "png")
 
         ann = dict(
             bboxes=gt_bboxes,
             labels=gt_labels,
             bboxes_ignore=gt_bboxes_ignore,
             masks=gt_masks_ann,
-            seg_map=seg_map)
+            seg_map=seg_map,
+        )
 
         return ann
 
@@ -176,10 +192,10 @@ class UAVDataset(CustomDataset):
             bboxes = results[idx]
             for i in range(bboxes.shape[0]):
                 data = dict()
-                data['image_id'] = img_id
-                data['bbox'] = self.xyxy2xywh(bboxes[i])
-                data['score'] = float(bboxes[i][4])
-                data['category_id'] = 1
+                data["image_id"] = img_id
+                data["bbox"] = self.xyxy2xywh(bboxes[i])
+                data["score"] = float(bboxes[i][4])
+                data["category_id"] = 1
                 json_results.append(data)
         return json_results
 
@@ -192,15 +208,15 @@ class UAVDataset(CustomDataset):
             # print(result)
             for label in range(len(result)):
                 # if label >= len(self.cat_ids):
-                #     continue 
+                #     continue
                 bboxes = result[label]
                 # print(label, len(bboxes))
                 for i in range(bboxes.shape[0]):
                     data = dict()
-                    data['image_id'] = img_id
-                    data['bbox'] = self.xyxy2xywh(bboxes[i])
-                    data['score'] = float(bboxes[i][4])
-                    data['category_id'] = self.cat_ids[label]
+                    data["image_id"] = img_id
+                    data["bbox"] = self.xyxy2xywh(bboxes[i])
+                    data["score"] = float(bboxes[i][4])
+                    data["category_id"] = self.cat_ids[label]
                     json_results.append(data)
                     # print(data)
         return json_results
@@ -216,10 +232,10 @@ class UAVDataset(CustomDataset):
                 bboxes = det[label]
                 for i in range(bboxes.shape[0]):
                     data = dict()
-                    data['image_id'] = img_id
-                    data['bbox'] = self.xyxy2xywh(bboxes[i])
-                    data['score'] = float(bboxes[i][4])
-                    data['category_id'] = self.cat_ids[label]
+                    data["image_id"] = img_id
+                    data["bbox"] = self.xyxy2xywh(bboxes[i])
+                    data["score"] = float(bboxes[i][4])
+                    data["category_id"] = self.cat_ids[label]
                     bbox_json_results.append(data)
 
                 # segm results
@@ -232,13 +248,13 @@ class UAVDataset(CustomDataset):
                     mask_score = [bbox[4] for bbox in bboxes]
                 for i in range(bboxes.shape[0]):
                     data = dict()
-                    data['image_id'] = img_id
-                    data['bbox'] = self.xyxy2xywh(bboxes[i])
-                    data['score'] = float(mask_score[i])
-                    data['category_id'] = self.cat_ids[label]
-                    if isinstance(segms[i]['counts'], bytes):
-                        segms[i]['counts'] = segms[i]['counts'].decode()
-                    data['segmentation'] = segms[i]
+                    data["image_id"] = img_id
+                    data["bbox"] = self.xyxy2xywh(bboxes[i])
+                    data["score"] = float(mask_score[i])
+                    data["category_id"] = self.cat_ids[label]
+                    if isinstance(segms[i]["counts"], bytes):
+                        segms[i]["counts"] = segms[i]["counts"].decode()
+                    data["segmentation"] = segms[i]
                     segm_json_results.append(data)
         return bbox_json_results, segm_json_results
 
@@ -264,22 +280,22 @@ class UAVDataset(CustomDataset):
         result_files = dict()
         if isinstance(results[0], list):
             json_results = self._det2json(results)
-            result_files['bbox'] = f'{outfile_prefix}.bbox.json'
-            result_files['proposal'] = f'{outfile_prefix}.bbox.json'
-            mmcv.dump(json_results, result_files['bbox'])
+            result_files["bbox"] = f"{outfile_prefix}.bbox.json"
+            result_files["proposal"] = f"{outfile_prefix}.bbox.json"
+            mmcv.dump(json_results, result_files["bbox"])
         elif isinstance(results[0], tuple):
             json_results = self._segm2json(results)
-            result_files['bbox'] = f'{outfile_prefix}.bbox.json'
-            result_files['proposal'] = f'{outfile_prefix}.bbox.json'
-            result_files['segm'] = f'{outfile_prefix}.segm.json'
-            mmcv.dump(json_results[0], result_files['bbox'])
-            mmcv.dump(json_results[1], result_files['segm'])
+            result_files["bbox"] = f"{outfile_prefix}.bbox.json"
+            result_files["proposal"] = f"{outfile_prefix}.bbox.json"
+            result_files["segm"] = f"{outfile_prefix}.segm.json"
+            mmcv.dump(json_results[0], result_files["bbox"])
+            mmcv.dump(json_results[1], result_files["segm"])
         elif isinstance(results[0], np.ndarray):
             json_results = self._proposal2json(results)
-            result_files['proposal'] = f'{outfile_prefix}.proposal.json'
-            mmcv.dump(json_results, result_files['proposal'])
+            result_files["proposal"] = f"{outfile_prefix}.proposal.json"
+            mmcv.dump(json_results, result_files["proposal"])
         else:
-            raise TypeError('invalid type of results')
+            raise TypeError("invalid type of results")
         return result_files
 
     def fast_eval_recall(self, results, proposal_nums, iou_thrs, logger=None):
@@ -292,9 +308,9 @@ class UAVDataset(CustomDataset):
                 continue
             bboxes = []
             for ann in ann_info:
-                if ann.get('ignore', False) or ann['iscrowd']:
+                if ann.get("ignore", False) or ann["iscrowd"]:
                     continue
-                x1, y1, w, h = ann['bbox']
+                x1, y1, w, h = ann["bbox"]
                 bboxes.append([x1, y1, x1 + w, y1 + h])
             bboxes = np.array(bboxes, dtype=np.float32)
             if bboxes.shape[0] == 0:
@@ -302,7 +318,8 @@ class UAVDataset(CustomDataset):
             gt_bboxes.append(bboxes)
 
         recalls = eval_recalls(
-            gt_bboxes, results, proposal_nums, iou_thrs, logger=logger)
+            gt_bboxes, results, proposal_nums, iou_thrs, logger=logger
+        )
         ar = recalls.mean(axis=1)
         return ar
 
@@ -320,27 +337,31 @@ class UAVDataset(CustomDataset):
                 the json filepaths, tmp_dir is the temporal directory created
                 for saving json files when jsonfile_prefix is not specified.
         """
-        assert isinstance(results, list), 'results must be a list'
-        assert len(results) == len(self), (
-            'The length of results is not equal to the dataset len: {} != {}'.
-                format(len(results), len(self)))
+        assert isinstance(results, list), "results must be a list"
+        assert len(results) == len(
+            self
+        ), "The length of results is not equal to the dataset len: {} != {}".format(
+            len(results), len(self)
+        )
 
         if jsonfile_prefix is None:
             tmp_dir = tempfile.TemporaryDirectory()
-            jsonfile_prefix = osp.join(tmp_dir.name, 'results')
+            jsonfile_prefix = osp.join(tmp_dir.name, "results")
         else:
             tmp_dir = None
         result_files = self.results2json(results, jsonfile_prefix)
         return result_files, tmp_dir
 
-    def evaluate(self,
-                 results,
-                 metric='bbox',
-                 logger=None,
-                 jsonfile_prefix=None,
-                 classwise=False,
-                 proposal_nums=(100, 300, 1000),
-                 iou_thrs=np.arange(0.5, 0.96, 0.05)):
+    def evaluate(
+        self,
+        results,
+        metric="bbox",
+        logger=None,
+        jsonfile_prefix=None,
+        classwise=False,
+        proposal_nums=(100, 300, 1000),
+        iou_thrs=np.arange(0.5, 0.96, 0.05),
+    ):
         """Evaluation in COCO protocol.
 
         Args:
@@ -364,59 +385,65 @@ class UAVDataset(CustomDataset):
         """
 
         metrics = metric if isinstance(metric, list) else [metric]
-        allowed_metrics = ['bbox', 'segm', 'proposal', 'proposal_fast']
+        allowed_metrics = ["bbox", "segm", "proposal", "proposal_fast"]
         for metric in metrics:
             if metric not in allowed_metrics:
-                raise KeyError(f'metric {metric} is not supported')
+                raise KeyError(f"metric {metric} is not supported")
 
         result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
 
         eval_results = {}
         cocoGt = self.coco
         for metric in metrics:
-            msg = f'Evaluating {metric}...'
+            msg = f"Evaluating {metric}..."
             if logger is None:
-                msg = '\n' + msg
+                msg = "\n" + msg
             print_log(msg, logger=logger)
 
-            if metric == 'proposal_fast':
+            if metric == "proposal_fast":
                 ar = self.fast_eval_recall(
-                    results, proposal_nums, iou_thrs, logger='silent')
+                    results, proposal_nums, iou_thrs, logger="silent"
+                )
                 log_msg = []
                 for i, num in enumerate(proposal_nums):
-                    eval_results[f'AR@{num}'] = ar[i]
-                    log_msg.append(f'\nAR@{num}\t{ar[i]:.4f}')
-                log_msg = ''.join(log_msg)
+                    eval_results[f"AR@{num}"] = ar[i]
+                    log_msg.append(f"\nAR@{num}\t{ar[i]:.4f}")
+                log_msg = "".join(log_msg)
                 print_log(log_msg, logger=logger)
                 continue
 
             if metric not in result_files:
-                raise KeyError(f'{metric} is not in results')
+                raise KeyError(f"{metric} is not in results")
             try:
                 cocoDt = cocoGt.loadRes(result_files[metric])
             except IndexError:
                 print_log(
-                    'The testing results of the whole dataset is empty.',
+                    "The testing results of the whole dataset is empty.",
                     logger=logger,
-                    level=logging.ERROR)
+                    level=logging.ERROR,
+                )
                 break
 
-            iou_type = 'bbox' if metric == 'proposal' else metric
+            iou_type = "bbox" if metric == "proposal" else metric
             cocoEval = COCOeval(cocoGt, cocoDt, iou_type)
             cocoEval.params.catIds = self.cat_ids
             cocoEval.params.imgIds = self.img_ids
-            if metric == 'proposal':
+            if metric == "proposal":
                 cocoEval.params.useCats = 0
                 cocoEval.params.maxDets = list(proposal_nums)
                 cocoEval.evaluate()
                 cocoEval.accumulate()
                 cocoEval.summarize()
                 metric_items = [
-                    'AR@100', 'AR@300', 'AR@1000', 'AR_s@1000', 'AR_m@1000',
-                    'AR_l@1000'
+                    "AR@100",
+                    "AR@300",
+                    "AR@1000",
+                    "AR_s@1000",
+                    "AR_m@1000",
+                    "AR_l@1000",
                 ]
                 for i, item in enumerate(metric_items):
-                    val = float(f'{cocoEval.stats[i + 6]:.3f}')
+                    val = float(f"{cocoEval.stats[i + 6]:.3f}")
                     eval_results[item] = val
             else:
                 cocoEval.evaluate()
@@ -425,7 +452,7 @@ class UAVDataset(CustomDataset):
                 if classwise:  # Compute per-category AP
                     # Compute per-category AP
                     # from https://github.com/facebookresearch/detectron2/
-                    precisions = cocoEval.eval['precision']
+                    precisions = cocoEval.eval["precision"]
                     # precision: (iou, recall, cls, area range, max dets)
                     assert len(self.cat_ids) == precisions.shape[2]
 
@@ -439,34 +466,32 @@ class UAVDataset(CustomDataset):
                         if precision.size:
                             ap = np.mean(precision)
                         else:
-                            ap = float('nan')
+                            ap = float("nan")
                         results_per_category.append(
-                            (f'{nm["name"]}', f'{float(ap):0.3f}'))
+                            (f'{nm["name"]}', f"{float(ap):0.3f}")
+                        )
 
                     num_columns = min(6, len(results_per_category) * 2)
-                    results_flatten = list(
-                        itertools.chain(*results_per_category))
-                    headers = ['category', 'AP'] * (num_columns // 2)
-                    results_2d = itertools.zip_longest(*[
-                        results_flatten[i::num_columns]
-                        for i in range(num_columns)
-                    ])
+                    results_flatten = list(itertools.chain(*results_per_category))
+                    headers = ["category", "AP"] * (num_columns // 2)
+                    results_2d = itertools.zip_longest(
+                        *[results_flatten[i::num_columns] for i in range(num_columns)]
+                    )
                     table_data = [headers]
                     table_data += [result for result in results_2d]
                     table = AsciiTable(table_data)
-                    print_log('\n' + table.table, logger=logger)
+                    print_log("\n" + table.table, logger=logger)
 
-                metric_items = [
-                    'mAP', 'mAP_50', 'mAP_75', 'mAP_s', 'mAP_m', 'mAP_l'
-                ]
+                metric_items = ["mAP", "mAP_50", "mAP_75", "mAP_s", "mAP_m", "mAP_l"]
                 for i in range(len(metric_items)):
-                    key = f'{metric}_{metric_items[i]}'
-                    val = float(f'{cocoEval.stats[i]:.3f}')
+                    key = f"{metric}_{metric_items[i]}"
+                    val = float(f"{cocoEval.stats[i]:.3f}")
                     eval_results[key] = val
                 ap = cocoEval.stats[:6]
-                eval_results[f'{metric}_mAP_copypaste'] = (
-                    f'{ap[0]:.3f} {ap[1]:.3f} {ap[2]:.3f} {ap[3]:.3f} '
-                    f'{ap[4]:.3f} {ap[5]:.3f}')
+                eval_results[f"{metric}_mAP_copypaste"] = (
+                    f"{ap[0]:.3f} {ap[1]:.3f} {ap[2]:.3f} {ap[3]:.3f} "
+                    f"{ap[4]:.3f} {ap[5]:.3f}"
+                )
         if tmp_dir is not None:
             tmp_dir.cleanup()
         return eval_results

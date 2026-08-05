@@ -74,8 +74,11 @@ class Trainer(DefaultTrainer):
 
         ckpt = DetectionCheckpointer(model)
         self.start_iter = 0
-        self.start_iter = ckpt.resume_or_load(cfg.MODEL.WEIGHTS, resume=resume).get("iteration", -1) + 1
-        self.iter =self.start_iter
+        self.start_iter = (
+            ckpt.resume_or_load(cfg.MODEL.WEIGHTS, resume=resume).get("iteration", -1)
+            + 1
+        )
+        self.iter = self.start_iter
 
         optimizer = self.build_optimizer(cfg, model)
         data_loader = self.build_train_loader(cfg)
@@ -107,13 +110,15 @@ class Trainer(DefaultTrainer):
             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
         evaluator_list = []
         if cfg.META_INFO.EVAL_AP:
-            evaluator_list.append(COCOEvaluatorFPN(dataset_name, cfg, True, output_folder))
+            evaluator_list.append(
+                COCOEvaluatorFPN(dataset_name, cfg, True, output_folder)
+            )
         return DatasetEvaluators(evaluator_list)
-    
+
     @classmethod
     def build_test_loader(cls, cfg, dataset_name):
         return build_detection_test_loader(cfg, dataset_name, ValMapper(cfg))
-    
+
 
 def default_argument_parser(epilog=None):
     """
@@ -126,8 +131,7 @@ def default_argument_parser(epilog=None):
         argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
-        epilog=epilog
-        or f"""
+        epilog=epilog or f"""
         Examples:
 
         Run on single machine:
@@ -139,24 +143,37 @@ def default_argument_parser(epilog=None):
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--config-file", default="", metavar="FILE", help="path to config file")
+    parser.add_argument(
+        "--config-file", default="", metavar="FILE", help="path to config file"
+    )
     parser.add_argument(
         "--resume",
         action="store_true",
         help="whether to attempt to resume from the checkpoint directory",
     )
-    parser.add_argument("--eval-only", action="store_true", help="perform evaluation only")
-    parser.add_argument("--no-pretrain", action="store_true", help="whether to load pretrained model")
-    parser.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
-    parser.add_argument("--num-machines", type=int, default=1, help="total number of machines")
     parser.add_argument(
-        "--machine-rank", type=int, default=0, help="the rank of this machine (unique per machine)"
+        "--eval-only", action="store_true", help="perform evaluation only"
+    )
+    parser.add_argument(
+        "--no-pretrain", action="store_true", help="whether to load pretrained model"
+    )
+    parser.add_argument(
+        "--num-gpus", type=int, default=1, help="number of gpus *per machine*"
+    )
+    parser.add_argument(
+        "--num-machines", type=int, default=1, help="total number of machines"
+    )
+    parser.add_argument(
+        "--machine-rank",
+        type=int,
+        default=0,
+        help="the rank of this machine (unique per machine)",
     )
 
     # PyTorch still may leave orphan processes in multi-gpu training.
     # Therefore we use a deterministic way to obtain port,
     # so that users are aware of orphan processes by seeing the port occupied.
-    port = 2 ** 15 + 2 ** 14 + hash(os.getuid() if sys.platform != "win32" else 1) % 2 ** 14
+    port = 2**15 + 2**14 + hash(os.getuid() if sys.platform != "win32" else 1) % 2**14
     parser.add_argument(
         "--dist-url",
         default="tcp://127.0.0.1:{}".format(port),

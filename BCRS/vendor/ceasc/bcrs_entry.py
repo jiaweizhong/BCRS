@@ -14,7 +14,6 @@ from pathlib import Path
 import runpy
 import sys
 
-
 ROOT = Path(__file__).resolve().parent
 
 
@@ -56,7 +55,9 @@ def load_plugins() -> None:
 
 def main() -> None:
     if len(sys.argv) < 2 or sys.argv[1] not in {"train", "test"}:
-        raise SystemExit("usage: bcrs_entry.py {train|test} [MMDetection arguments ...]")
+        raise SystemExit(
+            "usage: bcrs_entry.py {train|test} [MMDetection arguments ...]"
+        )
     stage = sys.argv.pop(1)
     load_plugins()
     entrypoint = ROOT / "tools" / f"{stage}.py"

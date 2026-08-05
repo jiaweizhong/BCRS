@@ -10,7 +10,6 @@ from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
 
 
-
 class ValMapper(object):
     """
     COCO validation mapper, with annotations
@@ -21,10 +20,8 @@ class ValMapper(object):
 
         self.tfm_gens = utils.build_transform_gen(cfg, self.is_train)
 
-        self.img_format     = cfg.INPUT.FORMAT
+        self.img_format = cfg.INPUT.FORMAT
         assert not cfg.MODEL.LOAD_PROPOSALS, "not supported yet"
-    
-        
 
     def __call__(self, dataset_dict):
         """
@@ -40,7 +37,9 @@ class ValMapper(object):
 
         image, transforms = T.apply_transform_gens(self.tfm_gens, image)
         image_shape = image.shape[:2]  # h, w
-        dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+        dataset_dict["image"] = torch.as_tensor(
+            image.transpose(2, 0, 1).astype("float32")
+        )
 
         for anno in dataset_dict["annotations"]:
             anno.pop("segmentation", None)
@@ -49,7 +48,7 @@ class ValMapper(object):
         annos = [
             utils.transform_instance_annotations(
                 obj, transforms, image_shape, keypoint_hflip_indices=None
-                )
+            )
             for obj in dataset_dict.pop("annotations")
             if obj.get("iscrowd", 0) == 0
         ]
@@ -58,5 +57,3 @@ class ValMapper(object):
 
         dataset_dict["instances"] = instances[instances.gt_boxes.nonempty()]
         return dataset_dict
-
-  

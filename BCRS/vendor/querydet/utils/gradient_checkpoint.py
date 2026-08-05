@@ -17,12 +17,16 @@ def detach_variable(inputs: Tuple[Any, ...]) -> Tuple[torch.Tensor, ...]:
         return tuple(out)
     else:
         raise RuntimeError(
-            "Only tuple of tensors is supported. Got Unsupported input type: ", type(inputs).__name__)
+            "Only tuple of tensors is supported. Got Unsupported input type: ",
+            type(inputs).__name__,
+        )
 
 
 def check_backward_validity(inputs: Iterable[Any]) -> None:
     if not any(inp.requires_grad for inp in inputs if isinstance(inp, torch.Tensor)):
-        warnings.warn("None of the inputs have requires_grad=True. Gradients will be None")
+        warnings.warn(
+            "None of the inputs have requires_grad=True. Gradients will be None"
+        )
 
 
 # We can't know if the run_fn will internally move some args to different devices,
@@ -35,8 +39,13 @@ def check_backward_validity(inputs: Iterable[Any]) -> None:
 def get_device_states(*args) -> Tuple[List[int], List[torch.Tensor]]:
     # This will not error out if "arg" is a CPU tensor or a non-tensor type because
     # the conditionals short-circuit.
-    fwd_gpu_devices = list(set(arg.get_device() for arg in args
-                               if isinstance(arg, torch.Tensor) and arg.is_cuda))
+    fwd_gpu_devices = list(
+        set(
+            arg.get_device()
+            for arg in args
+            if isinstance(arg, torch.Tensor) and arg.is_cuda
+        )
+    )
 
     fwd_gpu_states = []
     for device in fwd_gpu_devices:
@@ -78,7 +87,9 @@ class CheckpointFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *args):
         if not torch.autograd._is_checkpoint_valid():
-            raise RuntimeError("Checkpointing is not compatible with .grad(), please use .backward() if possible")
+            raise RuntimeError(
+                "Checkpointing is not compatible with .grad(), please use .backward() if possible"
+            )
         inputs = ctx.saved_tensors
         # Stash the surrounding rng state, and mimic the state that was
         # present at this time during forward.  Restore the surrounding state
@@ -98,8 +109,10 @@ class CheckpointFunction(torch.autograd.Function):
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)
         torch.autograd.backward(outputs, args)
-        grads = tuple(inp.grad if isinstance(inp, torch.Tensor) else inp
-                      for inp in detached_inputs)
+        grads = tuple(
+            inp.grad if isinstance(inp, torch.Tensor) else inp
+            for inp in detached_inputs
+        )
         return (None, None) + grads
 
 
@@ -157,9 +170,11 @@ def checkpoint(function, *args, **kwargs):
         Output of running :attr:`function` on :attr:`*args`
     """
     # Hack to mix *args with **kwargs in a python 2.7-compliant way
-    preserve = kwargs.pop('preserve_rng_state', True)
+    preserve = kwargs.pop("preserve_rng_state", True)
     if kwargs:
-        raise ValueError("Unexpected keyword arguments: " + ",".join(arg for arg in kwargs))
+        raise ValueError(
+            "Unexpected keyword arguments: " + ",".join(arg for arg in kwargs)
+        )
 
     return CheckpointFunction.apply(function, preserve, *args)
 
@@ -205,15 +220,18 @@ def checkpoint_sequential(functions, segments, input, **kwargs):
         >>> input_var = checkpoint_sequential(model, chunks, input_var)
     """
     # Hack for keyword-only parameter in a python 2.7-compliant way
-    preserve = kwargs.pop('preserve_rng_state', True)
+    preserve = kwargs.pop("preserve_rng_state", True)
     if kwargs:
-        raise ValueError("Unexpected keyword arguments: " + ",".join(arg for arg in kwargs))
+        raise ValueError(
+            "Unexpected keyword arguments: " + ",".join(arg for arg in kwargs)
+        )
 
     def run_function(start, end, functions):
         def forward(input):
             for j in range(start, end + 1):
                 input = functions[j](input)
             return input
+
         return forward
 
     if isinstance(functions, torch.nn.Sequential):
@@ -224,6 +242,7 @@ def checkpoint_sequential(functions, segments, input, **kwargs):
     end = -1
     for start in range(0, segment_size * (segments - 1), segment_size):
         end = start + segment_size - 1
-        input = checkpoint(run_function(start, end, functions), input,
-                           preserve_rng_state=preserve)
+        input = checkpoint(
+            run_function(start, end, functions), input, preserve_rng_state=preserve
+        )
     return run_function(end + 1, len(functions) - 1, functions)(input)

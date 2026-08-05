@@ -16,7 +16,7 @@ def fitness(x):
     return (x[:, :4] * w).sum(1)
 
 
-def mask_pr(true, posi, targets, precision :list, recall: list, threshold=0.5):
+def mask_pr(true, posi, targets, precision: list, recall: list, threshold=0.5):
     assert true.shape == posi.shape
     bs, _, ny, nx = true.shape
     device = true.device
@@ -29,8 +29,11 @@ def mask_pr(true, posi, targets, precision :list, recall: list, threshold=0.5):
     # gain = torch.tensor([[nx, ny, nx, ny]], device=device)
     # bboxes = torch.cat((targets[:, :1], bboxes * gain), dim=1).long()
     gain = torch.tensor([[nx, ny]], device=device)
-    bboxes = torch.cat((targets[:, :1], (bboxes[:, :2] * gain).floor(), (bboxes[:, 2:] * gain).ceil()), dim=1).long()
-    
+    bboxes = torch.cat(
+        (targets[:, :1], (bboxes[:, :2] * gain).floor(), (bboxes[:, 2:] * gain).ceil()),
+        dim=1,
+    ).long()
+
     for bi, x1, y1, x2, y2 in bboxes:
         ins_true = true[bi, 0, y1:y2, x1:x2]
         ins_posi = posi[bi, 0, y1:y2, x1:x2]
@@ -40,8 +43,8 @@ def mask_pr(true, posi, targets, precision :list, recall: list, threshold=0.5):
     # recall.append((true & posi).sum() / (true.sum() + 1e-9))
 
 
-def cluster_recall(clusters, targets, imgsz=(1024,576), mode='bbox', stride=8):
-    assert mode in ['point', 'bbox'], '%s' % mode
+def cluster_recall(clusters, targets, imgsz=(1024, 576), mode="bbox", stride=8):
+    assert mode in ["point", "bbox"], "%s" % mode
     tp, cluster_num = 0, 0
     patch_w, patch_h = 0, 0
     bs = len(clusters)
@@ -53,11 +56,19 @@ def cluster_recall(clusters, targets, imgsz=(1024,576), mode='bbox', stride=8):
         patch_w, patch_h = cluster[0, [-2, -1]] - cluster[0, [-4, -3]]
         # assert len(cluster) <= stride ** 2
         # cluster: shape(m,4) = [x1, y1, x2, y2]; t: shape(n,2) = [xc, yc, w, h]
-        if mode == 'point':
+        if mode == "point":
             x1, y1, x2, y2 = cluster.T
             xc, yc, w, h = t.T
-            tp += ((x1[None, :] <= xc[:, None]) & (xc[:, None] < x2[None, :]) &
-                   (y1[None, :] <= yc[:, None]) & (yc[:, None] < y2[None, :])).any(dim=1).sum()
+            tp += (
+                (
+                    (x1[None, :] <= xc[:, None])
+                    & (xc[:, None] < x2[None, :])
+                    & (y1[None, :] <= yc[:, None])
+                    & (yc[:, None] < y2[None, :])
+                )
+                .any(dim=1)
+                .sum()
+            )
         else:
             # xc, yc, w, h = t.T
             # t = t[w * h > 12. * 12.]  # 4 * 8 = 32, 12 * 8 = 96
@@ -68,15 +79,17 @@ def cluster_recall(clusters, targets, imgsz=(1024,576), mode='bbox', stride=8):
     # total_patch_num = bs * ratio ** 2
     # total_patch_num = bs * math.ceil(imgsz[0] / patch_w / stride) * math.ceil(imgsz[1] / patch_h / stride)
     # total_patch_num = (imgsz[0] / patch_w / stride) * (imgsz[1] / patch_h / stride)
-    cluster_num = (cluster_num * (patch_w * stride) * (patch_h * stride)) / (bs * imgsz[0] * imgsz[1])
-    total_patch_num = 1.
+    cluster_num = (cluster_num * (patch_w * stride) * (patch_h * stride)) / (
+        bs * imgsz[0] * imgsz[1]
+    )
+    total_patch_num = 1.0
     return torch.tensor([tp, cluster_num, total_patch_num], device=targets.device)
 
 
-def sparse_recall(heatmap, targets, recall :list, threshold=0.3):
+def sparse_recall(heatmap, targets, recall: list, threshold=0.3):
     heatmap = heatmap.sigmoid()
     indices_pyrimid = []
-    
+
     # for s in [1, 2, 4]:
     #     heatmap_i = heatmap if s == 1 else F.avg_pool2d(heatmap, s, stride=s, padding=0)
     #     maxima = F.max_pool2d(heatmap_i, 3, stride=1, padding=1) == heatmap_i
@@ -84,13 +97,13 @@ def sparse_recall(heatmap, targets, recall :list, threshold=0.3):
     #     indices = (maxima & response).float()
     #     indices = F.max_pool2d(indices, 3, stride=1, padding=1) # expansion
     #     indices_pyrimid.append(indices)
-    
+
     maxima = F.max_pool2d(heatmap, 3, stride=1, padding=1) == heatmap
     response = heatmap >= threshold
     indices = (maxima & response).float()
     for s in [1, 2, 4]:
         indices_i = indices if s == 1 else F.max_pool2d(indices, s, stride=s, padding=0)
-        indices_i = F.max_pool2d(indices_i, 3, stride=1, padding=1) # expansion
+        indices_i = F.max_pool2d(indices_i, 3, stride=1, padding=1)  # expansion
         indices_pyrimid.append(indices_i)
 
     _, _, ny, nx = heatmap.shape
@@ -100,7 +113,15 @@ def sparse_recall(heatmap, targets, recall :list, threshold=0.3):
         # recall.append(indices[bi, 0, yc, xc])
         # li = torch.minimum(w, h).clamp(1).log2().ceil().long().clamp(0, 2).item()
         # res = sum([indices_pyrimid[j][bi, 0, yc//(2**j), xc//(2**j)] for j in range(li + 1)]) > 0
-        res = sum([indices_pyrimid[j][bi, 0, yc//(2**j), xc//(2**j)] for j in range(3)]) > 0
+        res = (
+            sum(
+                [
+                    indices_pyrimid[j][bi, 0, yc // (2**j), xc // (2**j)]
+                    for j in range(3)
+                ]
+            )
+            > 0
+        )
         recall.append(res.float())
 
 
@@ -110,22 +131,22 @@ def hm_verbose(recall, attr):
     s = w * h
 
     res_cls = []
-    for ci in range(c.max().long().item()+1):
+    for ci in range(c.max().long().item() + 1):
         ind = c == ci
         res_cls.append(recall[ind].mean().item())
 
     s0 = 32 / 1920 * 32 / 1080
-    size_sep = [0, s0 / 4, s0, s0 * 4, 1.]
+    size_sep = [0, s0 / 4, s0, s0 * 4, 1.0]
     res_size = []
-    for i in range(len(size_sep)-1):
-        ind = (size_sep[i] < s) & (s <= size_sep[i+1])
+    for i in range(len(size_sep) - 1):
+        ind = (size_sep[i] < s) & (s <= size_sep[i + 1])
         res_size.append(recall[ind].mean().item())
-    
+
     return res_cls, res_size
 
 
-def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir='.', names=()):
-    """ Compute the average precision, given the recall and precision curves.
+def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir=".", names=()):
+    """Compute the average precision, given the recall and precision curves.
     Source: https://github.com/rafaelpadilla/Object-Detection-Metrics.
     # Arguments
         tp:  True positives (nparray, nx1 or nx10).
@@ -163,7 +184,9 @@ def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir='.', names
 
             # Recall
             recall = tpc / (n_l + 1e-16)  # recall curve
-            r[ci] = np.interp(-px, -conf[i], recall[:, 0], left=0)  # negative x, xp because xp decreases
+            r[ci] = np.interp(
+                -px, -conf[i], recall[:, 0], left=0
+            )  # negative x, xp because xp decreases
 
             # Precision
             precision = tpc / (tpc + fpc)  # precision curve
@@ -178,17 +201,17 @@ def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir='.', names
     # Compute F1 (harmonic mean of precision and recall)
     f1 = 2 * p * r / (p + r + 1e-16)
     if plot:
-        plot_pr_curve(px, py, ap, Path(save_dir) / 'PR_curve.png', names)
-        plot_mc_curve(px, f1, Path(save_dir) / 'F1_curve.png', names, ylabel='F1')
-        plot_mc_curve(px, p, Path(save_dir) / 'P_curve.png', names, ylabel='Precision')
-        plot_mc_curve(px, r, Path(save_dir) / 'R_curve.png', names, ylabel='Recall')
+        plot_pr_curve(px, py, ap, Path(save_dir) / "PR_curve.png", names)
+        plot_mc_curve(px, f1, Path(save_dir) / "F1_curve.png", names, ylabel="F1")
+        plot_mc_curve(px, p, Path(save_dir) / "P_curve.png", names, ylabel="Precision")
+        plot_mc_curve(px, r, Path(save_dir) / "R_curve.png", names, ylabel="Recall")
 
     i = f1.mean(0).argmax()  # max F1 index
-    return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype('int32')
+    return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype("int32")
 
 
 def compute_ap(recall, precision):
-    """ Compute the average precision, given the recall and precision curves
+    """Compute the average precision, given the recall and precision curves
     # Arguments
         recall:    The recall curve (list)
         precision: The precision curve (list)
@@ -197,17 +220,17 @@ def compute_ap(recall, precision):
     """
 
     # Append sentinel values to beginning and end
-    mrec = np.concatenate(([0.], recall, [recall[-1] + 0.01]))
-    mpre = np.concatenate(([1.], precision, [0.]))
+    mrec = np.concatenate(([0.0], recall, [recall[-1] + 0.01]))
+    mpre = np.concatenate(([1.0], precision, [0.0]))
 
     # Compute the precision envelope
     mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
 
     # Integrate area under curve
-    method = 'interp'  # methods: 'continuous', 'interp'
-    if method == 'interp':
+    method = "interp"  # methods: 'continuous', 'interp'
+    if method == "interp":
         x = np.linspace(0, 1, 101)  # 101-point interp (COCO)
-        trapz_fn = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+        trapz_fn = getattr(np, "trapezoid", getattr(np, "trapz", None))
         ap = trapz_fn(np.interp(x, mrec, mpre), x)  # integrate
     else:  # 'continuous'
         i = np.where(mrec[1:] != mrec[:-1])[0]  # points where x axis (recall) changes
@@ -241,7 +264,11 @@ class ConfusionMatrix:
 
         x = torch.where(iou > self.iou_thres)
         if x[0].shape[0]:
-            matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
+            matches = (
+                torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1)
+                .cpu()
+                .numpy()
+            )
             if x[0].shape[0] > 1:
                 matches = matches[matches[:, 2].argsort()[::-1]]
                 matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
@@ -267,64 +294,92 @@ class ConfusionMatrix:
     def matrix(self):
         return self.matrix
 
-    def plot(self, save_dir='', names=()):
+    def plot(self, save_dir="", names=()):
         try:
             import seaborn as sn
 
-            array = self.matrix / (self.matrix.sum(0).reshape(1, self.nc + 1) + 1E-6)  # normalize
+            array = self.matrix / (
+                self.matrix.sum(0).reshape(1, self.nc + 1) + 1e-6
+            )  # normalize
             array[array < 0.005] = np.nan  # don't annotate (would appear as 0.00)
 
             fig = plt.figure(figsize=(12, 9), tight_layout=True)
             sn.set(font_scale=1.0 if self.nc < 50 else 0.8)  # for label size
-            labels = (0 < len(names) < 99) and len(names) == self.nc  # apply names to ticklabels
-            sn.heatmap(array, annot=self.nc < 30, annot_kws={"size": 8}, cmap='Blues', fmt='.2f', square=True,
-                       xticklabels=names + ['background FP'] if labels else "auto",
-                       yticklabels=names + ['background FN'] if labels else "auto").set_facecolor((1, 1, 1))
-            fig.axes[0].set_xlabel('True')
-            fig.axes[0].set_ylabel('Predicted')
-            fig.savefig(Path(save_dir) / 'confusion_matrix.png', dpi=250)
+            labels = (0 < len(names) < 99) and len(
+                names
+            ) == self.nc  # apply names to ticklabels
+            sn.heatmap(
+                array,
+                annot=self.nc < 30,
+                annot_kws={"size": 8},
+                cmap="Blues",
+                fmt=".2f",
+                square=True,
+                xticklabels=names + ["background FP"] if labels else "auto",
+                yticklabels=names + ["background FN"] if labels else "auto",
+            ).set_facecolor((1, 1, 1))
+            fig.axes[0].set_xlabel("True")
+            fig.axes[0].set_ylabel("Predicted")
+            fig.savefig(Path(save_dir) / "confusion_matrix.png", dpi=250)
         except Exception as e:
             pass
 
     def print(self):
         for i in range(self.nc + 1):
-            print(' '.join(map(str, self.matrix[i])))
+            print(" ".join(map(str, self.matrix[i])))
 
 
 # Plots ----------------------------------------------------------------------------------------------------------------
 
-def plot_pr_curve(px, py, ap, save_dir='pr_curve.png', names=()):
+
+def plot_pr_curve(px, py, ap, save_dir="pr_curve.png", names=()):
     # Precision-recall curve
     fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
     py = np.stack(py, axis=1)
 
     if 0 < len(names) < 21:  # display per-class legend if < 21 classes
         for i, y in enumerate(py.T):
-            ax.plot(px, y, linewidth=1, label=f'{names[i]} {ap[i, 0]:.3f}')  # plot(recall, precision)
+            ax.plot(
+                px, y, linewidth=1, label=f"{names[i]} {ap[i, 0]:.3f}"
+            )  # plot(recall, precision)
     else:
-        ax.plot(px, py, linewidth=1, color='grey')  # plot(recall, precision)
+        ax.plot(px, py, linewidth=1, color="grey")  # plot(recall, precision)
 
-    ax.plot(px, py.mean(1), linewidth=3, color='blue', label='all classes %.3f mAP@0.5' % ap[:, 0].mean())
-    ax.set_xlabel('Recall')
-    ax.set_ylabel('Precision')
+    ax.plot(
+        px,
+        py.mean(1),
+        linewidth=3,
+        color="blue",
+        label="all classes %.3f mAP@0.5" % ap[:, 0].mean(),
+    )
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
     fig.savefig(Path(save_dir), dpi=250)
 
 
-def plot_mc_curve(px, py, save_dir='mc_curve.png', names=(), xlabel='Confidence', ylabel='Metric'):
+def plot_mc_curve(
+    px, py, save_dir="mc_curve.png", names=(), xlabel="Confidence", ylabel="Metric"
+):
     # Metric-confidence curve
     fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
 
     if 0 < len(names) < 21:  # display per-class legend if < 21 classes
         for i, y in enumerate(py):
-            ax.plot(px, y, linewidth=1, label=f'{names[i]}')  # plot(confidence, metric)
+            ax.plot(px, y, linewidth=1, label=f"{names[i]}")  # plot(confidence, metric)
     else:
-        ax.plot(px, py.T, linewidth=1, color='grey')  # plot(confidence, metric)
+        ax.plot(px, py.T, linewidth=1, color="grey")  # plot(confidence, metric)
 
     y = py.mean(0)
-    ax.plot(px, y, linewidth=3, color='blue', label=f'all classes {y.max():.2f} at {px[y.argmax()]:.3f}')
+    ax.plot(
+        px,
+        y,
+        linewidth=3,
+        color="blue",
+        label=f"all classes {y.max():.2f} at {px[y.argmax()]:.3f}",
+    )
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_xlim(0, 1)

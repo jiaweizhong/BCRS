@@ -10,6 +10,7 @@ from torch.cuda.amp import autocast
 from detectron2.utils import comm, env
 from detectron2.layers.wrappers import BatchNorm2d
 
+
 class AllReduce(Function):
     @staticmethod
     def forward(ctx, input):
@@ -23,6 +24,7 @@ class AllReduce(Function):
     def backward(ctx, grad_output):
         dist.all_reduce(grad_output, async_op=False)
         return grad_output
+
 
 class MergedSyncBatchNorm(BatchNorm2d):
     """
@@ -56,8 +58,8 @@ class MergedSyncBatchNorm(BatchNorm2d):
         super().__init__(*args, **kwargs)
         assert stats_mode in ["", "N"]
         self._stats_mode = stats_mode
-        self._batch_mean = None # for precise BN 
-        self._batch_meansqr = None # for precise BN
+        self._batch_mean = None  # for precise BN
+        self._batch_meansqr = None  # for precise BN
 
     def _eval_forward(self, inputs):
         scale = self.weight * torch.rsqrt(self.running_var + self.eps)
@@ -65,7 +67,6 @@ class MergedSyncBatchNorm(BatchNorm2d):
         scale = scale.view(1, -1, 1, 1)
         bias = bias.view(1, -1, 1, 1)
         return [(x * scale + bias) for x in inputs]
-            
 
     # @float_function
     def forward(self, inputs):
@@ -75,11 +76,17 @@ class MergedSyncBatchNorm(BatchNorm2d):
 
             B, C = inputs[0].shape[0], inputs[0].shape[1]
 
-            mean = sum([torch.mean(input, dim=[0, 2, 3]) for input in inputs]) / len(inputs)
-            meansqr = sum([torch.mean(input * input, dim=[0, 2, 3]) for input in inputs]) / len(inputs)
+            mean = sum([torch.mean(input, dim=[0, 2, 3]) for input in inputs]) / len(
+                inputs
+            )
+            meansqr = sum(
+                [torch.mean(input * input, dim=[0, 2, 3]) for input in inputs]
+            ) / len(inputs)
 
             if self._stats_mode == "":
-                assert B > 0, 'SyncBatchNorm(stats_mode="") does not support zero batch size.'
+                assert (
+                    B > 0
+                ), 'SyncBatchNorm(stats_mode="") does not support zero batch size.'
                 vec = torch.cat([mean, meansqr], dim=0)
                 vec = AllReduce.apply(vec) * (1.0 / dist.get_world_size())
                 mean, meansqr = torch.split(vec, C)
@@ -90,13 +97,22 @@ class MergedSyncBatchNorm(BatchNorm2d):
                     vec = vec + _input.sum()  # make sure there is gradient w.r.t input
                 else:
                     vec = torch.cat(
-                        [mean, meansqr, torch.ones([1], device=mean.device, dtype=mean.dtype)], dim=0
+                        [
+                            mean,
+                            meansqr,
+                            torch.ones([1], device=mean.device, dtype=mean.dtype),
+                        ],
+                        dim=0,
                     )
                 vec = AllReduce.apply(vec * B)
 
                 total_batch = vec[-1].detach()
-                momentum = total_batch.clamp(max=1) * self.momentum  # no update if total_batch is 0
-                total_batch = torch.max(total_batch, torch.ones_like(total_batch))  # avoid div-by-zero
+                momentum = (
+                    total_batch.clamp(max=1) * self.momentum
+                )  # no update if total_batch is 0
+                total_batch = torch.max(
+                    total_batch, torch.ones_like(total_batch)
+                )  # avoid div-by-zero
                 mean, meansqr, _ = torch.split(vec / total_batch, C)
 
             var = meansqr - mean * mean
@@ -109,8 +125,8 @@ class MergedSyncBatchNorm(BatchNorm2d):
             self.running_mean += momentum * (mean.detach() - self.running_mean)
             self.running_var += momentum * (var.detach() - self.running_var)
 
-            self._batch_mean = mean 
-            self._batch_meansqr  = meansqr
+            self._batch_mean = mean
+            self._batch_meansqr = meansqr
 
             outputs = [(input * scale + bias) for input in inputs]
             return outputs

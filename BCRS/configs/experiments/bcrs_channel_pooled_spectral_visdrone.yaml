@@ -1,0 +1,38 @@
+schema_version: 1
+name: bcrs_channel_pooled_spectral_visdrone_yolov5m
+
+backend:
+  name: esod
+  root: vendor/esod
+  python: ${BCRS_PYTHON:-python}
+
+model:
+  name: bcrs_channel_pooled_spectral_visdrone_yolov5m
+  config: vendor/esod/configs/models/visdrone_yolov5m_channel_pooled.yaml
+  weights: artifacts/pretrained/yolov5m.pt
+
+dataset:
+  config: configs/datasets/visdrone.yaml
+
+runtime:
+  output_dir: work_dirs/bcrs_channel_pooled_spectral_visdrone_yolov5m
+  devices: "0"
+  workers: 8
+
+train:
+  epochs: 50
+  batch_size: 8
+  image_size: 1536
+  hyp: vendor/esod/configs/hyps/hyp.visdrone.yaml
+  hm_metric: false
+  lambda_cov: 0.5
+  pos_weight: 2.0
+
+test:
+  checkpoint: work_dirs/bcrs_channel_pooled_spectral_visdrone_yolov5m/weights/best.pt
+  batch_size: 1
+  image_size: 1536
+  sparse_head: true
+  hm_metric: false
+  save_json: true
+  patch_budget: 16

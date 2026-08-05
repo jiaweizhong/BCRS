@@ -1,6 +1,7 @@
 from detectron2.evaluation import COCOEvaluator
 from detectron2.structures import Boxes, BoxMode, pairwise_iou
 
+
 def _instances_to_coco_json(instances, img_id):
     """
     Dump an "Instances" object to a COCO-format json that's used for evaluation.
@@ -21,7 +22,7 @@ def _instances_to_coco_json(instances, img_id):
     boxes = boxes.tolist()
     scores = instances.scores.tolist()
     classes = instances.pred_classes.tolist()
-    
+
     has_fpn_layer = instances.has("fpn_layers")
     if has_fpn_layer:
         fpn_layers = instances.fpn_layers.tolist()
@@ -58,7 +59,6 @@ def _instances_to_coco_json(instances, img_id):
     return results
 
 
-
 class COCOEvaluatorFPN(COCOEvaluator):
 
     def process(self, inputs, outputs):
@@ -76,7 +76,9 @@ class COCOEvaluatorFPN(COCOEvaluator):
             # TODO this is ugly
             if "instances" in output:
                 instances = output["instances"].to(self._cpu_device)
-                prediction["instances"] = _instances_to_coco_json(instances, input["image_id"])
+                prediction["instances"] = _instances_to_coco_json(
+                    instances, input["image_id"]
+                )
             if "proposals" in output:
                 prediction["proposals"] = output["proposals"].to(self._cpu_device)
             self._predictions.append(prediction)

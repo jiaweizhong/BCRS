@@ -31,25 +31,28 @@ class RetinaDYHead(AnchorDYHead):
         >>> assert box_per_anchor == 4
     """
 
-    def __init__(self,
-                 num_classes,
-                 in_channels,
-                 stacked_convs=4,
-                 conv_cfg=None,
-                 norm_cfg=None,
-                 anchor_generator=dict(
-                     type='AnchorGenerator',
-                     octave_base_scale=4,
-                     scales_per_octave=3,
-                     ratios=[0.5, 1.0, 2.0],
-                     strides=[8, 16, 32, 64, 128]),
-                 init_cfg=None,
-                 mask_kernel_size=3,
-                 return_hards=False,
-                 beta=10,
-                 reg_base=0,
-                 cls_base=-5,
-                 **kwargs):
+    def __init__(
+        self,
+        num_classes,
+        in_channels,
+        stacked_convs=4,
+        conv_cfg=None,
+        norm_cfg=None,
+        anchor_generator=dict(
+            type="AnchorGenerator",
+            octave_base_scale=4,
+            scales_per_octave=3,
+            ratios=[0.5, 1.0, 2.0],
+            strides=[8, 16, 32, 64, 128],
+        ),
+        init_cfg=None,
+        mask_kernel_size=3,
+        return_hards=False,
+        beta=10,
+        reg_base=0,
+        cls_base=-5,
+        **kwargs
+    ):
         self.stacked_convs = stacked_convs
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
@@ -65,7 +68,8 @@ class RetinaDYHead(AnchorDYHead):
             anchor_generator=anchor_generator,
             init_cfg=init_cfg,
             beta=beta,
-            **kwargs)
+            **kwargs
+        )
 
     def _init_layers(self):
         """Initialize layers of the head."""
@@ -74,11 +78,11 @@ class RetinaDYHead(AnchorDYHead):
         self.reg_convs = nn.ModuleList()
 
         self.cls_pw_convs = torch.nn.Sequential(
-                torch.nn.Conv2d(self.in_channels, self.feat_channels, kernel_size=1),
-            )
+            torch.nn.Conv2d(self.in_channels, self.feat_channels, kernel_size=1),
+        )
         self.reg_pw_convs = torch.nn.Sequential(
-                torch.nn.Conv2d(self.in_channels, self.feat_channels, kernel_size=1),
-            )
+            torch.nn.Conv2d(self.in_channels, self.feat_channels, kernel_size=1),
+        )
 
         for i in range(self.stacked_convs):
             chn = self.in_channels if i == 0 else self.feat_channels
@@ -105,40 +109,44 @@ class RetinaDYHead(AnchorDYHead):
                 )
             )
         self.retina_cls = DyConv2D(
-                        self.feat_channels,
-                        self.num_base_priors * self.cls_out_channels,
-                        kernel_size=3,
-                        padding=1,
-                        stride=1,
-                        base=self.cls_base,
-                        gn_inside=False,
-                    )
+            self.feat_channels,
+            self.num_base_priors * self.cls_out_channels,
+            kernel_size=3,
+            padding=1,
+            stride=1,
+            base=self.cls_base,
+            gn_inside=False,
+        )
 
         self.retina_reg = DyConv2D(
-                        self.feat_channels,
-                        self.num_base_priors * 4,
-                        kernel_size=3,
-                        padding=1,
-                        stride=1,
-                        base=self.reg_base,
-                        gn_inside=False,
-                    )
-        self.retina_cls_mask= nn.Sequential(
-                nn.Conv2d(self.feat_channels,
-                            1,
-                            self.mask_kernel_size,
-                            padding=self.mask_kernel_size//2,
-                            stride=1),
-                Gumbel()
-            )
-        self.retina_reg_mask= nn.Sequential(
-                nn.Conv2d(self.feat_channels,
-                            1,
-                            self.mask_kernel_size,
-                            padding=self.mask_kernel_size//2,
-                            stride=1),
-                Gumbel()
-            )
+            self.feat_channels,
+            self.num_base_priors * 4,
+            kernel_size=3,
+            padding=1,
+            stride=1,
+            base=self.reg_base,
+            gn_inside=False,
+        )
+        self.retina_cls_mask = nn.Sequential(
+            nn.Conv2d(
+                self.feat_channels,
+                1,
+                self.mask_kernel_size,
+                padding=self.mask_kernel_size // 2,
+                stride=1,
+            ),
+            Gumbel(),
+        )
+        self.retina_reg_mask = nn.Sequential(
+            nn.Conv2d(
+                self.feat_channels,
+                1,
+                self.mask_kernel_size,
+                padding=self.mask_kernel_size // 2,
+                stride=1,
+            ),
+            Gumbel(),
+        )
         self.a_relu = nn.ReLU(inplace=True)
 
     def init_weights(self):
@@ -169,10 +177,9 @@ class RetinaDYHead(AnchorDYHead):
 
         cls_hards = []
         reg_hards = []
-        active_positions = [] 
-        total_positions = [] 
+        active_positions = []
+        total_positions = []
         mse_losses = []
-
 
         cls_mask = self.retina_cls_mask(cls_feat)
         reg_mask = self.retina_reg_mask(reg_feat)
@@ -230,4 +237,3 @@ class RetinaDYHead(AnchorDYHead):
         rstd_part = 1 / torch.sqrt(var_part + self.eps)
         pw = pw.view(N, C, H, W)
         return (pw, mean_part, rstd_part)
-

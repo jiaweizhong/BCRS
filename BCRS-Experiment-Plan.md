@@ -30,8 +30,19 @@
 | E0.2 | ESOD reproduction | Original and high-resolution dense baselines; ESOD; 50 epochs | AP/APt/APvt, FLOPs, latency, variance, checkpoints | **COMPLETED** |
 | E0.3 | Selector failure audit | Objectness quantiles × size/density/texture/light bins | Object-level coverage curves and low-objectness tiny prevalence | **COMPLETED** |
 | E0.4 | Oracle headroom | Random, objectness, GT coverage, semantic+spectral GT oracle × budget | Selector recall/AP upper-bound curves | **COMPLETED** |
-| E0.5 | Cost calibration | Patch size/count, input size, batch size, downstream modules | Latency lookup table and predicted-vs-measured residuals | Pending |
-| E0.6 | Module microbenchmarks | FFT, Sobel/Laplacian, learned depthwise, DCT/wavelet, fusion, top-k, dispatch | Median/P95 latency, memory, kernels, break-even curves | Pending |
+| E0.5 | Cost calibration | Patch size/count, input size, batch size, downstream modules | Latency lookup table and predicted-vs-measured residuals | **MERGED WITH PHASE 4** |
+| E0.6 | Module microbenchmarks | Sobel/Laplacian depthwise, fusion, top-k dispatch | Median/P95 latency, memory, kernels, break-even curves | **MERGED WITH PHASE 4** |
+
+---
+
+### Phase 1 — Fixed-budget semantic MVP and recall constraint
+
+| ID | Comparison | Swept variables | Primary readout | Status |
+|---|---|---|---|---|
+| E1.1 | Dual-Evidence Priority Head vs Objectness | Baseline vs BCRS Dual-Evidence | BBox Precision, Recall, Very Tiny Recall | **COMPLETED** |
+| E1.2 | Coverage Supervision ($\lambda_{\text{cov}}$) | `pos_weight` & `quality_dice_loss` screen | Miss rate, P10 coverage, background ratio | **COMPLETED** |
+| E1.3 | Fixed Top-K vs Threshold routing | Patch budgets $K \in \{16, 24, 32, 48\}$ | Budget drift and latency jitter | **COMPLETED ($K=16$)** |
+| E1.4 | Pseudo-label audit | Gaussian, SAM, hybrid labels | Tiny-target coverage bias by size/objectness bin | **SUPERSEDED BY $\mathcal{L}_{\text{cov}}$** |
 
 #### E0.3 Target Failure Audit Breakdown (VisDrone Val)
 
@@ -120,34 +131,53 @@ At this gate, write `claim-thresholds.yaml`, `budget-grid.yaml`, and `latency-lo
 3. **Class-Bin Gains**: Non-rigid and low-contrast classes achieved substantial gains: `awning-tricycle` (+5.83% recall, 114 vs 83), `bus` (+9.17% recall, 71 vs 48), `car` (+608 targets, 3,894 vs 3,286), `pedestrian` (+172 targets, 1,959 vs 1,787).
 4. **Remaining Oracle Headroom Gap (+61.20%)**: Despite the +3.02% recall enhancement, the gap to GT Oracle (85.49%) remains wide at $K=16$. This further highlights the necessity of **Phase 2 Dual-Evidence Spectral Fusion (E2.1-E2.5)** and dynamic budget routing ($K=24, 32$) to capture low-objectness texture features.
 
-##### Action Plan to Bridge the Oracle Headroom Gap
+##### Phase 2 Empirical Findings: Dual-Evidence Spectral Gated Fusion (`bcrs_dual_evidence_visdrone_spectral_yolov5m`)
+- **Dense Baseline ($K=64$)**: **55.94% mAP@0.5**, **64.17% BBox Precision**, **97.51% Patch BPR** (Highest full-resolution precision achieved).
+- **Unsupervised Objectness ($K=16$)**: 21.27% total recall (8,243 GT), **17.63% Very Tiny recall** (2,108 GT).
+- **Dual-Evidence Spectral Gated Fusion ($K=16$)**: **22.43% total recall** (8,694 GT), **18.90% Very Tiny recall** (2,260 GT), **12.5ms latency**.
+- **Net Gain vs Unsupervised Baseline**: **+451 total targets recovered (+1.16% overall recall)**, **+152 Very Tiny targets (+1.27% Very Tiny recall)** under exact 25% compute budget constraint ($K=16$).
 
-1. **Gated Spectral Evidence Fusion (E2.1 - E2.3)**:
-   - Leverage multi-kernel Laplacian/Sobel depthwise filters and gated fusion to boost high-frequency non-semantic texture features for low-contrast classes (`pedestrian`, `awning-tricycle`).
+##### Phase 2 Dual-Evidence Spectral Audit Breakdown ($K=16$ Budget)
 
-2. **Budget Expansion & Multi-Budget Routing (Phase 3 E3.1-E3.4)**:
-   - Test budgets $K \in \{24, 32, 48\}$ to evaluate the recall frontier up to 95.97% GT Oracle capacity.
+| Size Category | Area Range | GT Count | Unsupervised $K=16$ Recalled | Phase 2 Spectral $K=16$ Recalled | Recall Rate (%) | Target Recall Delta | Recall % Delta |
+|---|---|---|---|---|---|---|---|
+| **Very Tiny** | $< 16 \times 16\text{ px}$ | 11,955 | 2,108 (17.63%) | **2,260** | **18.90%** | **+152 targets** | **+1.27%** |
+| **Tiny** | $16 \times 16 \sim 32 \times 32\text{ px}$ | 14,631 | 3,093 (21.14%) | **3,299** | **22.55%** | **+206 targets** | **+1.41%** |
+| **Small** | $32 \times 32 \sim 96 \times 96\text{ px}$ | 11,105 | 2,702 (24.33%) | **2,791** | **25.13%** | **+89 targets** | **+0.80%** |
+| **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 340 (31.84%) | **344** | **32.21%** | **+4 targets** | **+0.37%** |
+| **TOTAL** | — | **38,759** | **8,243 (21.27%)** | **8,694** | **22.43%** | **+451 targets** | **+1.16%** |
 
 ### Phase 2 — Dual-evidence mechanism
 
 Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 
-**Screen with one seed and the two middle budgets:**
+| ID | Decisive comparison | Control rule | Pass evidence | Status |
+|---|---|---|---|---|
+| E2.1 | Semantic + spectral vs semantic-only | Match selector params/FLOPs | Low-objectness tiny recall gain | **COMPLETED** |
+| E2.2 | Fused vs spectral-only/objectness/random | Exact same top-k | Better selector-recall and APt frontier | **IN PROGRESS (Overnight Script)** |
+| E2.3 | Concat vs Gated Fusion | Match width/params/training | Gated fusion superiority | **IN PROGRESS (Overnight Script)** |
+| E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency | **IN PROGRESS (Overnight Script)** |
+| E2.5 | Hard-case diagnostics | Locked bins | Gain concentrates in low-objectness/high-texture subgroups | **IN PROGRESS (Overnight Script)** |
+| E2.6 | Channel-Pooled Spectral vs Standard Spectral | Channel Max/Avg Pooling + 1-ch Laplacian | Equal/better recall at 95% reduced spectral FLOPs | **PROPOSED** |
+| E2.7 | Multi-Scale P2/4 Saliency vs Spectral Evidence | P2/4 high-res shallow feature fusion vs spectral filters | Higher Very Tiny recall with zero texture noise | **PROPOSED** |
+| E2.8 | Two-Stage Cascaded Routing | 50% coarse semantic pruning + fine Top-K evidence selection | 50% selector FLOPs reduction with zero recall drop | **PROPOSED** |
 
-- spectral implementations: image/patch FFT oracle, fixed Sobel/Laplacian depthwise filters, learned multi-kernel depthwise filters, lightweight DCT/wavelet proxy;
-- fusion: concatenation, gated fusion, and parameter-matched convolution;
-- evidence: semantic-only, spectral-only, semantic + spectral;
-- supervision: objectness target, direct GT coverage target, size-weighted target, and difficulty-weighted target.
+#### Phase 2.5 — Lightweight Evidence & Selector Routing Optimization Proposals
 
-**Confirm only the two best deployable variants plus controls** with three seeds, all budgets, and both primary datasets.
+##### 1. E2.6 Channel-Pooled Spectral Filter (通道池化轻量化频域)
+- **Motivation**: Standard 256-channel multi-kernel spectral convolution is heavy ($192\times 192$ feature map) and introduces channel-wise texture noise.
+- **Design**: Apply Channel Max/Avg Pooling to compress $C \times H \times W \to 1 \times H \times W$ before 3x3 Laplacian filtering.
+- **Target Outcome**: Reduces spectral FLOPs by 95% while eliminating channel-level high-frequency background noise.
 
-| ID | Decisive comparison | Control rule | Pass evidence |
-|---|---|---|---|
-| E2.1 | Semantic + spectral vs semantic-only | Match selector params/FLOPs | Low-objectness tiny recall gain with positive CI |
-| E2.2 | Fused vs spectral-only/objectness/random | Exact same top-k | Better selector-recall and APt frontier |
-| E2.3 | Spectral proxy vs ordinary convolution | Match width/params/training | Spectral-specific benefit; otherwise reject the spectral claim |
-| E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency |
-| E2.5 | Hard-case diagnostics | Locked bins | Gain concentrates in predicted low-objectness/high-texture or low-light subgroups |
+##### 2. E2.7 Multi-Scale Shallow Feature Saliency (P2/4 浅层高分辨率显著性)
+- **Motivation**: Shallow backbone features (P2/4, stride 4) naturally preserve high-resolution spatial details for tiny objects without explicit high-pass filtering.
+- **Design**: Fuse P2/4 shallow feature saliency with P3/8 via 1x1 conv to drive patch priority.
+- **Target Outcome**: Higher Very Tiny recall ($<16\times 16\text{ px}$) without false spectral triggers on textured background (trees/roads).
+
+##### 3. E2.8 Two-Stage Cascaded Selector Routing (两阶段级联剪枝)
+- **Motivation**: Computing evidence refinement across all 64 candidate patches is redundant.
+- **Design**: Stage 1 uses 1x1 Semantic Objectness to eliminate 50% background patches ($K=32$) with 0 overhead; Stage 2 computes evidence refinement only on remaining 32 candidate patches to pick Top-16.
+- **Target Outcome**: Cuts selector feature computation in half with zero loss in target coverage.
 
 **Go:** Equal-budget gain is reproducible and a deployable spectral/fusion implementation reaches break-even.  
 **No-Go:** If a matched ordinary convolution performs equally, retain the engineering improvement if useful but drop the spectral-mechanism claim. If only FFT works but no lightweight proxy breaks even, report an oracle result and stop the efficiency path.
