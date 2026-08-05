@@ -204,9 +204,17 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 | E3.2 | Budget sampling | Uniform vs edge-biased vs curriculum | Stable coverage and monotonic realized cost |
 | E3.3 | Unseen budget interpolation | Evaluate intermediate budgets not sampled in training | Smooth, monotonic AP-cost curve without coverage collapse |
 | E3.4 | Calibration | Requested vs realized cost/latency | Low budget violation and calibrated latency lookup |
-| E3.5 | Detector Backbone Generalization (YOLOv8 / YOLOv11) | Swap YOLOv5m for YOLOv8m/YOLOv11m Predictor Head | Verify BCRS Dual-Evidence Selector is detector-agnostic with consistent +5%+ mAP gains |
+| E3.5 | [Journal Extension] Detector Backbone Generalization (YOLOv8 / YOLOv11) | Swap YOLOv5m for YOLOv8m/YOLOv11m Predictor Head | Verify BCRS Dual-Evidence Selector is detector-agnostic (Journal Extension) |
 
-Failure of H5 does not invalidate H2/H3. Fall back to per-budget models and narrow the claim.
+> **Publication Scope Strategy**:
+> - **Conference Version (CVPR / ECCV 8-Page)**:
+>   1. **Primary Focus**: Very Tiny Target Recall Optimization ($<16^2\text{px}$), Dual-Evidence Concat Feature Fusion, and Channel-Pooled Spectral Filter (E2.6).
+>   2. **Multi-Dataset Validation (Table 1)**: Evaluate across **VisDrone** (Main 10-Class Dense), **UAVDT** (Vehicle/Traffic Aerial), and **TinyPerson** (Extreme Tiny Human $<20\text{px}$) to demonstrate dataset-agnostic superiority.
+>   3. **Trade-off Frontier**: Budget Pareto curves across $K \in \{16, 24, 32, 48, 64\}$.
+> - **Journal Version Extension (IEEE TPAMI / TIP Extended 30%+)**:
+>   1. **Detector Backbone Generalization (E3.5)**: Swap YOLOv5 for **YOLOv8 / YOLOv11 / RT-DETR** predictor heads.
+>   2. **Structural Paradigm Migration (Phase 5 & 6)**: Migrate Dual-Evidence Recall-Safe priority to **QueryDet (Query-Adapter E5.2)** and **CEASC (Mask-Adapter Phase 6)** to prove foundational universality across feature slicing, query selection, and activation masking.
+>   3. **Zero-Shot Cross-Dataset Transfer (E5.4)**: Evaluate rank correlation and zero-shot budget transfer on unseen datasets without fine-tuning.
 
 ### Phase 4 — Equal-budget end-to-end efficiency
 
