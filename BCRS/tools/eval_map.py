@@ -41,56 +41,65 @@ def box_iou(box1, box2):
 
 def compute_ap(recall, precision):
     # Append sentinel values
-    mrec = np.concatenate(([0.0], recall, [1.0]))
+    mrec = np.concatenate(([0.0], recall, [recall[-1] + 0.01]))
     mpre = np.concatenate(([1.0], precision, [0.0]))
 
     # Compute precision envelope
-    for i in range(len(mpre) - 2, -1, -1):
-        mpre[i] = np.maximum(mpre[i], mpre[i + 1])
+    mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
 
-    # Integrate area under curve
-    i = np.where(mrec[1:] != mrec[:-1])[0]
-    ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
+    # 101-point interpolation (COCO standard)
+    x = np.linspace(0, 1, 101)
+    trapz_fn = getattr(np, "trapezoid", getattr(np, "trapz", None))
+    ap = trapz_fn(np.interp(x, mrec, mpre), x)
     return ap
 
 
-def nms_np(boxes, scores, iou_thresh=0.5):
-    if len(boxes) == 0:
-        return []
-    x1 = boxes[:, 0]
-    y1 = boxes[:, 1]
-    x2 = boxes[:, 2]
-    y2 = boxes[:, 3]
-    areas = (x2 - x1) * (y2 - y1)
-    order = scores.argsort()[::-1]
+def ap_per_class(tp, conf, pred_cls, target_cls):
+    # Sort globally by confidence descending
+    i = np.argsort(-conf)
+    tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
 
-    keep = []
-    while order.size > 0:
-        i = order[0]
-        keep.append(i)
-        xx1 = np.maximum(x1[i], x1[order[1:]])
-        yy1 = np.maximum(y1[i], y1[order[1:]])
-        xx2 = np.minimum(x2[i], x2[order[1:]])
-        yy2 = np.minimum(y2[i], y2[order[1:]])
+    unique_classes = np.unique(target_cls)
+    nc = len(CLASS_NAMES)
+    ap = np.zeros((nc, tp.shape[1]))
+    p = np.zeros(nc)
+    r = np.zeros(nc)
 
-        w = np.maximum(0.0, xx2 - xx1)
-        h = np.maximum(0.0, yy2 - yy1)
-        inter = w * h
-        ovr = inter / (areas[i] + areas[order[1:]] - inter + 1e-6)
+    for ci in range(nc):
+        i = pred_cls == ci
+        n_l = (target_cls == ci).sum()
+        n_p = i.sum()
 
-        inds = np.where(ovr <= iou_thresh)[0]
-        order = order[inds + 1]
+        if n_p == 0 or n_l == 0:
+            continue
 
-    return keep
+        fpc = (1 - tp[i]).cumsum(0)
+        tpc = tp[i].cumsum(0)
+
+        recall = tpc / (n_l + 1e-16)
+        precision = tpc / (tpc + fpc)
+
+        # Best F1 point for P and R
+        f1 = (
+            2
+            * precision[:, 0]
+            * recall[:, 0]
+            / (precision[:, 0] + recall[:, 0] + 1e-16)
+        )
+        best_i = f1.argmax()
+        p[ci] = precision[best_i, 0]
+        r[ci] = recall[best_i, 0]
+
+        for j in range(tp.shape[1]):
+            ap[ci, j] = compute_ap(recall[:, j], precision[:, j])
+
+    return p, r, ap, unique_classes
 
 
 def evaluate_predictions(
-    pred_json, labels_dir, images_dir=None, conf_thresh=0.25, nms_thresh=0.5
+    pred_json, labels_dir, images_dir=None, conf_thresh=0.001, nms_thresh=0.5
 ):
     print(f"Loading predictions from: {pred_json}")
-    print(
-        f"Applying Confidence Threshold: {conf_thresh:.2f} | NMS IoU Threshold: {nms_thresh:.2f}"
-    )
     with open(pred_json, "r") as f:
         preds = json.load(f)
 
@@ -104,8 +113,9 @@ def evaluate_predictions(
 
     label_files = glob.glob(os.path.join(labels_dir, "*.txt"))
     total_raw_preds = sum(len(v) for v in preds_by_img.values())
+    print(f"Loaded {len(preds)} total raw prediction boxes.")
     print(
-        f"Filtered to {total_raw_preds} high-confidence boxes (conf >= {conf_thresh}) across {len(preds_by_img)} images."
+        f"Filtered to {total_raw_preds} prediction boxes (conf >= {conf_thresh:.4f}) across {len(preds_by_img)} images."
     )
     print(f"Found {len(label_files)} label files in {labels_dir}.\n")
 
@@ -140,7 +150,7 @@ def evaluate_predictions(
                         pass
                     break
 
-        # Parse GT labels
+        # Parse GT labels (YOLO format: class xc yc w h normalized or CSV format: x,y,w,h,score,cls)
         gt_boxes = []
         gt_classes = []
         with open(l_path, "r") as f:
@@ -195,7 +205,7 @@ def evaluate_predictions(
                 )
             continue
 
-        raw_p_boxes = np.array(
+        p_boxes = np.array(
             [
                 [
                     p["bbox"][0],
@@ -206,42 +216,8 @@ def evaluate_predictions(
                 for p in img_preds
             ]
         )
-        raw_p_scores = np.array([p["score"] for p in img_preds])
-        raw_p_classes = np.array([p["category_id"] for p in img_preds])
-
-        # Per-class NMS
-        p_boxes_list, p_scores_list, p_classes_list = [], [], []
-        for cls in np.unique(raw_p_classes):
-            c_mask = raw_p_classes == cls
-            c_boxes = raw_p_boxes[c_mask]
-            c_scores = raw_p_scores[c_mask]
-            keep = nms_np(c_boxes, c_scores, iou_thresh=nms_thresh)
-            if len(keep):
-                p_boxes_list.append(c_boxes[keep])
-                p_scores_list.append(c_scores[keep])
-                p_classes_list.append(np.full(len(keep), cls, dtype=int))
-
-        if len(p_boxes_list) == 0:
-            if len(gt_classes):
-                stats.append(
-                    (
-                        np.zeros((0, 10), dtype=bool),
-                        np.array([]),
-                        np.array([]),
-                        gt_classes,
-                    )
-                )
-            continue
-
-        p_boxes = np.concatenate(p_boxes_list, axis=0)
-        p_scores = np.concatenate(p_scores_list, axis=0)
-        p_classes = np.concatenate(p_classes_list, axis=0)
-
-        # Sort descending by score
-        sort_ind = np.argsort(-p_scores)
-        p_boxes = p_boxes[sort_ind]
-        p_scores = p_scores[sort_ind]
-        p_classes = p_classes[sort_ind]
+        p_scores = np.array([p["score"] for p in img_preds])
+        p_classes = np.array([p["category_id"] for p in img_preds])
 
         correct = np.zeros((len(p_boxes), 10), dtype=bool)
         if len(gt_classes):
@@ -255,7 +231,11 @@ def evaluate_predictions(
                     best_gt = np.argmax(ious, axis=1)
                     best_iou = np.max(ious, axis=1)
 
-                    for i_idx, (g_idx, iou_val) in enumerate(zip(best_gt, best_iou)):
+                    # Sort by score descending for matching inside image
+                    p_sort = np.argsort(-p_scores[p_idx])
+                    for i_idx in p_sort:
+                        iou_val = best_iou[i_idx]
+                        g_idx = best_gt[i_idx]
                         g_global = gt_idx[g_idx]
                         if iou_val >= 0.5 and g_global not in detected:
                             detected.append(g_global)
@@ -265,72 +245,23 @@ def evaluate_predictions(
 
         stats.append((correct, p_scores, p_classes, gt_classes))
 
-    # Aggregate stats safely
-    all_correct = [s[0] for s in stats if len(s[0])]
-    all_conf = [s[1] for s in stats if len(s[1])]
-    all_pred_cls = [s[2] for s in stats if len(s[2])]
-    all_gt_cls = [s[3] for s in stats if len(s[3])]
+    # Aggregate statistics globally across entire dataset (YOLO / ESOD standard)
+    tp = np.concatenate([s[0] for s in stats if len(s[0])], axis=0)
+    conf = np.concatenate([s[1] for s in stats if len(s[1])], axis=0)
+    pred_cls = np.concatenate([s[2] for s in stats if len(s[2])], axis=0)
+    gt_cls = np.concatenate([s[3] for s in stats if len(s[3])], axis=0)
 
-    if len(all_gt_cls) == 0:
-        print("Error: Could not parse ground truth targets from label files.")
-        return
+    p, r, ap, _ = ap_per_class(tp, conf, pred_cls, gt_cls)
+    ap_50 = ap[:, 0]
+    ap_95 = ap.mean(1)
 
-    correct = (
-        np.concatenate(all_correct, axis=0)
-        if len(all_correct)
-        else np.zeros((0, 10), dtype=bool)
-    )
-    conf = np.concatenate(all_conf, axis=0) if len(all_conf) else np.array([])
-    pred_cls = (
-        np.concatenate(all_pred_cls, axis=0) if len(all_pred_cls) else np.array([])
-    )
-    gt_cls = np.concatenate(all_gt_cls, axis=0)
-
-    unique_cls = np.unique(gt_cls)
-    ap_50 = np.zeros(len(CLASS_NAMES))
-    ap_95 = np.zeros(len(CLASS_NAMES))
-    precisions = np.zeros(len(CLASS_NAMES))
-    recalls = np.zeros(len(CLASS_NAMES))
-    gt_counts = np.zeros(len(CLASS_NAMES), dtype=int)
-
-    for c in range(len(CLASS_NAMES)):
-        n_gt = (gt_cls == c).sum()
-        gt_counts[c] = n_gt
-        idx = pred_cls == c
-        n_p = idx.sum()
-
-        if n_p == 0 or n_gt == 0:
-            continue
-
-        fpc = (1 - correct[idx, 0]).cumsum()
-        tpc = correct[idx, 0].cumsum()
-
-        recall = tpc / (n_gt + 1e-16)
-        precision = tpc / (tpc + fpc)
-
-        precisions[c] = precision[-1] if len(precision) else 0
-        recalls[c] = recall[-1] if len(recall) else 0
-
-        # AP@0.5
-        ap_50[c] = compute_ap(recall, precision)
-
-        # AP@0.5:0.95
-        aps = []
-        for k in range(10):
-            tpc_k = correct[idx, k].cumsum()
-            fpc_k = (1 - correct[idx, k]).cumsum()
-            rec_k = tpc_k / (n_gt + 1e-16)
-            prec_k = tpc_k / (tpc_k + fpc_k)
-            aps.append(compute_ap(rec_k, prec_k))
-        ap_95[c] = np.mean(aps)
-
-    mp = np.mean([precisions[c] for c in unique_cls])
-    mr = np.mean([recalls[c] for c in unique_cls])
-    map50 = np.mean([ap_50[c] for c in unique_cls])
-    map95 = np.mean([ap_95[c] for c in unique_cls])
+    mp = np.mean(p)
+    mr = np.mean(r)
+    map50 = np.mean(ap_50)
+    map95 = np.mean(ap_95)
 
     print("=" * 78)
-    print(" BCRS EXPERIMENT EVALUATION — DETAILED DETECTION METRICS")
+    print(" BCRS OFFICIAL YOLO/ESOD STANDARD DETECTION EVALUATION METRICS")
     print("=" * 78)
     print(
         f"{'Class Name':<18} | {'GT Count':<8} | {'Precision':<10} | {'Recall':<10} | {'mAP@0.5':<10} | {'mAP@.5:.95':<10}"
@@ -338,8 +269,9 @@ def evaluate_predictions(
     print("-" * 78)
     for c in range(len(CLASS_NAMES)):
         c_name = CLASS_NAMES[c]
+        n_gt = (gt_cls == c).sum()
         print(
-            f"{c_name:<18} | {gt_counts[c]:<8} | {precisions[c]:<10.4f} | {recalls[c]:<10.4f} | {ap_50[c]:<10.4f} | {ap_95[c]:<10.4f}"
+            f"{c_name:<18} | {n_gt:<8} | {p[c]:<10.4f} | {r[c]:<10.4f} | {ap_50[c]:<10.4f} | {ap_95[c]:<10.4f}"
         )
     print("=" * 78)
     print(
@@ -365,15 +297,8 @@ if __name__ == "__main__":
         "--conf",
         "-c",
         type=float,
-        default=0.25,
-        help="Confidence score threshold for prediction filtering (default: 0.25)",
-    )
-    parser.add_argument(
-        "--nms",
-        "-n",
-        type=float,
-        default=0.5,
-        help="NMS IoU threshold for overlapping box suppression (default: 0.5)",
+        default=0.001,
+        help="Confidence score threshold for prediction filtering (default: 0.001)",
     )
     args = parser.parse_args()
 
@@ -408,13 +333,7 @@ if __name__ == "__main__":
                 break
 
     if os.path.exists(pred_path) and os.path.exists(labels_path):
-        evaluate_predictions(
-            pred_path,
-            labels_path,
-            images_path,
-            conf_thresh=args.conf,
-            nms_thresh=args.nms,
-        )
+        evaluate_predictions(pred_path, labels_path, images_path, conf_thresh=args.conf)
     else:
         print(
             f"Error: pred_path={pred_path} or labels_path={labels_path} does not exist."

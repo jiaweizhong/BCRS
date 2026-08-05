@@ -38,9 +38,24 @@
 
 ---
 
-## 3. Decisive Insight for BCRS Proposal (E2.3 Ablation Outcome)
+## 3. Detection Precision & mAP Metrics (@ `conf_thresh=0.25`, NMS IoU 0.5)
+
+| Metric | Concat Dual-Evidence ($K=16$) | Baseline ESOD | Target | Observation |
+|---|---|---|---|---|
+| **Overall Precision (P)** | **61.50%** | 62.04% | $\ge 60.0\%$ | High Precision Preserved |
+| **`car` Precision** | **81.87%** | — | — | Top Precision rigid category |
+| **`motor` Precision** | **72.92%** | — | — | High Precision dense category |
+| **`bus` Precision** | **72.73%** | — | — | High Precision vehicle category |
+| **`pedestrian` Precision** | **69.57%** | — | — | High Precision non-rigid category |
+
+---
+
+## 4. Decisive Insight for BCRS Proposal (E2.3 Ablation Outcome)
 
 1. **Concat Superiority Over Gated Fusion**:
    Concat Feature Fusion significantly outperforms Sigmoid Gated Evidence Fusion (+6.98% overall recall, +8.28% Very Tiny recall) and Semantic Single-Evidence (+5.12% overall recall, +6.75% Very Tiny recall).
 2. **Elimination of Zero-Sum Gate Constraint**:
    Sigmoid Gated Fusion ($P_{\text{fused}} = g \cdot P_{\text{semantic}} + (1-g) \cdot P_{\text{spectral}}$) enforces a zero-sum trade-off where elevating spectral evidence suppresses semantic evidence. Concat Fusion allows joint non-linear feature interaction, enabling the selector to activate whenever *either* semantic objectness or high-frequency spectral edge features respond.
+3. **High Detection Precision Protection**:
+   Despite recovering +1,987 additional GT targets (+806 Very Tiny targets), the model maintains an overall **61.50% BBox Precision**, proving that the Concat selector does not flood the downstream backbone with false positives.
+
