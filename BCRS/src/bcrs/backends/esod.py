@@ -90,14 +90,18 @@ class EsodAdapter(BackendAdapter):
                 output_dir.name + "_test",
                 "--exist-ok",
             ]
+            top_k = section.get("top_k") or section.get("patch_budget")
+            is_sparse = bool(section.get("sparse_head", False)) or (
+                top_k is not None and int(top_k) > 0
+            )
             for flag, option in (
-                ("sparse_head", "--sparse-head"),
                 ("hm_metric", "--hm-metric"),
                 ("save_json", "--save-json"),
             ):
                 if bool(section.get(flag, False)):
                     argv.append(option)
-            top_k = section.get("top_k") or section.get("patch_budget")
+            if is_sparse:
+                argv.append("--sparse-head")
             if top_k is not None:
                 argv.extend(["--top-k", str(top_k)])
             if section.get("hm_threshold"):
