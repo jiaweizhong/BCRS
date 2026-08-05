@@ -54,20 +54,59 @@ def compute_ap(recall, precision):
     return ap
 
 
-def evaluate_predictions(pred_json, labels_dir, images_dir=None):
+def nms_np(boxes, scores, iou_thresh=0.5):
+    if len(boxes) == 0:
+        return []
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 2]
+    y2 = boxes[:, 3]
+    areas = (x2 - x1) * (y2 - y1)
+    order = scores.argsort()[::-1]
+
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1)
+        h = np.maximum(0.0, yy2 - yy1)
+        inter = w * h
+        ovr = inter / (areas[i] + areas[order[1:]] - inter + 1e-6)
+
+        inds = np.where(ovr <= iou_thresh)[0]
+        order = order[inds + 1]
+
+    return keep
+
+
+def evaluate_predictions(
+    pred_json, labels_dir, images_dir=None, conf_thresh=0.25, nms_thresh=0.5
+):
     print(f"Loading predictions from: {pred_json}")
+    print(
+        f"Applying Confidence Threshold: {conf_thresh:.2f} | NMS IoU Threshold: {nms_thresh:.2f}"
+    )
     with open(pred_json, "r") as f:
         preds = json.load(f)
 
     preds_by_img = {}
     for p in preds:
-        img_id = str(p["image_id"])
-        if img_id not in preds_by_img:
-            preds_by_img[img_id] = []
-        preds_by_img[img_id].append(p)
+        if p["score"] >= conf_thresh:
+            img_id = str(p["image_id"])
+            if img_id not in preds_by_img:
+                preds_by_img[img_id] = []
+            preds_by_img[img_id].append(p)
 
     label_files = glob.glob(os.path.join(labels_dir, "*.txt"))
-    print(f"Loaded {len(preds)} prediction boxes across {len(preds_by_img)} images.")
+    total_raw_preds = sum(len(v) for v in preds_by_img.values())
+    print(
+        f"Filtered to {total_raw_preds} high-confidence boxes (conf >= {conf_thresh}) across {len(preds_by_img)} images."
+    )
     print(f"Found {len(label_files)} label files in {labels_dir}.\n")
 
     if images_dir is None or not os.path.exists(images_dir):
@@ -101,7 +140,7 @@ def evaluate_predictions(pred_json, labels_dir, images_dir=None):
                         pass
                     break
 
-        # Parse GT labels (YOLO format: class xc yc w h normalized or CSV format: x,y,w,h,score,cls)
+        # Parse GT labels
         gt_boxes = []
         gt_classes = []
         with open(l_path, "r") as f:
@@ -156,7 +195,7 @@ def evaluate_predictions(pred_json, labels_dir, images_dir=None):
                 )
             continue
 
-        p_boxes = np.array(
+        raw_p_boxes = np.array(
             [
                 [
                     p["bbox"][0],
@@ -167,8 +206,36 @@ def evaluate_predictions(pred_json, labels_dir, images_dir=None):
                 for p in img_preds
             ]
         )
-        p_scores = np.array([p["score"] for p in img_preds])
-        p_classes = np.array([p["category_id"] for p in img_preds])
+        raw_p_scores = np.array([p["score"] for p in img_preds])
+        raw_p_classes = np.array([p["category_id"] for p in img_preds])
+
+        # Per-class NMS
+        p_boxes_list, p_scores_list, p_classes_list = [], [], []
+        for cls in np.unique(raw_p_classes):
+            c_mask = raw_p_classes == cls
+            c_boxes = raw_p_boxes[c_mask]
+            c_scores = raw_p_scores[c_mask]
+            keep = nms_np(c_boxes, c_scores, iou_thresh=nms_thresh)
+            if len(keep):
+                p_boxes_list.append(c_boxes[keep])
+                p_scores_list.append(c_scores[keep])
+                p_classes_list.append(np.full(len(keep), cls, dtype=int))
+
+        if len(p_boxes_list) == 0:
+            if len(gt_classes):
+                stats.append(
+                    (
+                        np.zeros((0, 10), dtype=bool),
+                        np.array([]),
+                        np.array([]),
+                        gt_classes,
+                    )
+                )
+            continue
+
+        p_boxes = np.concatenate(p_boxes_list, axis=0)
+        p_scores = np.concatenate(p_scores_list, axis=0)
+        p_classes = np.concatenate(p_classes_list, axis=0)
 
         # Sort descending by score
         sort_ind = np.argsort(-p_scores)
@@ -294,6 +361,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "images", nargs="?", default="/root/autodl-tmp/VisDrone/images/val"
     )
+    parser.add_argument(
+        "--conf",
+        "-c",
+        type=float,
+        default=0.25,
+        help="Confidence score threshold for prediction filtering (default: 0.25)",
+    )
+    parser.add_argument(
+        "--nms",
+        "-n",
+        type=float,
+        default=0.5,
+        help="NMS IoU threshold for overlapping box suppression (default: 0.5)",
+    )
     args = parser.parse_args()
 
     pred_path = args.pred
@@ -327,7 +408,13 @@ if __name__ == "__main__":
                 break
 
     if os.path.exists(pred_path) and os.path.exists(labels_path):
-        evaluate_predictions(pred_path, labels_path, images_path)
+        evaluate_predictions(
+            pred_path,
+            labels_path,
+            images_path,
+            conf_thresh=args.conf,
+            nms_thresh=args.nms,
+        )
     else:
         print(
             f"Error: pred_path={pred_path} or labels_path={labels_path} does not exist."
