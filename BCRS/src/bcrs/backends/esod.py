@@ -97,8 +97,9 @@ class EsodAdapter(BackendAdapter):
             ):
                 if bool(section.get(flag, False)):
                     argv.append(option)
-            if section.get("top_k"):
-                argv.extend(["--top-k", str(section["top_k"])])
+            top_k = section.get("top_k") or section.get("patch_budget")
+            if top_k is not None:
+                argv.extend(["--top-k", str(top_k)])
             if section.get("hm_threshold"):
                 argv.extend(["--hm-threshold", str(section["hm_threshold"])])
         argv.extend(self._extra_args(section))
