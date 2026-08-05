@@ -200,6 +200,7 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 | E3.2 | Budget sampling | Uniform vs edge-biased vs curriculum | Stable coverage and monotonic realized cost |
 | E3.3 | Unseen budget interpolation | Evaluate intermediate budgets not sampled in training | Smooth, monotonic AP-cost curve without coverage collapse |
 | E3.4 | Calibration | Requested vs realized cost/latency | Low budget violation and calibrated latency lookup |
+| E3.5 | Detector Backbone Generalization (YOLOv8 / YOLOv11) | Swap YOLOv5m for YOLOv8m/YOLOv11m Predictor Head | Verify BCRS Dual-Evidence Selector is detector-agnostic with consistent +5%+ mAP gains |
 
 Failure of H5 does not invalidate H2/H3. Fall back to per-budget models and narrow the claim.
 

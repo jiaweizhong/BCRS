@@ -563,8 +563,49 @@ def test(
 
                 print(f"Evaluating pycocotools mAP with ground-truth {anno_json}...")
                 anno = COCO(anno_json)  # init annotations api
-                pred = anno.loadRes(pred_json)  # init predictions api
+
+                # Build filename/stem to image_id mapping for VisDrone
+                stem_to_id = {
+                    Path(img["file_name"]).stem: img["id"]
+                    for img in anno.dataset.get("images", [])
+                }
+                gt_cat_ids = set(
+                    cat["id"] for cat in anno.dataset.get("categories", [])
+                )
+
+                # Align jdict image_id and category_id
+                aligned_jdict = []
+                for p in jdict:
+                    raw_id = p["image_id"]
+                    matched_id = raw_id
+                    if isinstance(raw_id, str):
+                        matched_id = stem_to_id.get(raw_id, raw_id)
+
+                    cat_id = p["category_id"]
+                    if (
+                        min(gt_cat_ids, default=1) == 1
+                        and cat_id < 10
+                        and cat_id not in gt_cat_ids
+                    ):
+                        cat_id += 1
+
+                    aligned_jdict.append(
+                        {
+                            "image_id": matched_id,
+                            "category_id": cat_id,
+                            "bbox": p["bbox"],
+                            "score": p["score"],
+                        }
+                    )
+
+                aligned_json = str(save_dir / "_aligned_predictions.json")
+                with open(aligned_json, "w") as f:
+                    json.dump(aligned_jdict, f)
+
+                pred = anno.loadRes(aligned_json)  # init predictions api
                 eval = COCOeval(anno, pred, "bbox")
+                if "visdrone" in data_str:
+                    eval.params.maxDets = [10, 100, 500]
                 if is_coco:
                     eval.params.imgIds = [
                         int(Path(x).stem) for x in dataloader.dataset.img_files
@@ -572,8 +613,11 @@ def test(
                 eval.evaluate()
                 eval.accumulate()
                 eval.summarize()
+
+                if os.path.exists(aligned_json):
+                    os.remove(aligned_json)
             except Exception as e:
-                print(f"pycocotools unable to run: \n{e}")
+                print(f"pycocotools unable to run:\n{e}")
         elif anno_json:
             print(
                 f"pycocotools evaluation skipped (COCO annotation JSON not found at {anno_json}). Standard YOLO/VisDrone metrics computed above."

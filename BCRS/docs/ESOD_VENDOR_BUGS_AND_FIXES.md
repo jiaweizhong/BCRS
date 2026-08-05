@@ -280,6 +280,49 @@ pip install -r requirements.txt
 
 ---
 
+## 15. PyCOCOtools Image ID Alignment & Category ID Shift Fix for VisDrone
+
+- **Location**: [`vendor/esod/test.py#L560-L595`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L560-L595)
+- **Symptom**: PyCOCOtools evaluation during `bcrs test` failed with exception `pycocotools unable to run: Results do not correspond to current coco set` and fell back to YOLO in-memory evaluation. When evaluated via standalone PyCOCOtools, mAP@0.5 reported an erroneous ~3.01%.
+- **Root Cause**:
+  1. **Image ID Format Mismatch**: In `test.py`, `jdict` saved raw filename stems (e.g. `"0000001_02999_d_0000005"`) as string `image_id`s, whereas VisDrone official COCO annotation `val.json` used integer `image_id`s (`1, 2, 3... 548`). PyCOCOtools `loadRes` could not match string IDs against integer IDs, causing a load failure exception.
+  2. **Category ID Index Offset**: `test.py` generated 0-indexed prediction category IDs (`0..9`), whereas VisDrone `val.json` used 1-indexed category IDs (`1..10`). Standard PyCOCOtools attempted to match category 0 against non-existent GT category 0, mismatching ~90% of bounding box predictions.
+  3. **`maxDets` Truncation**: Default COCOeval capped evaluation at 100 detections per image (`maxDets=100`). Aerial drone images in VisDrone contain 200~500 targets per image, causing dense targets to be truncated as false negatives.
+- **Fix**:
+  1. Updated `test.py` pycocotools execution block to build `stem_to_id` mapping, converting string filename stems to `val.json` integer `image_id`s.
+  2. Applied automatic category ID shift (`cat_id += 1`) when predictions use 0..9 and ground truth categories use 1..10.
+  3. Configured `eval.params.maxDets = [10, 100, 500]` for VisDrone evaluation.
+
+---
+
+## 16. `ChannelPooledDualEvidenceSegmenter` Forward Pass Registration Fix
+
+- **Location**: [`vendor/esod/models/yolo.py#L630-L640`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/yolo.py#L630-L640)
+- **Symptom**: Training E2.6 Channel-Pooled Spectral model crashed at Epoch 3 with `TypeError: object of type 'NoneType' has no len()` during `forward_once`.
+- **Root Cause**:
+  In `yolo.py`, `forward_once` uses `isinstance(m, (Segmenter, DualEvidenceSegmenter, ...))` to identify Segmenter modules and assign output heatmaps to `pred_masks` and `masks`. Because `ChannelPooledDualEvidenceSegmenter` was omitted from this tuple check, `masks` remained `None`, causing downstream `MaskedC3TR` to crash when attempting `len(masks)`.
+- **Fix**:
+  Added `ChannelPooledDualEvidenceSegmenter` to the `isinstance` tuple check in `forward_once`:
+  ```python
+  if isinstance(
+      m,
+      (
+          Segmenter,
+          DualEvidenceSegmenter,
+          SpectralOnlySegmenter,
+          ConcatEvidenceSegmenter,
+          ChannelPooledDualEvidenceSegmenter,
+      ),
+  ):
+      pred_masks = x
+      if hm_only:
+          return (None, None), pred_masks
+      if masks is None:
+          masks = pred_masks
+  ```
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
@@ -289,8 +332,10 @@ With these fixes applied:
 4. Top-$K$ patch selection ($K=16, 24, 32$) functions reliably during sparse evaluation, enabling precise compute budget experiments.
 5. Size-weighted coverage loss ($\mathcal{L}_{\text{cov}}$) supervision forces the patch selector to prioritize Very Tiny targets ($<16\times 16\text{ px}$), enabling recall recovery under tight budget constraints.
 6. Parameter aliases (`patch_budget` and `coverage_loss_weight`) and `--sparse-head` flag injection resolve seamlessly in the backend CLI adapter.
-7. `DualEvidenceSegmenter`, `SpectralOnlySegmenter`, and `ConcatEvidenceSegmenter` integrate semantic Objectness, multi-kernel Laplacian/Sobel spectral filtering, and gated fusion into PyTorch execution graphs.
+7. `DualEvidenceSegmenter`, `SpectralOnlySegmenter`, `ConcatEvidenceSegmenter`, and `ChannelPooledDualEvidenceSegmenter` integrate semantic Objectness, multi-kernel Laplacian/Sobel spectral filtering, and gated/concat fusion into PyTorch execution graphs.
 8. `SpectralBranch` channel projection ensures exact 384-channel alignment for gated evidence fusion.
-9. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
-10. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
-11. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+9. PyCOCOtools evaluations in native `bcrs test` automatically align image IDs, 1-indexed category IDs, and dense `maxDets=500` settings, outputting official COCO metrics seamlessly.
+10. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
+11. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
+12. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+
