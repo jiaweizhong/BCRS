@@ -139,13 +139,13 @@ At this gate, write `claim-thresholds.yaml`, `budget-grid.yaml`, and `latency-lo
 
 ##### Phase 2 Dual-Evidence Spectral Audit Breakdown ($K=16$ Budget)
 
-| Size Category | Area Range | GT Count | Unsupervised $K=16$ Recalled | Phase 2 Spectral $K=16$ Recalled | Recall Rate (%) | Target Recall Delta | Recall % Delta |
-|---|---|---|---|---|---|---|---|
-| **Very Tiny** | $< 16 \times 16\text{ px}$ | 11,955 | 2,108 (17.63%) | **2,260** | **18.90%** | **+152 targets** | **+1.27%** |
-| **Tiny** | $16 \times 16 \sim 32 \times 32\text{ px}$ | 14,631 | 3,093 (21.14%) | **3,299** | **22.55%** | **+206 targets** | **+1.41%** |
-| **Small** | $32 \times 32 \sim 96 \times 96\text{ px}$ | 11,105 | 2,702 (24.33%) | **2,791** | **25.13%** | **+89 targets** | **+0.80%** |
-| **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 340 (31.84%) | **344** | **32.21%** | **+4 targets** | **+0.37%** |
-| **TOTAL** | — | **38,759** | **8,243 (21.27%)** | **8,694** | **22.43%** | **+451 targets** | **+1.16%** |
+| Size Category | Area Range | GT Count | Unsupervised $K=16$ | Gated Spectral $K=16$ | Semantic Only $K=16$ | **Concat Dual-Evidence $K=16$** | Recall Rate (%) | Target Recall Delta vs Semantic |
+|---|---|---|---|---|---|---|---|---|
+| **Very Tiny** | $< 16 \times 16\text{ px}$ | 11,955 | 2,108 (17.63%) | 2,260 (18.90%) | 2,443 (20.43%) | **3,249** | **27.18%** | **+806 targets (+6.75%)** |
+| **Tiny** | $16 \times 16 \sim 32 \times 32\text{ px}$ | 14,631 | 3,093 (21.14%) | 3,299 (22.55%) | 3,608 (24.66%) | **4,267** | **29.16%** | **+659 targets (+4.50%)** |
+| **Small** | $32 \times 32 \sim 96 \times 96\text{ px}$ | 11,105 | 2,702 (24.33%) | 2,791 (25.13%) | 2,988 (26.91%) | **3,469** | **31.24%** | **+481 targets (+4.33%)** |
+| **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 340 (31.84%) | 344 (32.21%) | 374 (35.02%) | **415** | **38.86%** | **+41 targets (+3.84%)** |
+| **TOTAL** | — | **38,759** | **8,243 (21.27%)** | **8,694 (22.43%)** | **9,413 (24.29%)** | **11,400** | **29.41%** | **+1,987 targets (+5.12%)** |
 
 ### Phase 2 — Dual-evidence mechanism
 
@@ -155,7 +155,7 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 |---|---|---|---|---|
 | E2.1 | Semantic + spectral vs semantic-only | Match selector params/FLOPs | Low-objectness tiny recall gain | **COMPLETED** |
 | E2.2 | Fused vs spectral-only/objectness/random | Exact same top-k | Better selector-recall and APt frontier | **IN PROGRESS (Overnight Script)** |
-| E2.3 | Concat vs Gated Fusion | Match width/params/training | Gated fusion superiority | **IN PROGRESS (Overnight Script)** |
+| E2.3 | Concat vs Gated Fusion | Match width/params/training | Concat fusion superiority (+5.12% recall over semantic, +6.98% over gated) | **COMPLETED** |
 | E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency | **IN PROGRESS (Overnight Script)** |
 | E2.5 | Hard-case diagnostics | Locked bins | Gain concentrates in low-objectness/high-texture subgroups | **IN PROGRESS (Overnight Script)** |
 | E2.6 | Channel-Pooled Spectral vs Standard Spectral | Channel Max/Avg Pooling + 1-ch Laplacian | Equal/better recall at 95% reduced spectral FLOPs | **PROPOSED** |

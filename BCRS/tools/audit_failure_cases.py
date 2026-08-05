@@ -192,19 +192,59 @@ def run_audit(pred_json_path, labels_dir, images_dir=None):
 
 
 if __name__ == "__main__":
+    import argparse
     import sys
 
+    parser = argparse.ArgumentParser(description="BCRS Target Failure Audit Tool")
+    parser.add_argument(
+        "pos_pred",
+        nargs="?",
+        default=None,
+        help="Prediction JSON file (positional)",
+    )
+    parser.add_argument(
+        "pos_labels",
+        nargs="?",
+        default=None,
+        help="Labels directory (positional)",
+    )
+    parser.add_argument(
+        "pos_images",
+        nargs="?",
+        default=None,
+        help="Images directory (positional)",
+    )
+    parser.add_argument(
+        "--pred",
+        "-p",
+        default=None,
+        help="Prediction JSON file path",
+    )
+    parser.add_argument(
+        "--labels",
+        "-l",
+        default=None,
+        help="Ground truth labels directory path",
+    )
+    parser.add_argument(
+        "--images",
+        "-i",
+        default=None,
+        help="Validation images directory path",
+    )
+
+    args = parser.parse_args()
+
     pred_file = (
-        sys.argv[1]
-        if len(sys.argv) > 1
-        else "/root/BCRS/BCRS/work_dirs/esod_visdrone_yolov5m_test/best_predictions.json"
+        args.pred
+        or args.pos_pred
+        or "/root/BCRS/BCRS/work_dirs/esod_visdrone_yolov5m_test/best_predictions.json"
     )
     labels_path = (
-        sys.argv[2] if len(sys.argv) > 2 else "/root/autodl-tmp/VisDrone/labels/val"
+        args.labels or args.pos_labels or "/root/autodl-tmp/VisDrone/labels/val"
     )
-    img_path = (
-        sys.argv[3] if len(sys.argv) > 3 else "/root/autodl-tmp/VisDrone/images/val"
-    )
+    img_path = args.images or args.pos_images or "/root/autodl-tmp/VisDrone/images/val"
+
     if os.path.exists(pred_file) and os.path.exists(labels_path):
         run_audit(pred_file, labels_path, img_path)
     else:
