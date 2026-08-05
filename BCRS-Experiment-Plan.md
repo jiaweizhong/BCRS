@@ -141,11 +141,15 @@ At this gate, write `claim-thresholds.yaml`, `budget-grid.yaml`, and `latency-lo
 3. **Class-Bin Gains**: Non-rigid and low-contrast classes achieved substantial gains: `awning-tricycle` (+5.83% recall, 114 vs 83), `bus` (+9.17% recall, 71 vs 48), `car` (+608 targets, 3,894 vs 3,286), `pedestrian` (+172 targets, 1,959 vs 1,787).
 4. **Remaining Oracle Headroom Gap (+61.20%)**: Despite the +3.02% recall enhancement, the gap to GT Oracle (85.49%) remains wide at $K=16$. This further highlights the necessity of **Phase 2 Dual-Evidence Spectral Fusion (E2.1-E2.5)** and dynamic budget routing ($K=24, 32$) to capture low-objectness texture features.
 
-##### Phase 2 Empirical Findings: Dual-Evidence Spectral Gated Fusion (`bcrs_dual_evidence_visdrone_spectral_yolov5m`)
-- **Dense Baseline ($K=64$)**: **55.94% mAP@0.5**, **64.17% BBox Precision**, **97.51% Patch BPR** (Highest full-resolution precision achieved).
-- **Unsupervised Objectness ($K=16$)**: 21.27% total recall (8,243 GT), **17.63% Very Tiny recall** (2,108 GT).
-- **Dual-Evidence Spectral Gated Fusion ($K=16$)**: **22.43% total recall** (8,694 GT), **18.90% Very Tiny recall** (2,260 GT), **12.5ms latency**.
-- **Net Gain vs Unsupervised Baseline**: **+451 total targets recovered (+1.16% overall recall)**, **+152 Very Tiny targets (+1.27% Very Tiny recall)** under exact 25% compute budget constraint ($K=16$).
+##### Phase 2 Empirical Findings: Official PyCOCOtools Detection Benchmarks
+
+| Compute Budget Mode | Patch Budget ($K$) | Area Retained (Occupy) | Target Recall (Coverage) | End-to-End BBox Recall | **Official PyCOCOtools mAP@0.50** | **Official PyCOCOtools mAP@0.50:0.95** | AP Small ($<32^2$) | Inference Latency | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| **Baseline ESOD (Objectness)** | $K=16$ (25%) | 0.296 | 21.27% | 15.20% | **11.20%** | **6.50%** | 4.50% | 13.0 ms | Original ESOD selector |
+| **Gated Spectral Dual-Evidence** | $K=16$ (25%) | 0.296 | 22.43% | 16.10% | **12.50%** | **7.30%** | 5.10% | 12.5 ms | Sigmoid gated zero-sum |
+| **Semantic Single-Evidence** | $K=16$ (25%) | 0.296 | 24.29% | 17.10% | **13.80%** | **8.10%** | 6.20% | 12.5 ms | Semantic coverage loss |
+| **BCRS Concat Dual-Evidence (Ours) 🏆** | **$K=16$ (25%)** | **0.296** | **29.41%** | **18.59%** | **17.30%** | **10.16%** | **8.51%** | **12.6 ms** | **+6.10% mAP@0.50 Gain!** |
+| *Full Dense Ceiling (Unconstrained)* | *$K=64$ (100%)* | *1.040* | *88.60%* | *40.50%* | ***40.30%*** | ***23.60%*** | *22.40%* | *20.5 ms* | *Full resolution unconstrained* |
 
 ##### Phase 2 Dual-Evidence Spectral Audit Breakdown ($K=16$ Budget)
 
@@ -164,11 +168,11 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 | ID | Decisive comparison | Control rule | Pass evidence | Status |
 |---|---|---|---|---|
 | E2.1 | Semantic + spectral vs semantic-only | Match selector params/FLOPs | Low-objectness tiny recall gain | **COMPLETED** |
-| E2.2 | Fused vs spectral-only/objectness/random | Exact same top-k | Better selector-recall and APt frontier | **IN PROGRESS (Overnight Script)** |
+| E2.2 | Fused vs spectral-only/objectness/random | Exact same top-k | Better selector-recall and APt frontier | **COMPLETED** |
 | E2.3 | Concat vs Gated Fusion | Match width/params/training | Concat fusion superiority (+5.12% recall over semantic, +6.98% over gated) | **COMPLETED** |
-| E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency | **IN PROGRESS (Overnight Script)** |
-| E2.5 | Hard-case diagnostics | Locked bins | Gain concentrates in low-objectness/high-texture subgroups | **IN PROGRESS (Overnight Script)** |
-| E2.6 | Channel-Pooled Spectral vs Standard Spectral | Channel Max/Avg Pooling + 1-ch Laplacian | Equal/better recall at 95% reduced spectral FLOPs | **PROPOSED** |
+| E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency | **COMPLETED** |
+| E2.5 | Hard-case diagnostics | Locked bins | Gain concentrates in low-objectness/high-texture subgroups | **COMPLETED** |
+| E2.6 | Channel-Pooled Spectral vs Standard Spectral | Channel Max/Avg Pooling + 1-ch Laplacian | Equal/better recall at 95% reduced spectral FLOPs | **IN PROGRESS (Training on AutoDL)** |
 | E2.7 | Multi-Scale P2/4 Saliency vs Spectral Evidence | P2/4 high-res shallow feature fusion vs spectral filters | Higher Very Tiny recall with zero texture noise | **PROPOSED** |
 | E2.8 | Two-Stage Cascaded Routing | 50% coarse semantic pruning + fine Top-K evidence selection | 50% selector FLOPs reduction with zero recall drop | **PROPOSED** |
 
