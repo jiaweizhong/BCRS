@@ -26,17 +26,14 @@ def box_iou_xywh(box1, box2):
     inter_y2 = np.minimum(b1_y2[:, None], b2_y2[None, :])
 
     inter_area = np.maximum(0, inter_x2 - inter_x1) * np.maximum(0, inter_y2 - inter_y1)
-    b1_area = b1_x2 - b1_x1
-    b1_area = b1_area * (b1_y2 - b1_y1)
-    b2_area = b2_x2 - b2_x1
-    b2_area = b2_area * (b2_y2 - b2_y1)
+    b1_area = (b1_x2 - b1_x1) * (b1_y2 - b1_y1)
+    b2_area = (b2_x2 - b2_x1) * (b2_y2 - b2_y1)
 
     union_area = b1_area[:, None] + b2_area[None, :] - inter_area
     return inter_area / (union_area + 1e-6)
 
 
 def compute_coco_ap(recall, precision):
-    # 101-point COCO AP interpolation
     mrec = np.concatenate(([0.0], recall, [recall[-1] if len(recall) else 0.0 + 0.01]))
     mpre = np.concatenate(([1.0], precision, [0.0]))
     mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
@@ -48,8 +45,7 @@ def compute_coco_ap(recall, precision):
 
 
 def standalone_cocoeval(aligned_preds, coco_anno):
-    print("Running Standalone Native COCOeval Engine...")
-    img_ids = set(img["id"] for img in coco_anno["images"])
+    print("Running Standalone Native COCOeval Engine (maxDets=500 for VisDrone)...")
     cats = sorted(set(cat["id"] for cat in coco_anno["categories"]))
 
     # Group GTs by (img_id, category_id)
@@ -76,10 +72,8 @@ def standalone_cocoeval(aligned_preds, coco_anno):
         if not cat_preds:
             continue
 
-        # Sort all predictions of this category globally by score descending
         cat_preds.sort(key=lambda x: x["score"], reverse=True)
 
-        # Total GT count for this category
         total_gt = sum(
             len(boxes)
             for (img_id, c_id), boxes in gt_by_img_cat.items()
@@ -88,19 +82,18 @@ def standalone_cocoeval(aligned_preds, coco_anno):
         if total_gt == 0:
             continue
 
-        # Group predictions by image_id for fast matching
         preds_by_img = {}
         for p_idx, p in enumerate(cat_preds):
             i_id = p["image_id"]
             if i_id not in preds_by_img:
                 preds_by_img[i_id] = []
-            preds_by_img[i_id].append((p_idx, p["bbox"]))
+            if len(preds_by_img[i_id]) < 500:  # VisDrone maxDets = 500
+                preds_by_img[i_id].append((p_idx, p["bbox"]))
 
         for iou_idx, iou_thresh in enumerate(iou_thresholds):
             tp = np.zeros(len(cat_preds))
             fp = np.zeros(len(cat_preds))
 
-            # Match per image
             for img_id, p_list in preds_by_img.items():
                 gt_boxes = gt_by_img_cat.get((img_id, cat_id), [])
                 if not gt_boxes:
@@ -136,13 +129,13 @@ def standalone_cocoeval(aligned_preds, coco_anno):
     map_50_95 = ap_table.mean()
 
     print("\n" + "=" * 78)
-    print(" OFFICIAL COCOEVAL NATIVE SUMMARY RESULTS")
+    print(" OFFICIAL COCOEVAL SUMMARY RESULTS (VisDrone maxDets=500)")
     print("=" * 78)
     print(
-        f" Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = {map_50_95:.4f} ({map_50_95*100:.2f}%)"
+        f" Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=500 ] = {map_50_95:.4f} ({map_50_95*100:.2f}%)"
     )
     print(
-        f" Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = {map_50:.4f} ({map_50*100:.2f}%)"
+        f" Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=500 ] = {map_50:.4f} ({map_50*100:.2f}%)"
     )
     print("=" * 78 + "\n")
 
@@ -160,6 +153,16 @@ def run_official_pycoco_eval(pred_json_path, anno_json_path):
     with open(anno_json_path, "r") as f:
         coco_anno = json.load(f)
 
+    # Check category_id offset (VisDrone val.json uses 1..10, predictions use 0..9)
+    gt_cat_ids = set(cat["id"] for cat in coco_anno["categories"])
+    pred_cat_ids = set(p["category_id"] for p in preds)
+    shift_cat_id = (min(gt_cat_ids) == 1) and (0 in pred_cat_ids)
+
+    if shift_cat_id:
+        print(
+            "Detected Category ID offset: Shifting prediction category_id from 0..9 to 1..10 to match VisDrone val.json!"
+        )
+
     # Build mapping from image stem/filename to integer image_id in val.json
     stem_to_id = {}
     name_to_id = {}
@@ -170,7 +173,7 @@ def run_official_pycoco_eval(pred_json_path, anno_json_path):
         stem_to_id[stem] = img_id
         name_to_id[file_name] = img_id
 
-    # Align prediction image_id to integer image_id
+    # Align prediction image_id and category_id to integer image_id and 1-indexed category_id
     aligned_preds = []
     unmapped = 0
     for p in preds:
@@ -192,6 +195,8 @@ def run_official_pycoco_eval(pred_json_path, anno_json_path):
         if matched_id is not None:
             p_copy = dict(p)
             p_copy["image_id"] = matched_id
+            if shift_cat_id:
+                p_copy["category_id"] = p["category_id"] + 1
             aligned_preds.append(p_copy)
         else:
             unmapped += 1
@@ -216,31 +221,36 @@ def run_official_pycoco_eval(pred_json_path, anno_json_path):
             cocoDt = cocoGt.loadRes(temp_json)
 
             cocoEval = COCOeval(cocoGt, cocoDt, "bbox")
+            cocoEval.params.maxDets = [
+                10,
+                100,
+                500,
+            ]  # Set VisDrone dense maxDets to 500
             cocoEval.evaluate()
             cocoEval.accumulate()
             cocoEval.summarize()
 
             stats = cocoEval.stats
             print("\n" + "=" * 78)
-            print(" OFFICIAL COCOEVAL SUMMARY RESULTS")
+            print(" OFFICIAL COCOEVAL SUMMARY RESULTS (maxDets=500)")
             print("=" * 78)
             print(
-                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = {stats[0]:.4f} ({stats[0]*100:.2f}%)"
+                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=500 ] = {stats[0]:.4f} ({stats[0]*100:.2f}%)"
             )
             print(
-                f" Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = {stats[1]:.4f} ({stats[1]*100:.2f}%)"
+                f" Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=500 ] = {stats[1]:.4f} ({stats[1]*100:.2f}%)"
             )
             print(
-                f" Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = {stats[2]:.4f} ({stats[2]*100:.2f}%)"
+                f" Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=500 ] = {stats[2]:.4f} ({stats[2]*100:.2f}%)"
             )
             print(
-                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = {stats[3]:.4f} ({stats[3]*100:.2f}%)"
+                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=500 ] = {stats[3]:.4f} ({stats[3]*100:.2f}%)"
             )
             print(
-                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = {stats[4]:.4f} ({stats[4]*100:.2f}%)"
+                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=500 ] = {stats[4]:.4f} ({stats[4]*100:.2f}%)"
             )
             print(
-                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = {stats[5]:.4f} ({stats[5]*100:.2f}%)"
+                f" Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=500 ] = {stats[5]:.4f} ({stats[5]*100:.2f}%)"
             )
             print("=" * 78 + "\n")
         finally:
@@ -270,14 +280,17 @@ if __name__ == "__main__":
 
     if not os.path.exists(pred_path):
         folder_name = Path(pred_path).parent.name
+        base_folder = folder_name.replace("_k16", "")
         for cand in [
-            os.path.join("results", folder_name, "best_predictions.json"),
             os.path.join("work_dirs", folder_name, "best_predictions.json"),
-            os.path.join(
-                "/root/BCRS/BCRS/results", folder_name, "best_predictions.json"
-            ),
+            os.path.join("work_dirs", base_folder, "best_predictions.json"),
+            os.path.join("results", folder_name, "best_predictions.json"),
+            os.path.join("results", base_folder, "best_predictions.json"),
             os.path.join(
                 "/root/BCRS/BCRS/work_dirs", folder_name, "best_predictions.json"
+            ),
+            os.path.join(
+                "/root/BCRS/BCRS/work_dirs", base_folder, "best_predictions.json"
             ),
         ]:
             if os.path.exists(cand):

@@ -634,6 +634,7 @@ class Model(nn.Module):
                     DualEvidenceSegmenter,
                     SpectralOnlySegmenter,
                     ConcatEvidenceSegmenter,
+                    ChannelPooledDualEvidenceSegmenter,
                 ),
             ):
                 pred_masks = x
