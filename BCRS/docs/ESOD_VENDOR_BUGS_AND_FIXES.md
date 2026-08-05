@@ -269,6 +269,17 @@ pip install -r requirements.txt
 
 ---
 
+## 14. Channel Dimension Alignment in Gated Evidence Fusion (`SpectralBranch`)
+
+- **Location**: [`vendor/esod/models/spectral.py#L91-L110`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/models/spectral.py#L91-L110)
+- **Symptom**: `RuntimeError: Given groups=1, weight of size [192, 384, 1, 1], expected input[8, 960, 192, 192] to have 384 channels, but got 960 channels instead`.
+- **Root Cause**:
+  In `SpectralBranch`, `MultiKernelSpectralFilter` expands depthwise output channels to $4\times \text{in\_channels}$ ($4 \times 192 = 768$). When `SpectralBranch.forward` returned raw unprojected filter features as `f_spectral`, concatenating `f_semantic` (192 channels) and `f_spectral` (768 channels) yielded 960 channels, whereas `GatedEvidenceFusion` expected $\text{in\_channels} \times 2 = 384$ channels.
+- **Fix**:
+  Structured `SpectralBranch` into a 1x1 projection stem (`self.stem`) and logit head (`self.head`). `SpectralBranch.forward` projects raw multi-kernel outputs to `in_channels` (192) before passing `f_spectral` to `GatedEvidenceFusion`, aligning input channels to $192 + 192 = 384$.
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
@@ -278,7 +289,8 @@ With these fixes applied:
 4. Top-$K$ patch selection ($K=16, 24, 32$) functions reliably during sparse evaluation, enabling precise compute budget experiments.
 5. Size-weighted coverage loss ($\mathcal{L}_{\text{cov}}$) supervision forces the patch selector to prioritize Very Tiny targets ($<16\times 16\text{ px}$), enabling recall recovery under tight budget constraints.
 6. Parameter aliases (`patch_budget` and `coverage_loss_weight`) and `--sparse-head` flag injection resolve seamlessly in the backend CLI adapter.
-7. `DualEvidenceSegmenter` integrates semantic Objectness, multi-kernel Laplacian/Sobel spectral filtering, and gated fusion into the PyTorch execution graph.
-8. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
-9. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
-10. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+7. `DualEvidenceSegmenter`, `SpectralOnlySegmenter`, and `ConcatEvidenceSegmenter` integrate semantic Objectness, multi-kernel Laplacian/Sobel spectral filtering, and gated fusion into PyTorch execution graphs.
+8. `SpectralBranch` channel projection ensures exact 384-channel alignment for gated evidence fusion.
+9. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
+10. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
+11. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).

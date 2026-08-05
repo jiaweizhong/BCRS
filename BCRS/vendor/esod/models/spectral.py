@@ -97,16 +97,17 @@ class SpectralBranch(nn.Module):
         super().__init__()
         self.filter = MultiKernelSpectralFilter(in_channels, kernels=kernels)
         spectral_dim = in_channels * 4
-        self.proj = nn.Sequential(
+        self.stem = nn.Sequential(
             nn.Conv2d(spectral_dim, in_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(in_channels),
-            nn.SiLU(),
-            nn.Conv2d(in_channels, out_channels, kernel_size=1)
+            nn.SiLU()
         )
+        self.head = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
-        spec_feat = self.filter(x)
-        logits = self.proj(spec_feat)
+        spec_raw = self.filter(x)
+        spec_feat = self.stem(spec_raw)
+        logits = self.head(spec_feat)
         return logits, spec_feat
 
 
