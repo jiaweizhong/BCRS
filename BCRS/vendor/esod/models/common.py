@@ -1168,3 +1168,7 @@ class YOLOv6Head(YOLOXHead):
         self.reg_pred = nn.Conv2d(c, 4 * na, 1)
         self.obj_pred = nn.Conv2d(c, 1 * na, 1)
 
+
+from models.spectral import MultiKernelSpectralFilter, SpectralBranch, GatedEvidenceFusion
+
+
