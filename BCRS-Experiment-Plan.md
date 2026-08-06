@@ -1,7 +1,7 @@
 # BCRS Experiment Plan
 
 **Source:** `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md`  
-**Status:** Phase 2 COMPLETED — Multi-Model Ablation Inference Sweep Pending  
+**Status:** Phase 2 COMPLETED — Full K=64 Inference Sweep COMPLETE (2026-08-06)  
 **Primary question:** Can dual semantic-spectral evidence allocate a fixed inference budget better than objectness alone, protecting tiny-object recall across VisDrone, UAVDT, and TinyPerson?
 
 ## 0. Baseline Benchmark & Execution Tracking
@@ -184,14 +184,20 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 | Model | Exp | ESOD mAP@0.5 | BPR@K64 | PyCOCO AP50 | PyCOCO AP[.5:.95] | AR@500 | Very Tiny Recall (<16px) | Tiny Recall | Total Recall |
 |---|---|---|---|---|---|---|---|---|---|
 | ESOD Baseline | E1.0 | 0.367 | 0.607 | 0.084 | 0.044 | 0.164 | 49.28% | 62.29% | 61.25% |
-| BCRS Dual Evidence (Gated) | E2.1 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| BCRS Dual Evidence Concat | E2.3 | 0.403 | 0.665 | **0.093** | **0.049** | **0.177** | 57.62% | 68.37% | 67.18% |
-| BCRS Dual Evidence Spectral | E2.4 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| BCRS Channel-Pooled Spectral | E2.6 | **0.409** | **0.667** | **0.093** | **0.049** | 0.176 | **57.73%** | 66.29% | 66.57% |
+| BCRS Dual Evidence (Gated) | E2.1 | **0.403** | **0.682** | **0.094** | **0.050** | **0.178** | 56.74% | **68.35%** | **67.51%** |
+| BCRS Dual Evidence Concat | E2.3 | 0.403 | 0.665 | 0.093 | 0.049 | 0.177 | 57.62% | 68.37% | 67.18% |
+| BCRS Dual Evidence Spectral | E2.4 | 0.398 | 0.662 | 0.091 | 0.048 | 0.176 | 55.26% | 65.85% | 65.93% |
+| BCRS Channel-Pooled Spectral | E2.6 | **0.409** | 0.667 | 0.093 | 0.049 | 0.176 | **57.73%** | 66.29% | 66.57% |
 
-> **Key Finding (2026-08-06):** Both BCRS variants (E2.3 and E2.6) outperform ESOD baseline by **+10.7% PyCOCO AP50** and **+8.3–8.5pp Very Tiny Recall**.  
-> E2.3 and E2.6 are nearly identical at K=64, confirming that the gain comes from dual-evidence training signal quality, not inference-time architecture.
-> E2.1 and E2.4 results pending inference sweep (`tools/inference_sweep.sh`).
+> **Key Finding (2026-08-06, confirmed full sweep):** All four BCRS variants outperform ESOD baseline across all metrics.
+> - **Best mAP@0.5**: E2.6 Channel-Pooled Spectral (**0.409**, +11.4% over baseline 0.367)
+> - **Best BPR@K64**: E2.1 Gated (**0.682**, +12.4% over baseline 0.607) — highest patch coverage efficiency
+> - **Best AP50**: E2.1 Gated (**0.094**, +11.9% over baseline 0.084)
+> - **Best Total Recall**: E2.1 Gated (**67.51%**, +6.26pp over baseline 61.25%)
+> - **Best Very Tiny Recall**: E2.6 Channel-Pooled Spectral (**57.73%**, +8.45pp over baseline 49.28%)
+> - **E2.4 Spectral** is weakest BCRS variant, confirming spectral-only evidence needs spatial gating or concat fusion to reach peak performance.
+> - E2.1 (Gated) and E2.3 (Concat) show nearly identical mAP@0.5 (both 0.403) but E2.1 achieves higher BPR (0.682 vs 0.665), suggesting gated fusion yields better patch selection quality for equivalent detection accuracy.
+> - E2.6's edge on mAP@0.5 (0.409) vs E2.1 (0.403) with lower BPR (0.667 vs 0.682) indicates channel-pooling improves detection precision at a slight coverage cost.
 
 
 #### Phase 2.5 — Lightweight Evidence & Selector Routing Optimization Proposals
