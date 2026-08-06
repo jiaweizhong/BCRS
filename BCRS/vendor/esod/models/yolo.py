@@ -875,6 +875,11 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                 n = 1
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
+        elif m is HeatMapParser:
+            c2 = args[0]
+            if c2 != no:  # if not output
+                c2 = make_divisible(c2 * gw, 8)
+            args = [c2, *args[1:]]
         elif m is Concat:
             c2 = sum([ch[x] for x in f])
         elif m in [Add, nn.Identity]:
