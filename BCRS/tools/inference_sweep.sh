@@ -2,8 +2,8 @@
 # =============================================================================
 # BCRS Full Inference Sweep — All Models × All Budgets
 #
-# Runs: E1.0 / E2.1 / E2.3 / E2.4 / E2.6  x  K={16, 32, 48, 64}
-# Total: 5 models × 4 budgets = 20 inference runs
+# Runs: E1.0 / E2.1 / E2.3 / E2.4 / E2.5 / E2.6 / E2.9  x  K={16, 32, 48, 64}
+# Total: 7 models × 4 budgets = 28 inference runs
 #
 # Output naming convention: work_dirs/{stem}_k{K}/
 #   e.g.  esod_visdrone_yolov5m_k64
@@ -12,6 +12,14 @@
 # Summary: work_dirs/sweep_results.json  (structured, ready for plotting)
 #
 # Usage: cd /root/BCRS/BCRS && bash tools/inference_sweep.sh
+#
+# NOTE (2026-08-06): E2.5 (Spectral-Only) and E2.9 (Channel-Pooled Concat)
+# added to the roster. Both require their checkpoint to already exist under
+# work_dirs/<stem>/weights/best.pt (train first — see configs/experiments/
+# bcrs_spectral_only_visdrone.yaml and bcrs_channel_pooled_concat_visdrone.yaml).
+# run_one() already skips any model whose checkpoint is missing (soft warning,
+# sweep continues), so it's safe to run this even if one of the two is still
+# training — it just won't appear in that pass's sweep_results.json.
 # =============================================================================
 
 set -eE
@@ -40,7 +48,9 @@ MODELS=(
   "E2.1|BCRS Semantic-Only (Coverage-Supervised)|bcrs_dual_evidence_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone.yaml"
   "E2.3|BCRS Dual Evidence Concat|bcrs_dual_evidence_concat_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_concat_visdrone.yaml"
   "E2.4|BCRS Dual Evidence Gated|bcrs_dual_evidence_visdrone_spectral_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone_spectral.yaml"
+  "E2.5|BCRS Spectral-Only|bcrs_spectral_only_visdrone_yolov5m|configs/experiments/bcrs_spectral_only_visdrone.yaml"
   "E2.6|BCRS Channel-Pooled Spectral (Gated)|bcrs_channel_pooled_spectral_visdrone_yolov5m|configs/experiments/bcrs_channel_pooled_spectral_visdrone.yaml"
+  "E2.9|BCRS Channel-Pooled Concat|bcrs_channel_pooled_concat_visdrone_yolov5m|configs/experiments/bcrs_channel_pooled_concat_visdrone.yaml"
 )
 
 # ===========================================================================
@@ -91,10 +101,19 @@ run_one() {
   rm -rf "${DEFAULT_DIR}"
 
   # Run inference; bcrs test writes to {STEM}_test
+  # NOTE (2026-08-06): test.task=measure additionally triggers ESOD's real
+  # per-image fvcore FLOPs profiling and per-image latency bucket recording
+  # (test.py:219-269,510-511, saved to buckets.json) — this is the same val
+  # split/predictions/audit pipeline as task=val (test.py:164 falls back to
+  # "val" for any task not in {train,val,test}), just with extra profiling
+  # per image, so this does not need a second pass. Expect each run to take
+  # somewhat longer than a plain val pass (one extra profiling forward per
+  # image via fvcore.nn.FlopCountAnalysis).
   bcrs test "${CONFIG}" \
     --set "test.checkpoint=${CKPT}" \
     --set test.save_json=true \
     --set "test.patch_budget=${K}" \
+    --set test.task=measure \
     2>&1 | tee /tmp/bcrs_run.log
 
   # Rename default dir -> canonical k{K} dir
@@ -160,13 +179,42 @@ MODELS = [
     ("E2.1", "BCRS Semantic-Only (Coverage-Supervised)", "bcrs_dual_evidence_visdrone_yolov5m"),
     ("E2.3", "BCRS Dual Evidence Concat",               "bcrs_dual_evidence_concat_visdrone_yolov5m"),
     ("E2.4", "BCRS Dual Evidence Gated",                "bcrs_dual_evidence_visdrone_spectral_yolov5m"),
+    ("E2.5", "BCRS Spectral-Only",                      "bcrs_spectral_only_visdrone_yolov5m"),
     ("E2.6", "BCRS Channel-Pooled Spectral (Gated)",    "bcrs_channel_pooled_spectral_visdrone_yolov5m"),
+    ("E2.9", "BCRS Channel-Pooled Concat",              "bcrs_channel_pooled_concat_visdrone_yolov5m"),
 ]
 K_VALUES = [16, 32, 48, 64]
 
 def parse_float(text, pattern, default=0.0):
     m = re.search(pattern, text)
     return float(m.group(1)) if m else default
+
+def parse_buckets(bucket_path):
+    """Real per-image FLOPs/latency distribution from task=measure (buckets.json)."""
+    if not bucket_path.exists():
+        return None
+    try:
+        data = json.loads(bucket_path.read_text(errors="replace"))
+    except Exception:
+        return None
+    latency_ms = sorted(x * 1000.0 for x in data.get("latency", []))
+    gflops = data.get("gflops", [])
+    if not latency_ms:
+        return None
+    n = len(latency_ms)
+    def pct(p):
+        idx = min(n - 1, max(0, int(round(p / 100.0 * (n - 1)))))
+        return latency_ms[idx]
+    mean_lat = sum(latency_ms) / n
+    var = sum((x - mean_lat) ** 2 for x in latency_ms) / n
+    return {
+        "n_images":     n,
+        "gflops_mean":  (sum(gflops) / len(gflops)) if gflops else 0.0,
+        "latency_mean_ms": mean_lat,
+        "latency_std_ms":  var ** 0.5,
+        "latency_p50_ms":  pct(50),
+        "latency_p95_ms":  pct(95),
+    }
 
 def parse_audit(log_text):
     """Parse size-bin recall table from audit output."""
@@ -202,6 +250,7 @@ for exp_id, display, stem in MODELS:
             log_text = log_path.read_text(errors="replace")
 
         esod_line = next((l for l in log_text.splitlines() if "[ESOD Validation Diagnostic]" in l), "")
+        bucket_stats = parse_buckets(work_dir / f"{stem}_k{K}" / "buckets.json")
         entry = {
             "exp_id":  exp_id,
             "model":   display,
@@ -220,10 +269,20 @@ for exp_id, display, stem in MODELS:
                 "ar500": parse_float(log_text, r"IoU=0\.50:0\.95 \| area=   all \| maxDets=500 \] = ([\d.]+)"),
             },
             "audit": parse_audit(log_text),
+            # Real per-image measurement from task=measure — paper-comparable
+            # FLOPs (fvcore, actual eval resolution) and a true latency
+            # distribution (P50/P95/std), not the 640px-fixed Model Summary
+            # proxy or the single aggregate mean in the "Speed:" line.
+            "measured": {
+                "gflops_summary": parse_float(log_text, r"GFLOPs:\s*([\d.]+)\.\s*FPS:"),
+                "fps_summary":    parse_float(log_text, r"FPS:\s*([\d.]+)"),
+                **(bucket_stats or {}),
+            },
         }
         results.append(entry)
         status = "OK" if log_text else "MISSING"
-        print(f"  [{status}] {exp_id} K={K:2d}  map50={entry['esod']['map50']:.3f}  VTiny={entry['audit']['very_tiny']['pct']:.1f}%  Total={entry['audit']['total_recall_pct']:.1f}%")
+        meas_note = f"  real_gflops={entry['measured']['gflops_summary']:.1f} P50={entry['measured'].get('latency_p50_ms', 0):.1f}ms P95={entry['measured'].get('latency_p95_ms', 0):.1f}ms" if bucket_stats else "  [no buckets.json]"
+        print(f"  [{status}] {exp_id} K={K:2d}  map50={entry['esod']['map50']:.3f}  VTiny={entry['audit']['very_tiny']['pct']:.1f}%  Total={entry['audit']['total_recall_pct']:.1f}%{meas_note}")
 
 summary = {
     "sweep":    "BCRS Full Inference Sweep",
@@ -293,6 +352,21 @@ for exp_id in exp_ids:
           f"{r['coco']['ap50']:>5.3f} | {r['coco']['ap']:>5.3f} | {r['coco']['ar500']:>5.3f} | "
           f"{r['audit']['very_tiny']['pct']:>6.1f}% | {r['audit']['tiny']['pct']:>5.1f}% | "
           f"{r['audit']['total_recall_pct']:>6.1f}%")
+
+print("\n Real Measured Efficiency (task=measure, fvcore, actual eval resolution) — K=64")
+print(f" {'Exp':<6} | {'Real GFLOPs':>11} | {'FPS':>6} | {'Lat P50 (ms)':>12} | {'Lat P95 (ms)':>12} | {'Lat StdDev':>10} | {'N imgs':>7}")
+print(" " + "-" * 80)
+for exp_id in exp_ids:
+    r = get(results, exp_id, 64)
+    if not r or "measured" not in r:
+        continue
+    m = r["measured"]
+    if not m.get("n_images"):
+        print(f" {exp_id:<6} | (no buckets.json — task=measure did not run or produced no data)")
+        continue
+    print(f" {exp_id:<6} | {m['gflops_summary']:>11.1f} | {m['fps_summary']:>6.1f} | "
+          f"{m['latency_p50_ms']:>12.1f} | {m['latency_p95_ms']:>12.1f} | "
+          f"{m['latency_std_ms']:>10.2f} | {m['n_images']:>7d}")
 PYEOF
 
 echo ""

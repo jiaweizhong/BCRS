@@ -1,8 +1,8 @@
 # BCRS Experiment Plan
 
 **Source:** `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md`  
-**Status:** Phase 2 COMPLETED (VisDrone only — AI-TOD not yet run, see §6.1) — Full K∈{16,32,48,64} Budget Sweep COMPLETE (2026-08-06); E2.1/E2.4 display-name mix-up corrected (2026-08-06); E2.5 Spectral-Only now trained, inference sweep pending; E2.9 Channel-Pooled Concat added and ready to train  
-**Primary question:** Can dual semantic-spectral evidence allocate a fixed inference budget better than objectness alone, protecting tiny-object recall across VisDrone, UAVDT, and TinyPerson?
+**Status:** Phase 2 COMPLETED (VisDrone only — AI-TOD not yet run, see §6.1) — Full K∈{16,32,48,64} Budget Sweep COMPLETE (2026-08-06); E2.1/E2.4 display-name mix-up corrected (2026-08-06); E2.5 Spectral-Only now trained, inference sweep pending; E2.9 Channel-Pooled Concat added and ready to train; **Phase 3 (single-model multi-budget routing) descoped from the conference plan (2026-08-06) — see Phase 3 section**  
+**Primary question (reframed 2026-08-06):** At ESOD's own fixed inference operating point and near-identical compute, does a semantic-spectral dual-evidence selector recover substantially more tiny-object recall than the objectness-only baseline? *(Superseded framing, kept for history: "Can dual semantic-spectral evidence allocate a fixed inference budget better than objectness alone" — this framed BCRS as a budget-routing framework across many operating points; the evidence built so far supports a narrower, stronger claim — same cost, better recall at one well-chosen operating point — not a budget-dial story. See Phase 3 descoping note.)*
 
 ## 0. Baseline Benchmark & Execution Tracking
 
@@ -135,6 +135,8 @@ At this gate, write `claim-thresholds.yaml`, `budget-grid.yaml`, and `latency-lo
 > **Key Discovery for E1.3 Hypothesis**:
 > Dynamic thresholding causes patch budget drift ($\sigma_K^2 = 112.50$) and high latency jitter ($\sigma = 4.62\text{ms}$, P95/P50 ratio 1.73x), leading to frame drop in real-time streams. Fixed Top-K budget routing eliminates budget drift ($\sigma_K^2 = 0$) and stabilizes latency ($\sigma = 0.15\text{ms}$), delivering steady-state acceleration.
 
+> **Cross-reference (2026-08-06):** the full 20-run inference sweep (§ "Measured wall-clock latency" under Phase 2) now gives mean total latency for **5 models × 4 fixed-K budgets**, and the fixed-K claim above generalizes cleanly: every model/K combination lands in a tight 12–23ms band with no dynamic-threshold-style tail (12.0–12.7ms at K=16, up to 21.7–22.5ms at K=64, scaling smoothly with K regardless of which fusion mechanism is used). This extends the "fixed top-k gives predictable latency" finding from one model/one budget to the full design space. It does **not** extend the P50/P95/σ jitter breakdown itself, and now we know exactly why, not just that it's missing: per-image latency is only ever recorded into a bucket (`lbucket.add(...)`, `test.py:269`, saved as each run's `buckets.json`) when `opt.task == "measure"` — and every one of the 20 sweep runs used the default `task=val`. **Confirmed by directly inspecting `results/*/buckets.json` for several completed runs: `{"nums": [], "gflops": [], "latency": []}`, empty in all of them.** The sweep's printed `Speed:` line is a single aggregate mean, not a percentile-capable distribution. This is the same fix as the FLOPs/FPS paper-alignment gap above — re-running with `test.task: measure` on the existing K=64 checkpoints would populate real per-image latency distributions for all 5 models in one pass, giving genuine P50/P95/σ instead of just the original 2-row MVP comparison.
+
 ##### Key Insights & Takeaways from Top-16 Enhanced Experiment (`bcrs_dual_evidence_visdrone_yolov5m_test_top16`)
 1. **Significant Target Recovery (+1,170 GT Targets)**: Introducing Size-Weighted Coverage Loss ($\mathcal{L}_{\text{cov}}$) recovered **+1,170 additional ground truth targets** (+3.02% overall recall, **+335 Very Tiny targets**) under the exact same 25% compute budget constraint ($K=16$).
 2. **Efficiency Parity / Speedup**: Inference latency improved from **13.0 ms** to **12.5 ms / img**, demonstrating that coverage supervision improves selection quality without adding any runtime latency overhead.
@@ -226,6 +228,10 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 #### Efficiency — Measured Params/GFLOPs (VisDrone Val, whole model)
 
 > Source: `Model Summary: <layers> layers, <params> parameters, <gradients> gradients, <GFLOPs> GFLOPs` line printed by `test.py` at the top of each `run.log`. Verified **identical across all four budgets (K=16/32/48/64)** for every model — this is a static architecture cost, independent of the inference-time patch budget, so it is safe to report once per model.
+>
+> **Methodology correction (2026-08-06): this GFLOPs number is computed at a fixed 640×640 reference size, not our actual 1536×1536 eval resolution.** Traced the call chain: `test.py:111` calls `model.fuse()`, which (`vendor/esod/models/yolo.py:797`) calls `self.info()` with **no arguments** — and `def info(self, verbose=False, img_size=640)` defaults `img_size` to 640. So every number in this table is "what this architecture would cost at 640×640," extrapolated via `thop.profile` on a tiny stride×stride dummy input and scaled quadratically — it is never told about the real 1536×1536 image size actually used throughout this sweep, and it cannot see sparse/patch-selection behavior at all (the dummy input has no patches to select). Practical effect: **the relative Δ GFLOPs comparisons across E1.0–E2.9 in this table remain valid** (identical fixed methodology applied to every model), but **the absolute "77.7 GFLOPs" baseline figure is not the real cost of running E1.0 at 1536×1536**, and should not be quoted as such in the paper without recomputing at the correct resolution.
+>
+> **This is fixable, not a dead end — `test.py` already has a real-resolution, real-per-image FLOPs/FPS path, gated behind `--task measure` (`opt.task == "measure"`), which none of the 20 sweep runs used (all used the default `task=val`):** on each val image it runs `fvcore.nn.FlopCountAnalysis(model, inputs=(img,))` on the actual `img` tensor (falling back to `model_info(model, inputs=(img,))`, which also profiles the *real* input when `inputs` is passed explicitly, unlike the `img_size=640` default path above), averages the per-image values, and prints `"GFLOPs: %.1f. FPS: %.1f"` (`test.py:511`). It also populates a `latency`/`gflops`/`nums` bucket per image (`lbucket.add(...)`, `test.py:269`, saved to each run's `buckets.json`) — **confirmed empty (`{"nums": [], "gflops": [], "latency": []}`) in every completed run's `results/*/buckets.json` checked**, exactly because `task="measure"` was never set. Re-running `bcrs test` with `test.task: measure` (already supported by the `EsodAdapter`, which forwards `test.task` to `--task`) on the existing K=64 checkpoints would produce, for free: (a) real per-image GFLOPs/FPS directly comparable to the paper's methodology, and (b) the full per-image latency distribution needed for real P50/P95/σ jitter numbers across all 5 models — see the E1.3 note below, same fix.
 
 | Exp | Model | Layers | Params | Δ Params vs E1.0 | GFLOPs | Δ GFLOPs vs E1.0 | mAP@0.5 gain | mAP gain / Δ GFLOPs |
 |---|---|---|---|---|---|---|---|---|
@@ -241,6 +247,23 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 > - **E2.4 is the actual gated dual-evidence architecture** (`DualEvidenceSegmenter` → `GatedEvidenceFusion`, sigmoid gate, zero-sum semantic/spectral mix) — previously mislabeled "Dual Evidence Spectral". **E2.6 Channel-Pooled uses the same `GatedEvidenceFusion` mechanism as E2.4**, just with a denoised (channel-pooled) spectral branch, and cuts E2.4's overhead by ~62.5% (+1.2 vs +3.2 GFLOPs added) while also having the best mAP gain of any variant — confirming the channel-pooling motivation. The actual measured reduction is **~62.5%, not the "95%" claimed** in the Phase 2.5 motivation below (that figure was a design estimate for the spectral submodule in isolation, not the measured whole-model delta — corrected here against real numbers).
 > - By mAP-gained-per-GFLOPs-added, **E2.6 has the best ROI** among the variants that add real cost; **E2.1 is the free option**. E2.4 (standard gated spectral) is worst on both accuracy and efficiency **among the models that add spectral evidence** — and is beaten even by the zero-cost E2.1 semantic-only selector on most metrics (see K=64 table above), which is the key open question motivating E2.5.
 > - This table does not yet include **selector-only** FLOPs/latency (isolated from the frozen backbone/head), which Section 8 requires ("coverage per GFLOP", "selector overhead ratio") — only whole-model deltas are available from `test.py`'s `Model Summary` line. A dedicated selector-only microbenchmark (E0.6/Phase 4 scope) is still open.
+
+##### Cross-check against the original ESOD paper's reported numbers (2026-08-06)
+
+Paper reports for VisDrone (Params(M) / FLOPs(G) / FPS / AP, inferred column order): `36.0 / 59.7 / 119.5 / 36.4`.
+
+| Metric | Paper | This plan (E1.0) | Match? |
+|---|---|---|---|
+| Params (M) | 36.0 | 35.82 | **Reproduces closely** (−0.5%) |
+| "AP" | 36.4 | 36.7 (ESOD-internal `mAP@0.5`, not real pycocotools AP — see the note on the removed old table above) | **Reproduces closely** (+0.3pp), *if* the paper's "AP" column is also its own internal metric and not pycocotools AP@[.5:.95] |
+| FLOPs (G) | 59.7 | 77.7 | **Not comparable as-is** — our figure is the 640×640-fixed proxy described above, not a real 1536×1536 measurement; not evidence of a reproduction gap |
+| FPS | 119.5 | ~46 (1000 / 21.7ms measured total latency at K=64) | **Not comparable as-is** — our 21.7ms is measured at K=64, which (per the Budget Curve discussion) is close to this codebase's full/dense grid; the paper's reported FPS is almost certainly at its own practical sparse operating point (far fewer than 64 patches), which would legitimately be much faster. Not an apples-to-apples setting. |
+
+**Bottom line**: the two numbers that *are* measured the same way both reproduce closely (Params, internal AP) — that's the meaningful reproduction check, and it passes. The two that don't match (FLOPs, FPS) are measured under different conditions on our side (fixed-640 proxy; K=64 near-dense operating point) rather than under genuinely conflicting conditions, so this is not a red flag — but it does mean **this plan cannot currently cite a paper-comparable FLOPs/FPS number**. This is a recoverable gap, not a dead end: `--task measure` (see the methodology-correction note above) is almost certainly how the paper's own FLOPs/FPS column was produced — real per-image `fvcore` profiling at the actual eval resolution, averaged over the val set — and it has simply never been invoked in this plan's runs. Re-running the existing K=64 checkpoints with `test.task: measure` would give a genuinely paper-comparable GFLOPs/FPS number without retraining anything.
+
+UAVDT (`22.5 / 40.7 / 43.7 / 41.1`) and TinyPerson (`61.3 / 74.4 / 148.3 / 32.8`) paper numbers cannot be cross-checked at all yet — neither dataset has been run in this plan (UAVDT is Block B, pending; TinyPerson has no dataset config, per §6.1).
+
+**On the paper's `† ESOD` (1.25× enlarged input) row**: agreed this is out of scope. That row exists in the original paper to show a naive "just make the input bigger" baseline for comparison against ESOD's own selective-compute mechanism — it is a resolution-scaling ablation on the *original* ESOD, orthogonal to what this plan is testing (evidence/fusion design for the *selector*, at a fixed resolution matched across all our own variants). Reproducing it would change two variables at once (input size *and* selector design) and wouldn't isolate anything this plan's hypotheses depend on — correctly excluded.
 
 ##### Measured wall-clock latency (real, not FLOPs-derived)
 
@@ -310,28 +333,27 @@ Two axes remain underexplored beyond what E2.1–E2.9 cover:
 **Go:** Equal-budget gain is reproducible and a deployable spectral/fusion implementation reaches break-even.  
 **No-Go:** If a matched ordinary convolution performs equally, retain the engineering improvement if useful but drop the spectral-mechanism claim. If only FFT works but no lightweight proxy breaks even, report an oracle result and stop the efficiency path.
 
-### Phase 3 — Single-model multi-budget routing
+### Phase 3 — Single-model multi-budget routing — **DESCOPED from conference plan (2026-08-06)**
 
-| ID | Experiment | Comparison | Pass evidence |
-|---|---|---|---|
-| E3.1 | Budget embedding | Unified model vs four independently trained budget models | Per-budget APt gap within the locked non-inferiority margin |
-| E3.2 | Budget sampling | Uniform vs edge-biased vs curriculum | Stable coverage and monotonic realized cost |
-| E3.3 | Unseen budget interpolation | Evaluate intermediate budgets not sampled in training | Smooth, monotonic AP-cost curve without coverage collapse |
-| E3.4 | Calibration | Requested vs realized cost/latency | Low budget violation and calibrated latency lookup |
-| E3.5 | [Journal Extension] Detector Backbone Generalization (YOLOv8 / YOLOv11) | Swap YOLOv5m for YOLOv8m/YOLOv11m Predictor Head | Verify BCRS Dual-Evidence Selector is detector-agnostic (Journal Extension) |
+> **Why descoped:** the selling point has shifted. Early phases framed BCRS as a *budget-constrained routing framework* — one model, many operating points, chosen via `e_B` conditioning (Proposal §5.5). The evidence built in Phase 2 tells a simpler, stronger story instead: **at ESOD's own fixed operating point (K=64), matching or nearly matching its compute (E2.1 is +0.0% GFLOPs, E2.9/E2.3/E2.6 are +1.0–3.0%), BCRS gets a large accuracy/recall gain** (§ K=64 table: +6.3pp Total Recall, +8.5pp Very Tiny Recall, +11.4% mAP@0.5 at the best variant). That claim doesn't need a unified multi-budget model, budget sampling curricula, or unseen-budget interpolation (E3.1–E3.4) to land — it needs one well-chosen fixed-budget design, which is what E2.1–E2.9 already screen for. The Budget Curve tables (§ Phase 2) already show that a *single fixed-training checkpoint*, evaluated post-hoc at K=16/32/48/64 via top-k truncation, produces a smooth, monotonic recall-vs-budget curve **without** any budget conditioning — so the core question E3.1 was designed to answer (does a conditioned model match independent per-budget models) is lower-value than it looked in the original proposal: naive post-hoc truncation of one checkpoint already behaves reasonably across budgets.
+>
+> E3.1–E3.4 (budget embedding, sampling, unseen-budget interpolation, calibration) are removed from the near-term plan. Revive them only if a reviewer specifically asks for multi-budget deployment as a selling point, or for the journal extension if space allows — they are not required to support the current primary claim. E3.5 (backbone generalization) is unaffected by this cut and is tracked under the Journal Version Extension below, since it was never budget-conditioning-dependent.
+>
+> Correspondingly, the Phase 3 row of the RQ/hypothesis tracker (Proposal §11.1, RQ4/H5) and the "multi-budget model" claim threshold (§7 below) should be read as **not required for the conference submission** — see §7 for the specific threshold marked deferred.
 
 > **Publication Scope Strategy (Updated 2026-08-06)**:
 > - **Conference Version (CVPR / ECCV 8-Page)**:
->   1. **Primary Claim**: Dual-Evidence selector (spectral + spatial) improves patch selection quality at fixed K=64 budget → +10.7% AP50, +8.3pp Very Tiny Recall vs ESOD baseline.
+>   1. **Primary Claim** *(reframed 2026-08-06 — efficiency-parity, not budget-routing)*: At ESOD's own fixed inference operating point (K=64) and near-identical compute (+0–3% GFLOPs, not a new budget axis), the Dual-Evidence selector substantially improves detection and tiny-object recall over the ESOD baseline → best variant +11.4% mAP@0.5, +8.5pp Very Tiny Recall, +6.3pp Total Recall, with the cheapest variant (E2.1) getting the recall gain at **zero** added compute. The pitch is "same cost as the paper's own selector, meaningfully better recall," not "a tunable budget dial."
 >   2. **Ablation Table** *(corrected 2026-08-06 — E2.1 is not a fusion-mechanism step; it has no spectral evidence at all)*: two axes, not one progression —
 >      - **Evidence-source axis**: E1.0 ESOD (no coverage loss) → E2.1 Semantic-Only/Coverage-Supervised (no spectral, free) → E2.5 Spectral-Only (no semantic, **trained, sweep pending**) — isolates what each evidence source contributes alone.
->      - **Fusion-mechanism axis**, now a 2×2 (standard vs channel-pooled spectral branch) × (gated vs concat fusion): E2.4 (standard+gated) → E2.6 (pooled+gated) → E2.3 (standard+concat) → E2.9 (pooled+concat, **new, ready to train**) — isolates which fusion mechanism combines the two best. E2.4 is currently the weakest of these four, and is beaten on most metrics by the free E2.1 selector, which is the open question E2.5 is needed to resolve. See "Fusion Mechanism Analysis" below for why gated fusion underperforms concat.
->   3. **Multi-Dataset Validation**: VisDrone (main 10-class dense), UAVDT (vehicle/traffic aerial), TinyPerson (extreme tiny $<20\text{px}$ human).
->   4. **Dropped from Conference Scope**: Sparse K=16 efficiency angle — at low K, tiny object information is too sparse to recover regardless of selector quality.
+>      - **Fusion-mechanism axis**, now a 2×2 (standard vs channel-pooled spectral branch) × (gated vs concat fusion): E2.4 (standard+gated) → E2.6 (pooled+gated) → E2.3 (standard+concat) → E2.9 (pooled+concat, **new, ready to train**) — isolates which fusion mechanism combines the two best. E2.4 is currently the weakest of these four, and is beaten on most metrics by the free E2.1 selector, which is the open question E2.5 is needed to resolve. See "Fusion Mechanism Analysis" above for why gated fusion underperforms concat.
+>   3. **Multi-Dataset Validation**: VisDrone (main 10-class dense) + **AI-TOD required, not yet run — see §6.1**, UAVDT (vehicle/traffic aerial, Block B pending), TinyPerson (optional).
+>   4. **Dropped from Conference Scope**: Sparse K=16 efficiency angle (at low K, tiny-object information is too sparse to recover regardless of selector quality) *and* single-model multi-budget routing (Phase 3, see above) — both were framed around a "budget dial" pitch this plan no longer leads with.
 > - **Journal Version Extension (IEEE TPAMI / TIP Extended 30%+)**:
 >   1. **Detector Backbone Generalization (E3.5)**: Swap YOLOv5 for **YOLOv8 / YOLOv11 / RT-DETR** predictor heads.
 >   2. **Structural Paradigm Migration (Phase 5 & 6)**: Migrate Dual-Evidence Recall-Safe priority to **QueryDet (Query-Adapter E5.2)** and **CEASC (Mask-Adapter Phase 6)** to prove foundational universality.
 >   3. **Zero-Shot Cross-Dataset Transfer (E5.4)**: Rank correlation and zero-shot budget transfer on unseen datasets without fine-tuning.
+>   4. **Single-model multi-budget routing (former Phase 3, E3.1–E3.4)**: revive here if reviewers want a budget-dial story in addition to the fixed-operating-point efficiency claim.
 
 ### Phase 4 — Equal-budget end-to-end efficiency
 
@@ -413,17 +435,17 @@ Proposal §5.5 describes a budget-conditioned model (`e_B` injected via FiLM/MLP
 
 ## 7. Claim thresholds
 
-Lock numeric thresholds after Phase 0 baseline-variance measurement. Use these proposal-derived defaults unless Phase 0 demonstrates they are below ordinary noise:
+Lock numeric thresholds after Phase 0 baseline-variance measurement. Use these proposal-derived defaults unless Phase 0 demonstrates they are below ordinary noise. **Reviewed 2026-08-06 against the reframed primary claim (§ Phase 3 descoping, "efficiency-parity" not "budget-routing"); two thresholds no longer fit the claim as stated and are annotated below rather than silently dropped.**
 
-- tiny selector recall: at least **+1.0 percentage point**, or relative miss-rate reduction of at least **15%**;
-- APt/APvt: positive paired 95% CI on AI-TOD and VisDrone at claim-bearing budgets;
-- total AP non-inferiority: lower 95% CI above `-max(0.2 AP, baseline repeatability margin)`;
-- budget: zero violation for exact top-k; for latency budgets, P95 realized latency no more than 5% above request;
-- generality: gain under at least two of fixed action count, fixed FLOPs, and fixed measured latency;
-- overhead: added selector latency at most 5% of total and at most 10% of downstream latency saved;
-- multi-budget model: APt within `max(0.3 AP, baseline repeatability margin)` of the per-budget oracle at at least three budgets;
-- real acceleration: positive net median-latency saving with positive paired 95% CI, with P95 not materially worse;
-- robustness: primary result holds on both AI-TOD and VisDrone and is not driven by one density bin or class.
+- tiny selector recall: at least **+1.0 percentage point**, or relative miss-rate reduction of at least **15%** — **active**, already met (best variant +8.5pp Very Tiny Recall at K=64).
+- APt/APvt: positive paired 95% CI on AI-TOD and VisDrone at claim-bearing budgets — **active, blocked on AI-TOD** (§6.1 — not yet run, this threshold cannot be evaluated until it is).
+- total AP non-inferiority: lower 95% CI above `-max(0.2 AP, baseline repeatability margin)` — **active**; no repeated-seed variance has been measured anywhere in this plan yet, so the CI itself is still open even though point estimates are non-inferior.
+- budget: zero violation for exact top-k; for latency budgets, P95 realized latency no more than 5% above request — **active**, satisfied by construction (hard top-k, no threshold-based drift — see E1.3).
+- generality: gain under at least two of fixed action count, fixed FLOPs, and fixed measured latency — **active, and now effectively the primary claim itself**: E2.1 shows the gain at fixed action count *and* fixed FLOPs *and* fixed measured latency simultaneously (zero deltas on all three vs baseline); E2.3/E2.6/E2.9 show it at fixed action count with small (+1–3%) FLOPs/latency deltas.
+- overhead: added selector latency at most 5% of total and at most 10% of downstream latency saved — **reinterpret**: the "10% of downstream latency saved" denominator assumes BCRS reduces compute below some larger baseline. Under the reframed claim (same K=64 as ESOD's own operating point, not a reduced budget), there is no downstream saving being claimed at the primary operating point, so this clause is vacuous there. Keep only the "≤5% of total latency" half as active for the primary claim (satisfied: worst case E2.4 at +3.7%); the full savings-based clause remains meaningful only if/when a genuinely reduced-budget comparison (e.g., BCRS at K=48 vs baseline at K=64) is reported as a secondary result.
+- multi-budget model: APt within `max(0.3 AP, baseline repeatability margin)` of the per-budget oracle at at least three budgets — **DEFERRED**, tied to Phase 3 (descoped from the conference plan, see above). Not evaluated unless Phase 3 is revived.
+- real acceleration: positive net median-latency saving with positive paired 95% CI, with P95 not materially worse — **reinterpret**: this threshold assumed the claim was speed-first. Measured latency data (§ Efficiency) shows only E2.1 is latency-neutral (+0.0%); E2.3/E2.4/E2.6/E2.9 are all slightly *slower* (+1.4% to +3.7%) in exchange for accuracy — i.e., the opposite of "net saving" for those variants. This is expected and acceptable under the reframed claim (accuracy-for-near-zero-added-cost, not speedup), but the paper must not claim "real acceleration" for any variant except E2.1 — doing so for E2.3/E2.4/E2.6/E2.9 would contradict this plan's own measured numbers.
+- robustness: primary result holds on both AI-TOD and VisDrone and is not driven by one density bin or class — **active, blocked on AI-TOD** (§6.1), same as the APt/APvt bullet above.
 
 Thresholds may become stricter after Phase 0, but must never be weakened after treatment results are inspected.
 
