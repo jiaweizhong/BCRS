@@ -92,6 +92,41 @@ def _atomic_write_json(path: Path, payload: Any) -> None:
             tmp.unlink(missing_ok=True)
 
 
+def _polygon_parts_to_bbox(
+    parts: list[str],
+) -> tuple[float, float, float, float] | None:
+    """Parse a YOLOv8 polygon label line into (cx, cy, w, h) normalised.
+
+    Handles both standard YOLO (5 values: cls cx cy w h) and polygon format
+    (9 or 11+ values: cls x1 y1 x2 y2 ... with optional closing point).
+    Returns (cx, cy, nw, nh) on success or None if the line is malformed.
+    """
+    n = len(parts)
+    try:
+        if n == 5:
+            # Standard YOLO bbox: cls cx cy w h
+            cx, cy, nw, nh = (float(p) for p in parts[1:])
+            return cx, cy, nw, nh
+        elif n >= 9 and (n - 1) % 2 == 0:
+            # Polygon format: cls x1 y1 x2 y2 x3 y3 x4 y4 [x1 y1]
+            coords = [float(p) for p in parts[1:]]
+            xs = coords[0::2]
+            ys = coords[1::2]
+            x_min, x_max = min(xs), max(xs)
+            y_min, y_max = min(ys), max(ys)
+            nw = x_max - x_min
+            nh = y_max - y_min
+            cx = x_min + nw / 2.0
+            cy = y_min + nh / 2.0
+            if nw <= 0 or nh <= 0:
+                return None
+            return cx, cy, nw, nh
+        else:
+            return None
+    except ValueError:
+        return None
+
+
 def _yolo_to_coco(
     images_dir: Path,
     labels_dir: Path,
@@ -144,18 +179,24 @@ def _yolo_to_coco(
         )
 
         lbl_path = labels_dir / (img_path.stem + ".txt")
+        bbox_label_lines: list[str] = []
         if lbl_path.exists():
             for line in lbl_path.read_text(encoding="utf-8").splitlines():
                 parts = line.strip().split()
-                if len(parts) != 5:
+                if not parts:
                     continue
                 try:
                     cls_id = int(parts[0])
-                    cx, cy, nw, nh = (float(p) for p in parts[1:])
                 except ValueError:
                     continue
 
-                # Denormalize to pixel coordinates
+                result = _polygon_parts_to_bbox(parts)
+                if result is None:
+                    n_skipped += 1
+                    continue
+                cx, cy, nw, nh = result
+
+                # Denormalize to pixel coordinates for COCO
                 x = (cx - nw / 2.0) * width
                 y = (cy - nh / 2.0) * height
                 box_w = nw * width
@@ -164,6 +205,11 @@ def _yolo_to_coco(
                 if box_w <= 0 or box_h <= 0:
                     n_skipped += 1
                     continue
+
+                # Normalised YOLO bbox label (for training)
+                bbox_label_lines.append(
+                    f"{cls_id} {cx:.6f} {cy:.6f} {nw:.6f} {nh:.6f}\n"
+                )
 
                 coco["annotations"].append(
                     {
@@ -183,6 +229,9 @@ def _yolo_to_coco(
                 ann_id += 1
                 n_annotations += 1
 
+            # Overwrite label file with converted YOLO bbox format (replaces polygon format)
+            lbl_path.write_text("".join(bbox_label_lines), encoding="utf-8")
+
         image_id += 1
         n_images += 1
 
@@ -194,10 +243,20 @@ def _yolo_to_coco(
 
 
 def prepare_tinyperson_dataset(raw_dir: Path, output_dir: Path) -> None:
-    """Convert Roboflow YOLOv8 TinyPerson export to BCRS-ready dataset.
+    """Convert TinyPerson YOLO dataset to BCRS-ready format.
+
+    Supports two common directory layouts:
+
+    Layout A (Roboflow): split-first
+        raw_dir/train/images/*.jpg  raw_dir/train/labels/*.txt
+        raw_dir/valid/images/*.jpg  raw_dir/valid/labels/*.txt
+
+    Layout B (Flat YOLO): images-first
+        raw_dir/images/train/*.jpg  raw_dir/labels/train/*.txt
+        raw_dir/images/val/*.jpg    raw_dir/labels/val/*.txt
 
     Args:
-        raw_dir:    Root of the Roboflow export (contains data.yaml + train/valid/test/).
+        raw_dir:    Root containing data.yaml and image/label directories.
         output_dir: Output directory for the BCRS-ready dataset.
     """
     out_images = output_dir / "images"
@@ -205,7 +264,7 @@ def prepare_tinyperson_dataset(raw_dir: Path, output_dir: Path) -> None:
     out_anns = output_dir / "annotations"
     out_anns.mkdir(parents=True, exist_ok=True)
 
-    # Read nc and class names from Roboflow data.yaml if present
+    # --- Parse class names from data.yaml ---
     classes = TINYPERSON_CLASSES
     data_yaml = raw_dir / "data.yaml"
     if data_yaml.exists():
@@ -215,24 +274,64 @@ def prepare_tinyperson_dataset(raw_dir: Path, output_dir: Path) -> None:
             with data_yaml.open() as f:
                 meta = yaml.safe_load(f)
             if "names" in meta:
-                classes = tuple(meta["names"])
+                names_raw = meta["names"]
+                if isinstance(names_raw, dict):
+                    # {0: 'person', 1: 'truck'} -> ('person', 'truck')
+                    classes = tuple(names_raw[k] for k in sorted(names_raw.keys()))
+                elif isinstance(names_raw, list):
+                    classes = tuple(names_raw)
             print(f"  Loaded {len(classes)} classes from {data_yaml}: {classes}")
         except ImportError:
             print("  WARNING: PyYAML not installed; using default class names.")
 
-    for roboflow_split, bcrs_split in SPLIT_MAP.items():
-        split_dir = raw_dir / roboflow_split
-        if not split_dir.is_dir():
-            print(f"  Skipping missing split: {split_dir}")
-            continue
+    # --- Detect directory layout ---
+    # Layout A: raw_dir/train/images/  (Roboflow split-first)
+    # Layout B: raw_dir/images/train/  (flat YOLO images-first)
+    layout_a_splits = {
+        "train": "train",
+        "valid": "val",
+        "test": "test",
+    }
+    layout_b_splits = {
+        "train": "train",
+        "val": "val",
+        "test": "test",
+    }
 
-        src_images = split_dir / "images"
-        src_labels = split_dir / "labels"
+    def _is_layout_a() -> bool:
+        return any(
+            (raw_dir / s / "images").is_dir() for s in layout_a_splits
+        )
+
+    def _is_layout_b() -> bool:
+        return (raw_dir / "images").is_dir()
+
+    if _is_layout_a():
+        split_map = layout_a_splits
+
+        def get_src_dirs(split_key: str):
+            split_dir = raw_dir / split_key
+            return split_dir / "images", split_dir / "labels"
+
+    elif _is_layout_b():
+        split_map = layout_b_splits
+
+        def get_src_dirs(split_key: str):  # type: ignore[misc]
+            return raw_dir / "images" / split_key, raw_dir / "labels" / split_key
+
+    else:
+        raise FileNotFoundError(
+            f"Cannot detect a recognised YOLO directory layout inside {raw_dir}. "
+            "Expected either 'train/images/' (Roboflow) or 'images/train/' (flat YOLO)."
+        )
+
+    for split_key, bcrs_split in split_map.items():
+        src_images, src_labels = get_src_dirs(split_key)
         if not src_images.is_dir():
-            print(f"  WARNING: No images/ dir for split {roboflow_split}, skipping.")
+            print(f"  Skipping missing split: {src_images}")
             continue
 
-        # Symlink/copy images and labels into canonical output layout
+        # Copy images and labels to canonical output layout
         dst_images = out_images / bcrs_split
         dst_labels = out_labels / bcrs_split
         dst_images.mkdir(parents=True, exist_ok=True)
@@ -252,7 +351,7 @@ def prepare_tinyperson_dataset(raw_dir: Path, output_dir: Path) -> None:
                     if not dst.exists():
                         shutil.copy2(lbl_path, dst)
 
-        # Generate COCO JSON from YOLO labels
+        # Generate COCO JSON from YOLO labels (handles both bbox and polygon formats)
         coco = _yolo_to_coco(dst_images, dst_labels, bcrs_split, classes)
         json_out = out_anns / f"{bcrs_split}.json"
         _atomic_write_json(json_out, coco)
