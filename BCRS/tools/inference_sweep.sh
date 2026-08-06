@@ -14,7 +14,9 @@
 # Usage: cd /root/BCRS/BCRS && bash tools/inference_sweep.sh
 # =============================================================================
 
-set -e
+set -eE
+# Trap any unexpected errors to print location but continue the sweep
+trap 'echo "  [TRAP] Command failed at line ${LINENO}: ${BASH_COMMAND}" >&2' ERR
 
 WORK_DIR="/root/BCRS/BCRS/work_dirs"
 VISDRONE_LABELS="/root/autodl-tmp/VisDrone/labels/val"
@@ -86,17 +88,17 @@ run_one() {
     --set "test.patch_budget=${K}" \
     2>&1 | tee /tmp/bcrs_run.log
 
-  # Rename default dir → canonical k{K} dir
+  # Rename default dir -> canonical k{K} dir
   if [ -d "${DEFAULT_DIR}" ]; then
     mv "${DEFAULT_DIR}" "${TARGET_DIR}"
-    # Also copy the tee log into the target dir
     mkdir -p "${TARGET_DIR}"
     cp /tmp/bcrs_run.log "${LOG}"
   else
-    echo "  ERROR: expected output dir ${DEFAULT_DIR} not found after bcrs test."
-    echo "  Scanning for any new test dir..."
+    echo "  WARNING: expected output dir ${DEFAULT_DIR} not found after bcrs test."
+    echo "  Scanning for any new _test dir under work_dirs..."
     ls "${WORK_DIR}/" | grep "${STEM}" || true
-    return 1
+    echo "  Skipping audit for [${EXP_ID}] @ K=${K} — results will show zeros in summary."
+    return 0   # soft failure: log it, but continue the sweep
   fi
 
   # Run audit
