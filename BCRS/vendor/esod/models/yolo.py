@@ -354,6 +354,40 @@ class ChannelPooledDualEvidenceSegmenter(nn.Module):
         return res
 
 
+class ChannelPooledSpectralOnlySegmenter(nn.Module):
+    def __init__(self, nc=10, ch=()):
+        super(ChannelPooledSpectralOnlySegmenter, self).__init__()
+        self.spectral_branches = nn.ModuleList(
+            ChannelPooledSpectralBranch(x, nc) for x in ch
+        )
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_spectral, _ = self.spectral_branches[i](x[i])
+            res.append(p_spectral)
+        return res
+
+
+class ChannelPooledConcatEvidenceSegmenter(nn.Module):
+    def __init__(self, nc=10, ch=()):
+        super(ChannelPooledConcatEvidenceSegmenter, self).__init__()
+        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
+        self.spectral_branches = nn.ModuleList(
+            ChannelPooledSpectralBranch(x, nc) for x in ch
+        )
+        self.concat_convs = nn.ModuleList(nn.Conv2d(nc * 2, nc, 1) for _ in ch)
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_semantic = self.m[i](x[i])
+            p_spectral, _ = self.spectral_branches[i](x[i])
+            p_concat = self.concat_convs[i](torch.cat([p_semantic, p_spectral], dim=1))
+            res.append(p_concat)
+        return res
+
+
 class Center(nn.Module):
     def __init__(self, nc=80, ch=()):  # detection layer
         super(Center, self).__init__()
@@ -635,6 +669,8 @@ class Model(nn.Module):
                     SpectralOnlySegmenter,
                     ConcatEvidenceSegmenter,
                     ChannelPooledDualEvidenceSegmenter,
+                    ChannelPooledSpectralOnlySegmenter,
+                    ChannelPooledConcatEvidenceSegmenter,
                 ),
             ):
                 pred_masks = x
@@ -719,6 +755,8 @@ class Model(nn.Module):
                 "models.yolo.SpectralOnlySegmenter",
                 "models.yolo.ConcatEvidenceSegmenter",
                 "models.yolo.ChannelPooledDualEvidenceSegmenter",
+                "models.yolo.ChannelPooledSpectralOnlySegmenter",
+                "models.yolo.ChannelPooledConcatEvidenceSegmenter",
             ):  # stupid
                 if hasattr(m_, "m"):
                     for mi in m_.m:
@@ -734,16 +772,20 @@ class Model(nn.Module):
     def _print_biases(self):
         m = self.model[-1]  # Detect() module
         for mi in m.m:  # from
-            b = mi.bias.detach().view(m.na, -1).T  # conv.bias(255) to (3,85)
+            b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
             logger.info(
-                ("%6g Conv2d.bias:" + "%10.3g" * 6)
-                % (mi.weight.shape[1], *b[:5].mean(1).tolist(), b[5:].mean())
+                ("%52s %20s" + " %15.2f" * m.nc + " %15.2f" * m.nc + " %15.2f" * m.nc)
+                % (
+                    "gdrive.com/drive/folders/1n_oepMi22mTJvwFU18xM0zpHXZ1j02fq",
+                    str(mi.weight.shape),
+                    *b[:, 5:].mean(0).tolist(),
+                )
             )
 
     # def _print_weights(self):
     #     for m in self.model.modules():
-    #         if type(m) is Bottleneck:
-    #             logger.info('%10.3g' % (m.w.detach().sigmoid() * 2))  # shortcut weights
+    #         if type(m) is BottleneckCSP:
+    #             logger.info(m.fc1.weight.md5())
 
     def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
         logger.info("Fusing layers... ")
@@ -752,10 +794,7 @@ class Model(nn.Module):
                 m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
                 delattr(m, "bn")  # remove batchnorm
                 m.forward = m.fuseforward  # update forward
-        try:
-            self.info()
-        except:
-            print("Failed to capture the model info")
+        self.info()
         return self
 
     def nms(self, mode=True):  # add or remove NMS module
@@ -798,7 +837,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
     na = (
         (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors
     )  # number of anchors
-    no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
+    no = na * (nc + 5)  # number of outputs
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(
@@ -808,48 +847,32 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         for j, a in enumerate(args):
             try:
                 args[j] = eval(a) if isinstance(a, str) else a  # eval strings
-            except:
+            except Exception:
                 pass
 
         n = max(round(n * gd), 1) if n > 1 else n  # depth gain
         if m in [
-            nn.Conv2d,
             Conv,
             GhostConv,
             Bottleneck,
             GhostBottleneck,
             SPP,
-            ASPP,
-            SPPF,
             DWConv,
-            DCN,
-            RepLKConv,
             MixConv2d,
             Focus,
-            Blur,
             CrossConv,
             BottleneckCSP,
             C3,
             C3TR,
-            MaskedC3TR,
-            C2f,
-            ResBlockLayer,
-            RTMDetCSPLayer,
-            HeatMapParser,
         ]:
-            c2 = args[0]
-            if c2 != no and "GPViTAdapterSingleStageESOD" not in [
-                _x[2] for _x in d["backbone"]
-            ]:  # if not output
+            c1, c2 = ch[f], args[0]
+            if c2 != no:  # if not output
                 c2 = make_divisible(c2 * gw, 8)
 
-            if m is HeatMapParser:
-                args = [c2, *args[1:]]
-            else:
-                args = [ch[f], c2, *args[1:]]
-                if m in [BottleneckCSP, C3, C3TR, MaskedC3TR, C2f, RTMDetCSPLayer]:
-                    args.insert(2, n)  # number of repeats
-                    n = 1
+            args = [c1, c2, *args[1:]]
+            if m in [BottleneckCSP, C3, C3TR]:
+                args.insert(2, n)  # number of repeats
+                n = 1
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
         elif m is Concat:
@@ -863,6 +886,8 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             SpectralOnlySegmenter,
             ConcatEvidenceSegmenter,
             ChannelPooledDualEvidenceSegmenter,
+            ChannelPooledSpectralOnlySegmenter,
+            ChannelPooledConcatEvidenceSegmenter,
         ]:  # Detect2 deprecated
             args.append([ch[x] for x in f])
             if len(args) > 1 and isinstance(args[1], int):  # number of anchors
