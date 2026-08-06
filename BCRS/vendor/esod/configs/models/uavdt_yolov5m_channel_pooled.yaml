@@ -9,7 +9,12 @@ anchors:
   - [37,30,  24,46,  56,26]  # P4/16
   - [40,48,  85,59,  144,114]  # P5/32
 
-# YOLOv5 backbone with ChannelPooledDualEvidenceSegmenter (E2.6)
+# YOLOv5 backbone with ChannelPooledDualEvidenceSegmenter (E2.6u)
+# NOTE (2026-08-06, corrected again): confirmed via ESOD.pdf Table VI + prose
+# that DWConv (not SPP) is the module the paper actually uses for ObjSeeker
+# in all main results — see uavdt_yolov5m_concat.yaml for the full rationale.
+# This file's original DWConv+0.5 was right all along; uavdt_yolov5m.yaml
+# (baseline) was the file that had drifted and has now been fixed to match.
 backbone:
   # [from, number, module, args]
   [[-1, 1, Focus, [64, 3]],  # 0-P1/2

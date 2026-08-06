@@ -1,15 +1,18 @@
 # parameters
-nc: 1  # UAVDT: single class (vehicle)
+nc: 1  # UAVDT: single class (vehicle) — overridden to 3 (car/truck/bus) via dataset yaml at runtime
 depth_multiple: 0.67  # model depth multiple
 width_multiple: 0.75  # layer channel multiple
 
-# anchors  1536 (same scale as VisDrone — UAVDT also trained at 1536)
+# anchors  1536
 anchors:
   - [14,16,  22,26,  40,21]  # P3/8
   - [37,30,  24,46,  56,26]  # P4/16
   - [40,48,  85,59,  144,114]  # P5/32
 
-# YOLOv5 backbone with GatedDualEvidenceSegmenter (E2.1)
+# YOLOv5 backbone with ChannelPooledConcatEvidenceSegmenter (E2.9u)
+# Backbone matches uavdt_yolov5m.yaml's own (corrected) baseline: DWConv +
+# threshold 0.5, per ESOD.pdf Table VI + prose confirming DWConv (not SPP)
+# is the module used for ObjSeeker in all of the paper's main results.
 backbone:
   # [from, number, module, args]
   [[-1, 1, Focus, [64, 3]],  # 0-P1/2
@@ -18,9 +21,9 @@ backbone:
    [-1, 1, Conv, [256, 3, 2]],  # 3-P3/8
    [-1, 9, C3, [256]],
 
-   [-1, 1, SPP, [256, [5, 9, 13]]],
-   [[-1], 1, Segmenter, [1]],
-   [[4, -1], 1, HeatMapParser, [256, 8, 0.3]],  # 7
+   [-1, 1, DWConv, [256, 13, 1]],
+   [[-1], 1, ChannelPooledConcatEvidenceSegmenter, [1]],
+   [[4, -1], 1, HeatMapParser, [256, 8, 0.5]],  # 7
 
    [-1, 1, Conv, [512, 3, 2]],  # 8-P4/16
    [-1, 9, C3, [512]],
@@ -46,7 +49,7 @@ head:
    [-1, 3, C3, [512, False]],  # 23 (P4/16-medium)
 
    [-1, 1, Conv, [512, 3, 2]],
-   [[-1, 13], 1, Concat, [1]],  # cat head P5
+   [[-1, 12], 1, Concat, [1]],  # cat head P5
    [-1, 3, C3, [1024, False]],  # 26 (P5/32-large)
 
    [[20, 23, 26], 1, Detect, [nc, anchors]],  # Detect(P3, P4, P5)

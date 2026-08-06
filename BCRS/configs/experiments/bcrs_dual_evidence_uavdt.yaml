@@ -1,6 +1,15 @@
 schema_version: 1
 name: bcrs_dual_evidence_uavdt_yolov5m
 
+# NOTE (2026-08-06): this is the UAVDT semantic-only / coverage-supervised
+# arm (E2.1u), not a "gated dual-evidence" fusion — same naming issue found
+# and fixed for VisDrone's E2.1. model.config below now points at plain
+# uavdt_yolov5m.yaml (the Segmenter class, zero spectral evidence, identical
+# architecture to the E1.0u baseline) instead of the old, now-deleted
+# uavdt_yolov5m_gated.yaml, which duplicated that same architecture under a
+# misleading name. Only lambda_cov/pos_weight below distinguish this run
+# from E1.0u baseline.
+
 backend:
   name: esod
   root: vendor/esod
@@ -8,7 +17,7 @@ backend:
 
 model:
   name: bcrs_dual_evidence_uavdt_yolov5m
-  config: vendor/esod/configs/models/uavdt_yolov5m_gated.yaml
+  config: vendor/esod/configs/models/uavdt_yolov5m.yaml
   weights: artifacts/pretrained/yolov5m.pt
 
 dataset:
