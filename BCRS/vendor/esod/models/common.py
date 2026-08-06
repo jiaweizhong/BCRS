@@ -450,7 +450,7 @@ class HeatMapParser(nn.Module):
                 mask_pred,
                 self.ratio,
                 self.threshold * 1.0 + 0.0,
-                topk=self.topk_patches,
+                topk=getattr(self, "topk_patches", None),
             )
             if getattr(self, "cluster_only", False):
                 return self.get_offsets_by_clusters(total_clusters).to(device)
