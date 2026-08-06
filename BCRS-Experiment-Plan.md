@@ -1,7 +1,7 @@
 # BCRS Experiment Plan
 
 **Source:** `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md`  
-**Status:** Phase 2 COMPLETED — Full K=64 Inference Sweep COMPLETE (2026-08-06)  
+**Status:** Phase 2 COMPLETED (VisDrone only — AI-TOD not yet run, see §6.1) — Full K∈{16,32,48,64} Budget Sweep COMPLETE (2026-08-06); E2.1/E2.4 display-name mix-up corrected (2026-08-06); E2.5 Spectral-Only now trained, inference sweep pending; E2.9 Channel-Pooled Concat added and ready to train  
 **Primary question:** Can dual semantic-spectral evidence allocate a fixed inference budget better than objectness alone, protecting tiny-object recall across VisDrone, UAVDT, and TinyPerson?
 
 ## 0. Baseline Benchmark & Execution Tracking
@@ -141,17 +141,9 @@ At this gate, write `claim-thresholds.yaml`, `budget-grid.yaml`, and `latency-lo
 3. **Class-Bin Gains**: Non-rigid and low-contrast classes achieved substantial gains: `awning-tricycle` (+5.83% recall, 114 vs 83), `bus` (+9.17% recall, 71 vs 48), `car` (+608 targets, 3,894 vs 3,286), `pedestrian` (+172 targets, 1,959 vs 1,787).
 4. **Remaining Oracle Headroom Gap (+61.20%)**: Despite the +3.02% recall enhancement, the gap to GT Oracle (85.49%) remains wide at $K=16$. This further highlights the necessity of **Phase 2 Dual-Evidence Spectral Fusion (E2.1-E2.5)** and dynamic budget routing ($K=24, 32$) to capture low-objectness texture features.
 
-##### Phase 2 Empirical Findings: Official PyCOCOtools Detection Benchmarks
-
-| Compute Budget Mode | Patch Budget ($K$) | Area Retained (Occupy) | Target Recall (Coverage) | End-to-End BBox Recall | **Official PyCOCOtools mAP@0.50** | **Official PyCOCOtools mAP@0.50:0.95** | AP Small ($<32^2$) | Inference Latency | Notes |
-|---|---|---|---|---|---|---|---|---|---|
-| **Baseline ESOD (Objectness)** | $K=16$ (25%) | 0.296 | 21.27% | 15.20% | **11.20%** | **6.50%** | 4.50% | 13.0 ms | Original ESOD selector |
-| **Gated Spectral Dual-Evidence** | $K=16$ (25%) | 0.296 | 22.43% | 16.10% | **12.50%** | **7.30%** | 5.10% | 12.5 ms | Sigmoid gated zero-sum |
-| **Semantic Single-Evidence** | $K=16$ (25%) | 0.296 | 24.29% | 17.10% | **13.80%** | **8.10%** | 6.20% | 12.5 ms | Semantic coverage loss |
-| **BCRS Concat Dual-Evidence (Ours) 🏆** | **$K=16$ (25%)** | **0.296** | **29.41%** | **18.59%** | **17.30%** | **10.16%** | **8.51%** | **12.6 ms** | **+6.10% mAP@0.50 Gain!** |
-| *Full Dense Ceiling (Unconstrained)* | *$K=64$ (100%)* | *1.040* | *88.60%* | *40.50%* | ***40.30%*** | ***23.60%*** | *22.40%* | *20.5 ms* | *Full resolution unconstrained* |
-
 ##### Phase 2 Dual-Evidence Spectral Audit Breakdown ($K=16$ Budget)
+
+> **Note (2026-08-06):** The former "Official PyCOCOtools Detection Benchmarks" table that lived here has been removed. Its "Official PyCOCOtools mAP@0.50" column actually contained ESOD's internal diagnostic `mAP@0.5` (cross-checked against raw `run.log`; e.g. Concat K=16 was labeled 17.30% but the real pycocotools `IoU=0.50` AP50 in the same log is 4.4%), and its row identities do not line up numerically with the current E1.0/E2.1/E2.3/E2.4/E2.6 checkpoints. The corrected, source-verified numbers for these five models live in the "Budget Curve" and "K=64 Sparse Inference Results" tables below, which are parsed directly from `sweep_results.json` and distinguish ESOD-internal `mAP@0.5` from real PyCOCO `AP50`/`AP`.
 
 | Size Category | Area Range | GT Count | Unsupervised $K=16$ | Gated Spectral $K=16$ | Semantic Only $K=16$ | **Concat Dual-Evidence $K=16$** | Recall Rate (%) | Target Recall Delta vs Semantic |
 |---|---|---|---|---|---|---|---|---|
@@ -167,14 +159,45 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 
 | ID | Decisive comparison | Control rule | Pass evidence | Status |
 |---|---|---|---|---|
-| E2.1 | Semantic + spectral vs semantic-only | Match selector params/FLOPs | Low-objectness tiny recall gain | **COMPLETED** |
+| E2.1 | Semantic + spectral vs semantic-only | Match selector params/FLOPs | Low-objectness tiny recall gain | **COMPLETED — this run *is* the semantic-only arm** (config `bcrs_dual_evidence_visdrone.yaml` → model yaml `visdrone_yolov5m.yaml` → `Segmenter` class, architecturally identical to E1.0, no `spectral_branches`/`gated_fusions`; previously mislabeled "Dual Evidence Gated" — corrected 2026-08-06) |
 | E2.2 | Fused vs spectral-only/objectness/random | Exact same top-k | Better selector-recall and APt frontier | **COMPLETED** |
 | E2.3 | Concat vs Gated Fusion | Match width/params/training | Concat fusion superiority (+5.12% recall over semantic, +6.98% over gated) | **COMPLETED** |
-| E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency | **COMPLETED** |
-| E2.5 | Spectral-Only (no spatial evidence) | Spectral filter alone without dual evidence | Ablation: confirm spatial evidence is necessary | **NOT TRAINED** (training was aborted early; no weights) |
-| E2.6 | Channel-Pooled Spectral vs Standard Spectral | Channel Max/Avg Pooling + 1-ch Laplacian | Equal/better recall at reduced spectral params | **COMPLETED** |
-| E2.7 | Multi-Scale P2/4 Saliency vs Spectral Evidence | P2/4 high-res shallow feature fusion vs spectral filters | Higher Very Tiny recall with zero texture noise | **PROPOSED** |
+| E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency | **COMPLETED — this run *is* the gated dual-evidence arm** (config `bcrs_dual_evidence_visdrone_spectral.yaml` → model yaml `visdrone_yolov5m_spectral.yaml` → `DualEvidenceSegmenter`, which instantiates `GatedEvidenceFusion` — sigmoid gate, zero-sum semantic/spectral mix; previously mislabeled "Dual Evidence Spectral" — corrected 2026-08-06) |
+| E2.5 | Spectral-Only (no spatial evidence) | Spectral filter alone without dual evidence | Ablation: confirm spatial evidence is necessary | **TRAINED, NOT YET SWEPT** (bug fixed 2026-08-06; `work_dirs/bcrs_spectral_only_visdrone_yolov5m/` now exists with a `weights/` checkpoint, confirming training completed — but no `_k16/32/48/64` test directories yet, so it has not been run through `tools/inference_sweep.sh`. This is the single highest-priority open item: it directly resolves whether E2.4's underperformance vs the free E2.1 selector is a spectral-branch problem or a fusion-mechanism problem.) |
+| E2.6 | Channel-Pooled Spectral vs Standard Spectral | Channel Max/Avg Pooling + 1-ch Laplacian | Equal/better recall at reduced spectral params | **COMPLETED** — accuracy win confirmed, but the "lightweight" framing does not hold under measured latency (see Efficiency section); reframe as a denoising, not efficiency, contribution |
+| E2.7 | Multi-Scale P2/4 Saliency vs Spectral Evidence | P2/4 high-res shallow feature fusion vs spectral filters | Higher Very Tiny recall with zero texture noise | **PROPOSED, deprioritized** — E2.6 already addresses spectral texture-noise at negligible cost; weaker justification now |
 | E2.8 | Two-Stage Cascaded Routing | 50% coarse semantic pruning + fine Top-K evidence selection | 50% selector FLOPs reduction with zero recall drop | **PROPOSED** |
+| E2.9 | Channel-Pooled Concat (new, 2026-08-06) | Concat fusion (union, not zero-sum) + denoised channel-pooled spectral branch | Combine Concat's low-budget robustness with Channel-Pooled's denoising — candidate for best all-budget design | **READY TO TRAIN** — `ChannelPooledConcatEvidenceSegmenter` already existed in `vendor/esod/models/yolo.py` (registered in `parse_model`, never wired to a config); added `vendor/esod/configs/models/visdrone_yolov5m_channel_pooled_concat.yaml` and `configs/experiments/bcrs_channel_pooled_concat_visdrone.yaml` this session, not yet run |
+
+#### Budget Curve — VisDrone Val, K ∈ {16, 32, 48, 64} (`tools/inference_sweep.sh`, 2026-08-06)
+
+> Full 5-model × 4-budget sweep (20 runs). Source of truth: `work_dirs/sweep_results.json`, parsed from each run's `run.log`. Cross-checked field-for-field against 3 locally available raw logs (E2.3/E2.4/E2.6 @ K=16) — exact match.
+>
+> **Model names corrected 2026-08-06.** E2.1 and E2.4 display names in `tools/inference_sweep.sh` were swapped relative to what they actually run — verified by reading each config's model yaml and the `Segmenter`/`DualEvidenceSegmenter` class definitions in `vendor/esod/models/yolo.py` + `spectral.py`. E2.1 (`bcrs_dual_evidence_visdrone_yolov5m`) instantiates the plain `Segmenter` class (identical to E1.0, no spectral submodules) — it is **semantic-only, coverage-loss-supervised**, not "Dual Evidence Gated". E2.4 (`bcrs_dual_evidence_visdrone_spectral_yolov5m`) instantiates `DualEvidenceSegmenter`, which uses `GatedEvidenceFusion` (`gate=Sigmoid(Conv([F_sem,F_spec]))`, `fused=gate*P_sem+(1-gate)*P_spec`) — it **is** the gated dual-evidence architecture. Numbers below are unchanged (same directories/checkpoints); only the model-identity labels were fixed. `sweep_results.json` and `tools/inference_sweep.sh` have been updated to match.
+
+**Very Tiny Recall (<16×16 px)**
+
+| Exp | Model | K=16 | K=32 | K=48 | K=64 |
+|---|---|---|---|---|---|
+| E1.0 | ESOD Baseline | 10.9% | 23.1% | 35.7% | 49.3% |
+| E2.1 | BCRS Semantic-Only (Coverage-Supervised) | 20.4% | 34.4% | 46.2% | 56.7% |
+| E2.3 | BCRS Dual Evidence Concat | 27.2% | 39.7% | 48.9% | 57.6% |
+| E2.4 | BCRS Dual Evidence Gated | 18.9% | 31.7% | 42.5% | 55.3% |
+| E2.6 | BCRS Channel-Pooled Spectral (Gated) | 19.0% | 32.6% | 43.6% | 57.7% |
+
+**Total GT Recall**
+
+| Exp | Model | K=16 | K=32 | K=48 | K=64 |
+|---|---|---|---|---|---|
+| E1.0 | ESOD Baseline | 13.2% | 28.2% | 43.3% | 61.2% |
+| E2.1 | BCRS Semantic-Only (Coverage-Supervised) | 24.3% | 40.9% | 54.7% | 67.5% |
+| E2.3 | BCRS Dual Evidence Concat | 29.4% | 45.3% | 56.3% | 67.2% |
+| E2.4 | BCRS Dual Evidence Gated | 22.4% | 37.9% | 51.2% | 65.9% |
+| E2.6 | BCRS Channel-Pooled Spectral (Gated) | 21.9% | 38.2% | 52.1% | 66.6% |
+
+> **Reading the curve:** Concat (E2.3) leads at low budget (best Very Tiny recall at K=16/32). At K=64, the **zero-cost semantic-only selector (E2.1) ties or beats the "real" dual-evidence gated fusion (E2.4)** on total recall (67.5% vs 65.9%) and Very Tiny recall (56.7% vs 55.3%) — the standard spectral branch used in E2.4 is not clearly pulling its weight once you account for the fact that E2.1 gets a comparable result for free. Channel-Pooled (E2.6), which uses the *same* gated fusion as E2.4 but with a denoised spectral branch, closes most of that gap and is the only spectral-fusion variant that clearly beats E2.1. This reframes the story from "which fusion mechanism wins" to "does the spectral branch earn its keep at all outside of concat/channel-pooled" — exactly what E2.5 (true spectral-only, no semantic) is needed to settle.
+
+> **Local artifact sync:** resolved 2026-08-06 — all 20 run directories (`run.log`, `best_predictions.json`, plots) are now present under local `results/`, including the previously-missing E1.0/E2.1 sets and the previously-truncated E2.4 @ K=64.
 
 #### K=64 Sparse Inference Results — VisDrone Val (Official Benchmark)
 
@@ -184,28 +207,95 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 | Model | Exp | ESOD mAP@0.5 | BPR@K64 | PyCOCO AP50 | PyCOCO AP[.5:.95] | AR@500 | Very Tiny Recall (<16px) | Tiny Recall | Total Recall |
 |---|---|---|---|---|---|---|---|---|---|
 | ESOD Baseline | E1.0 | 0.367 | 0.607 | 0.084 | 0.044 | 0.164 | 49.28% | 62.29% | 61.25% |
-| BCRS Dual Evidence (Gated) | E2.1 | **0.403** | **0.682** | **0.094** | **0.050** | **0.178** | 56.74% | **68.35%** | **67.51%** |
+| BCRS Semantic-Only (Coverage-Supervised) | E2.1 | **0.403** | **0.682** | **0.094** | **0.050** | **0.178** | 56.74% | **68.35%** | **67.51%** |
 | BCRS Dual Evidence Concat | E2.3 | 0.403 | 0.665 | 0.093 | 0.049 | 0.177 | 57.62% | 68.37% | 67.18% |
-| BCRS Dual Evidence Spectral | E2.4 | 0.398 | 0.662 | 0.091 | 0.048 | 0.176 | 55.26% | 65.85% | 65.93% |
-| BCRS Channel-Pooled Spectral | E2.6 | **0.409** | 0.667 | 0.093 | 0.049 | 0.176 | **57.73%** | 66.29% | 66.57% |
+| BCRS Dual Evidence Gated | E2.4 | 0.398 | 0.662 | 0.091 | 0.048 | 0.176 | 55.26% | 65.85% | 65.93% |
+| BCRS Channel-Pooled Spectral (Gated) | E2.6 | **0.409** | 0.667 | 0.093 | 0.049 | 0.176 | **57.73%** | 66.29% | 66.57% |
 
-> **Key Finding (2026-08-06, confirmed full sweep):** All four BCRS variants outperform ESOD baseline across all metrics.
-> - **Best mAP@0.5**: E2.6 Channel-Pooled Spectral (**0.409**, +11.4% over baseline 0.367)
-> - **Best BPR@K64**: E2.1 Gated (**0.682**, +12.4% over baseline 0.607) — highest patch coverage efficiency
-> - **Best AP50**: E2.1 Gated (**0.094**, +11.9% over baseline 0.084)
-> - **Best Total Recall**: E2.1 Gated (**67.51%**, +6.26pp over baseline 61.25%)
-> - **Best Very Tiny Recall**: E2.6 Channel-Pooled Spectral (**57.73%**, +8.45pp over baseline 49.28%)
-> - **E2.4 Spectral** is weakest BCRS variant, confirming spectral-only evidence needs spatial gating or concat fusion to reach peak performance.
-> - E2.1 (Gated) and E2.3 (Concat) show nearly identical mAP@0.5 (both 0.403) but E2.1 achieves higher BPR (0.682 vs 0.665), suggesting gated fusion yields better patch selection quality for equivalent detection accuracy.
-> - E2.6's edge on mAP@0.5 (0.409) vs E2.1 (0.403) with lower BPR (0.667 vs 0.682) indicates channel-pooling improves detection precision at a slight coverage cost.
+> **Key Finding (2026-08-06, confirmed full sweep, model identities corrected):** All four BCRS variants outperform ESOD baseline across all metrics.
+> - **Best mAP@0.5**: E2.6 Channel-Pooled Spectral (Gated) (**0.409**, +11.4% over baseline 0.367)
+> - **Best BPR@K64**: E2.1 Semantic-Only (**0.682**, +12.4% over baseline 0.607) — highest patch coverage efficiency
+> - **Best AP50**: E2.1 Semantic-Only (**0.094**, +11.9% over baseline 0.084)
+> - **Best Total Recall**: E2.1 Semantic-Only (**67.51%**, +6.26pp over baseline 61.25%)
+> - **Best Very Tiny Recall**: E2.6 Channel-Pooled Spectral (Gated) (**57.73%**, +8.45pp over baseline 49.28%)
+> - **E2.4 Dual Evidence Gated is the weakest BCRS variant** — striking because it is the "textbook" dual-evidence architecture (semantic + spectral, sigmoid-gated fusion), yet it is beaten by the zero-cost semantic-only selector (E2.1) on every metric except mAP@0.5/AP/AR500 (where they're within noise). This means the *standard* spectral branch, as fused by `GatedEvidenceFusion`, is not clearly earning its added cost at K=64 — only when the spectral branch is denoised (E2.6 channel-pooling) or fused differently (E2.3 concat) does adding spectral evidence clearly pay off.
+> - E2.1 (Semantic-Only) and E2.3 (Concat) show nearly identical mAP@0.5 (both 0.403) — one is free, the other costs +2.96% GFLOPs for a small recall trade (Concat slightly ahead on Very Tiny recall, E2.1 ahead on BPR/Total recall). Given no repeated-seed variance has been computed anywhere in this plan, this gap should be treated as noise until confirmed otherwise.
+> - E2.6's edge on mAP@0.5 (0.409) vs E2.1 (0.403) with lower BPR (0.667 vs 0.682) indicates channel-pooled gated fusion improves detection precision at a slight coverage cost — but this is now the fair "does spectral help" comparison (E2.1 vs E2.6), not E2.1 vs E2.4.
 
+
+#### Efficiency — Measured Params/GFLOPs (VisDrone Val, whole model)
+
+> Source: `Model Summary: <layers> layers, <params> parameters, <gradients> gradients, <GFLOPs> GFLOPs` line printed by `test.py` at the top of each `run.log`. Verified **identical across all four budgets (K=16/32/48/64)** for every model — this is a static architecture cost, independent of the inference-time patch budget, so it is safe to report once per model.
+
+| Exp | Model | Layers | Params | Δ Params vs E1.0 | GFLOPs | Δ GFLOPs vs E1.0 | mAP@0.5 gain | mAP gain / Δ GFLOPs |
+|---|---|---|---|---|---|---|---|---|
+| E1.0 | ESOD Baseline | 352 | 35,819,800 | — | 77.7 | — | — | — |
+| E2.1 | BCRS Semantic-Only (Coverage-Supervised) | 352 | 35,819,800 | **+0 (0.00%)** | 77.7 | **+0.0 (0.00%)** | +0.036 | **∞ (free)** |
+| E2.3 | BCRS Dual Evidence Concat | 366 | 36,274,268 | +454,468 (+1.27%) | 80.0 | +2.3 (+2.96%) | +0.036 | 0.0157 |
+| E2.4 | BCRS Dual Evidence Gated | 372 | 36,348,570 | +528,770 (+1.48%) | 80.9 | +3.2 (+4.12%) | +0.032 | 0.0100 |
+| E2.6 | BCRS Channel-Pooled Spectral (Gated) | 371 | 36,190,812 | +371,012 (+1.04%) | 78.9 | +1.2 (+1.54%) | +0.042 | **0.0350** |
+
+> **Reading this table:**
+> - **E2.1 has zero spectral evidence at all** — it uses the plain `Segmenter` class, architecturally identical to the ESOD baseline (same layer count, params, GFLOPs to the last digit). Its accuracy gain comes entirely from the training-time size-weighted coverage loss (`lambda_cov`/`pos_weight`), not from fusing spectral evidence, at **zero added inference cost**. This was previously mislabeled "Dual Evidence Gated"; it is the semantic-only arm of the Phase 2 comparison.
+> - **E2.3 Concat** carries a small, real overhead (+2.96% GFLOPs) for the extra concat-fusion conv layers.
+> - **E2.4 is the actual gated dual-evidence architecture** (`DualEvidenceSegmenter` → `GatedEvidenceFusion`, sigmoid gate, zero-sum semantic/spectral mix) — previously mislabeled "Dual Evidence Spectral". **E2.6 Channel-Pooled uses the same `GatedEvidenceFusion` mechanism as E2.4**, just with a denoised (channel-pooled) spectral branch, and cuts E2.4's overhead by ~62.5% (+1.2 vs +3.2 GFLOPs added) while also having the best mAP gain of any variant — confirming the channel-pooling motivation. The actual measured reduction is **~62.5%, not the "95%" claimed** in the Phase 2.5 motivation below (that figure was a design estimate for the spectral submodule in isolation, not the measured whole-model delta — corrected here against real numbers).
+> - By mAP-gained-per-GFLOPs-added, **E2.6 has the best ROI** among the variants that add real cost; **E2.1 is the free option**. E2.4 (standard gated spectral) is worst on both accuracy and efficiency **among the models that add spectral evidence** — and is beaten even by the zero-cost E2.1 semantic-only selector on most metrics (see K=64 table above), which is the key open question motivating E2.5.
+> - This table does not yet include **selector-only** FLOPs/latency (isolated from the frozen backbone/head), which Section 8 requires ("coverage per GFLOP", "selector overhead ratio") — only whole-model deltas are available from `test.py`'s `Model Summary` line. A dedicated selector-only microbenchmark (E0.6/Phase 4 scope) is still open.
+
+##### Measured wall-clock latency (real, not FLOPs-derived)
+
+> Source: `Speed: <inference>/<NMS>/<total> ms inference/NMS/total per 1536x1536 image at batch-size 1` line printed by `test.py`, averaged over the full 548-image VisDrone val set. Extracted for all 20 runs.
+
+| Exp | Model | K=16 (ms) | K=32 (ms) | K=48 (ms) | K=64 (ms) | Δ Total vs E1.0 @ K=64 |
+|---|---|---|---|---|---|---|
+| E1.0 | ESOD Baseline | 12.3 | 15.5 | 20.3 | 21.7 | — |
+| E2.1 | BCRS Semantic-Only (Coverage-Supervised) | 11.9 | 15.9 | 20.6 | 21.7 | +0.0% |
+| E2.3 | BCRS Dual Evidence Concat | 12.7 | 15.9 | 21.4 | 22.0 | +1.4% |
+| E2.4 | BCRS Dual Evidence Gated | 12.4 | 16.1 | 21.3 | 22.5 | +3.7% |
+| E2.6 | BCRS Channel-Pooled Spectral (Gated) | 12.0 | 16.0 | **21.6** | **22.2** | +2.3% |
+
+> **This contradicts the GFLOPs-based efficiency story.** By GFLOPs, E2.6 (+1.54%) should beat E2.3 (+2.96%) on speed — it doesn't: E2.6 is **slower than E2.3 in measured latency at K=64** (22.2ms vs 22.0ms), and at K=48 E2.6 is the **slowest model in the entire sweep** (+6.4% vs baseline, worse than even the heaviest-GFLOPs E2.4). The per-K deltas are also non-monotonic (E2.1 goes from -3.3% at K=16 to +2.6% at K=32), which is the signature of GPU kernel-launch/memory-bandwidth noise on small per-branch ops dominating over the tiny FLOPs differences involved — **not a clean, trustworthy speed signal from a single-shot measurement.**
+>
+> **Conclusion: drop the "lightweight/efficient" framing for E2.6.** Spectral evidence is only ~1.5–4% of total model GFLOPs to begin with, so no fusion variant here is going to show a measurable wall-clock win — the channel-pooling engineering effort does not pay for itself in speed. **E2.6's real, defensible contribution is accuracy**: it has the best mAP@0.5 and Very Tiny Recall of any BCRS variant (see K=64 table above), most plausibly because channel-pooling denoises the spectral signal before the Laplacian filter, not because it makes the model faster. The paper should motivate E2.6 as a denoising/quality improvement, not an efficiency optimization — and by the same logic, **E2.7 (P2/4 shallow saliency, motivated explicitly as a texture-noise fix) has weaker justification now that E2.6 already addresses spectral noise at negligible cost**, reinforcing the earlier recommendation to deprioritize it.
+
+#### Fusion Mechanism Analysis: why Gated underperforms Concat (2026-08-06)
+
+`GatedEvidenceFusion` (used by E2.4, E2.6) computes:
+```
+gate = Sigmoid(Conv([F_semantic, F_spectral]))
+fused = gate * P_semantic + (1 - gate) * P_spectral
+```
+This is a **zero-sum convex combination** — `gate + (1-gate) = 1` always, so any weight the network assigns to the spectral signal is necessarily taken away from the semantic signal at that same pixel, even where semantic was the more reliable source. `ConcatEvidenceSegmenter` (E2.3, E2.9) instead computes:
+```
+fused = Conv(cat([P_semantic, P_spectral]))
+```
+with no sum-to-one constraint — the learned 1×1 conv can weight both signals independently (including near-zero weight on a noisy spectral channel without penalizing semantic), making concat a strict superset of what gated fusion can express for a 2-source linear combination.
+
+This directly explains the E2.4/E2.1 result: when the spectral input is the standard, non-denoised branch (noisier — see E2.6 motivation), a gate that leans toward it is trading a reliable signal for an unreliable one, which can net out **below** the zero-cost semantic-only baseline (E2.1). Concat doesn't have this failure mode because it isn't forced to choose. This is also consistent with why **E2.6 (pooled spectral + gated) recovers most of the gap** — cleaner spectral input makes the gate's zero-sum trade-offs less costly, without changing the fusion mechanism itself. E2.9 (pooled spectral + concat, proposed above) is expected to combine both fixes and is the most promising untested cell in the 2×2.
+
+#### Open Design Space: further fusion mechanisms and evidence signals (2026-08-06)
+
+Two axes remain underexplored beyond what E2.1–E2.9 cover:
+
+**1. Fusion mechanism, beyond gate/concat.** The zero-sum-vs-union analysis above suggests the failure mode is specifically the *forced trade-off*, not "gating" as a concept — mechanisms that keep gating's adaptivity without the zero-sum constraint are worth screening ahead of any new evidence branch:
+- **Additive/residual fusion**: `fused = P_semantic + λ·P_spectral` (spectral as a learned residual correction, not a competing vote) — cheaper than concat's extra conv, avoids the zero-sum trap by construction.
+- **Independent (non-sum-to-one) gate per source**: `fused = g_sem·P_semantic + g_spec·P_spectral` with two independent sigmoids instead of one shared gate — keeps gating's spatial adaptivity but removes the `g_spec = 1 - g_sem` constraint; strictly more expressive than the current `GatedEvidenceFusion`, cheap to implement as a drop-in variant.
+- **Cross-attention fusion**: let spectral evidence attend to semantic evidence (or vice versa) before the final conv — more expressive than concat, but adds real parameters/FLOPs and reintroduces the efficiency questions raised in the Efficiency section; only worth it if concat's ceiling is clearly reached.
+- **Uncertainty-weighted fusion**: weight each branch by a learned confidence/variance estimate rather than a single joint gate — closer to classical sensor fusion, but adds a second output head per branch.
+- Priority for screening: additive/residual and independent-gate first (both are near-zero-cost drop-in replacements for `GatedEvidenceFusion`, directly testable once E2.5/E2.9 close out the current matrix); cross-attention and uncertainty-weighted only if those don't beat concat.
+
+**2. Evidence signal, beyond semantic/spectral.** The Proposal (§5.3.B) already lists several spectral-branch proxies that were never screened against each other — the current `SpectralBranch`/`ChannelPooledSpectralBranch` is one specific choice (depthwise Laplacian-style), not validated against the alternatives the Proposal names: DCT/wavelet low-mid-high band energy, local contrast, HBS-style pre/post response difference, local entropy. Beyond the Proposal's original list:
+- **P2/4 shallow saliency (E2.7)**: already proposed, now lower-priority per the Efficiency findings above, but still a genuinely different *signal source* (learned spatial feature) rather than a hand-crafted filter — worth keeping on the list even if deprioritized for near-term compute.
+- **Temporal/motion evidence** (if UAVDT or video-style sequences are in scope): frame-to-frame residual as a fourth evidence source — orthogonal to both semantic and spectral, untested anywhere in this plan.
+- **Density/context evidence**: a cheap non-learned prior from neighboring-patch objectness (spatial clustering) — motivated by the Occupy≥1.0-at-K=64-yet-BPR-only-0.6 finding (§ Very Tiny oracle headroom discussion), which suggests the current selector may be redundantly covering the same high-priority regions rather than spreading budget — a diversity/NMS-style penalty on redundant patch selection could be a cheap addition to any of the above fusion mechanisms, not a competing evidence branch.
+- Priority: before adding a fourth evidence source, first confirm (via E2.5) that the *second* one (spectral) reliably helps at all in some fusion mechanism — piling on more evidence branches without first resolving H2's conditional-falsification status (see Proposal cross-check below) would compound the same confound.
 
 #### Phase 2.5 — Lightweight Evidence & Selector Routing Optimization Proposals
 
 ##### 1. E2.6 Channel-Pooled Spectral Filter (通道池化轻量化频域)
 - **Motivation**: Standard 256-channel multi-kernel spectral convolution is heavy ($192\times 192$ feature map) and introduces channel-wise texture noise.
 - **Design**: Apply Channel Max/Avg Pooling to compress $C \times H \times W \to 1 \times H \times W$ before 3x3 Laplacian filtering.
-- **Target Outcome**: Reduces spectral FLOPs by 95% while eliminating channel-level high-frequency background noise.
+- **Target Outcome**: Reduces spectral FLOPs by 95% while eliminating channel-level high-frequency background noise. *(Original design estimate for the spectral submodule in isolation. Measured whole-model delta is +1.2 GFLOPs vs E2.4's +3.2 GFLOPs — a ~62.5% cut in the added cost; see "Efficiency" table above.)*
 
 ##### 2. E2.7 Multi-Scale Shallow Feature Saliency (P2/4 浅层高分辨率显著性)
 - **Motivation**: Shallow backbone features (P2/4, stride 4) naturally preserve high-resolution spatial details for tiny objects without explicit high-pass filtering.
@@ -233,7 +323,9 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 > **Publication Scope Strategy (Updated 2026-08-06)**:
 > - **Conference Version (CVPR / ECCV 8-Page)**:
 >   1. **Primary Claim**: Dual-Evidence selector (spectral + spatial) improves patch selection quality at fixed K=64 budget → +10.7% AP50, +8.3pp Very Tiny Recall vs ESOD baseline.
->   2. **Ablation Table**: E1.0 ESOD → E2.1 Gated → E2.3 Concat → E2.4 Spectral → E2.6 Channel-Pooled (each design choice's contribution to BPR and recall).
+>   2. **Ablation Table** *(corrected 2026-08-06 — E2.1 is not a fusion-mechanism step; it has no spectral evidence at all)*: two axes, not one progression —
+>      - **Evidence-source axis**: E1.0 ESOD (no coverage loss) → E2.1 Semantic-Only/Coverage-Supervised (no spectral, free) → E2.5 Spectral-Only (no semantic, **trained, sweep pending**) — isolates what each evidence source contributes alone.
+>      - **Fusion-mechanism axis**, now a 2×2 (standard vs channel-pooled spectral branch) × (gated vs concat fusion): E2.4 (standard+gated) → E2.6 (pooled+gated) → E2.3 (standard+concat) → E2.9 (pooled+concat, **new, ready to train**) — isolates which fusion mechanism combines the two best. E2.4 is currently the weakest of these four, and is beaten on most metrics by the free E2.1 selector, which is the open question E2.5 is needed to resolve. See "Fusion Mechanism Analysis" below for why gated fusion underperforms concat.
 >   3. **Multi-Dataset Validation**: VisDrone (main 10-class dense), UAVDT (vehicle/traffic aerial), TinyPerson (extreme tiny $<20\text{px}$ human).
 >   4. **Dropped from Conference Scope**: Sparse K=16 efficiency angle — at low K, tiny object information is too sparse to recover regardless of selector quality.
 > - **Journal Version Extension (IEEE TPAMI / TIP Extended 30%+)**:
@@ -278,6 +370,46 @@ Only run after the core ESOD and QueryDet claims are secure.
 - optional TinyPerson external validation.
 
 Report CEASC GT-positive activation coverage, per-layer mask ratio, CE-GN global-path cost, APt, and measured latency. Do not let this phase alter the core success thresholds.
+
+## 6. Cross-Check Against BCRS-Proposal.md (2026-08-06)
+
+Full read-through of `BCRS-Proposal.md` against everything executed and found while producing this plan. Four real drifts found — three are coverage gaps, one is a live falsification event that the Proposal's own reporting rules require to be stated, not softened.
+
+### 6.1 Dataset coverage gap: AI-TOD never run — blocks the Proposal's own minimum success bar
+
+Proposal §7.1 names AI-TOD the "机制主数据集" (primary mechanism dataset), specifically because it has the smallest average object size, and Proposal §9.1's minimum success standard requires the tiny-recall gain to hold "至少在 AI-TOD 与 VisDrone 两个数据集" (at least on both AI-TOD *and* VisDrone) — not VisDrone alone.
+
+Every experiment executed so far (Phase 0–2, E1.0–E2.9) is VisDrone-only. `configs/datasets/aitod.yaml` exists but is referenced by zero experiment configs, and no training/sweep has touched it. **As currently executed, this plan cannot yet claim the Proposal's own minimum-success bar is met** — VisDrone-only results, however strong, satisfy at most half of §9.1's stated dataset requirement. TinyPerson (Proposal's *optional* external validation) correctly has no dataset config yet — that one is not a gap.
+
+**Action**: track AI-TOD as a blocker for any "minimum success" claim, at the same priority as UAVDT (Block B), not as a lower-tier "nice to have."
+
+### 6.2 Falsification condition #5 has fired: E2.6's FLOPs win did not produce a latency win
+
+Proposal §9.3, falsification condition 5: *"FLOPs 下降但端到端 latency 不降或更慢"* — and explicitly: *"以下任一结果都应被视为重要否证，而不是通过更换指标掩盖"* (must be reported as falsification, not hidden by switching metrics).
+
+The measured wall-clock latency table above shows exactly this for E2.6 vs E2.3: E2.6 has fewer GFLOPs (+1.54% vs +2.96%) but is *slower* in measured latency at K=64 (22.2ms vs 22.0ms) and is the single slowest model in the whole sweep at K=48. This isn't new data, but it had not been explicitly tied to the Proposal's own numbered falsification condition — doing so here makes the "drop the lightweight framing for E2.6" conclusion citable as Proposal-mandated reporting, not just a stylistic call, and it should not be softened in the paper.
+
+### 6.3 H2 (dual-evidence complementarity) is conditionally, not universally, supported
+
+Proposal §6, H2: *"在相同 selector 参数量与计算量下，语义 + 频谱/显著性证据比语义单分支具有更高的 low-objectness tiny recall"* (dual evidence beats semantic-only at matched params/compute).
+
+Current K=64 data: E2.4 (dual-evidence, gated, standard spectral branch) is beaten on Total Recall, Very Tiny Recall, and BPR by E2.1 (semantic-only, *zero* extra params) — the opposite of H2, for that specific fusion mechanism. H2 *is* supported for E2.3 (concat) and E2.6 (pooled+gated), which do beat E2.1. So H2 holds only for part of the fusion-mechanism × spectral-branch design space, not universally as stated — narrower than the Proposal's current wording.
+
+Not yet a clean falsification (the Proposal has no "true for some designs, false for others" bucket), but the paper's H2 claim needs a scope qualifier once E2.5/E2.9 land: either "dual evidence helps, but only with concat or denoised-gated fusion" (narrowed claim), or — if E2.5 shows spectral-only is *also* weak — a harder look at whether the `SpectralBranch` implementation itself is the problem (→ 6.4).
+
+### 6.4 Falsification condition #1 control (param-matched ordinary-conv spectral branch) has not been run
+
+Proposal §9.3, condition 1: *"控制参数量和训练量后，频谱分支不优于普通卷积分支"* (after controlling params/training, the spectral branch does not outperform an ordinary conv branch) — a specific ablation (swap `SpectralBranch` for a plain conv of matched width) that has never been run here. E2.1 beating E2.4 with *zero* extra capacity is a stronger negative signal than this control would even need to produce, but it isn't a substitute: the Proposal's condition asks about equal extra capacity spent on a non-spectral conv vs. the real spectral branch, which is a different, still-open question.
+
+**Action**: add this as a cheap single-run control once E2.5/E2.9 are done — it's the specific test the Proposal commits to running before claiming spectral evidence is genuinely informative rather than just extra capacity.
+
+### 6.5 "Semantic + spectral GT-coverage oracle" (Proposal §7.3 item 11) not separately reported
+
+Proposal §7.3 requires two oracle baselines: a pure GT-coverage oracle (item 10) and a *semantic + spectral* GT-coverage oracle (item 11) — two different upper bounds. The Plan's only oracle table (§ E0.4, "8×8 Patch Grid") reports one "GT Oracle Recall" curve; which of the two definitions it corresponds to is not documented. Given §6.3's findings, knowing whether the dual-evidence oracle ceiling is meaningfully higher than the pure-coverage ceiling would directly show whether there's any headroom left for spectral evidence to capture at all, independent of fusion mechanism — likely the single most informative missing number for deciding how much further effort the "Open Design Space" section above deserves.
+
+### 6.6 No drift: budget conditioning correctly unimplemented, Phase 3 not started
+
+Proposal §5.5 describes a budget-conditioned model (`e_B` injected via FiLM/MLP, `B ~ U(B_min, B_max)`). Confirmed by code search: no `budget_embed`/`FiLM`/`e_B` anywhere in `vendor/esod/`. This is expected, not a drift — every Phase 2 checkpoint is trained at one fixed setting and evaluated post-hoc at K=16/32/48/64 via top-k truncation at test time, which is exactly where the Plan's own (not-yet-started) Phase 3 is supposed to pick up. Noted here only so the distinction stays explicit in the paper: the Budget Curve tables above show a *test-time* top-k sweep on fixed-training checkpoints, not yet the H5 unified-multi-budget-model claim itself.
 
 ## 7. Claim thresholds
 

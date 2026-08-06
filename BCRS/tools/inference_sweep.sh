@@ -26,12 +26,21 @@ K_VALUES=(16 32 48 64)
 SWEEP_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Model registry: EXP_ID|DISPLAY|STEM|CONFIG
+#
+# NOTE (2026-08-06): E2.1 and E2.4 display names were corrected after auditing the
+# actual model yaml / Segmenter class each config instantiates (see BCRS-Experiment-Plan.md
+# "Efficiency" section). E2.1's model yaml (visdrone_yolov5m.yaml) uses the plain `Segmenter`
+# class — identical to the E1.0 baseline, with NO spectral_branches/gated_fusions submodules —
+# so it is a semantic-only, coverage-loss-supervised selector, not a dual-evidence fusion.
+# E2.4's model yaml (visdrone_yolov5m_spectral.yaml) uses `DualEvidenceSegmenter`, which
+# instantiates `GatedEvidenceFusion` (sigmoid gate, zero-sum semantic/spectral mix) — this is
+# the actual "gated dual-evidence" architecture, previously mislabeled as "Spectral".
 MODELS=(
   "E1.0|ESOD Baseline|esod_visdrone_yolov5m|configs/experiments/esod_visdrone.yaml"
-  "E2.1|BCRS Dual Evidence Gated|bcrs_dual_evidence_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone.yaml"
+  "E2.1|BCRS Semantic-Only (Coverage-Supervised)|bcrs_dual_evidence_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone.yaml"
   "E2.3|BCRS Dual Evidence Concat|bcrs_dual_evidence_concat_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_concat_visdrone.yaml"
-  "E2.4|BCRS Dual Evidence Spectral|bcrs_dual_evidence_visdrone_spectral_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone_spectral.yaml"
-  "E2.6|BCRS Channel-Pooled Spectral|bcrs_channel_pooled_spectral_visdrone_yolov5m|configs/experiments/bcrs_channel_pooled_spectral_visdrone.yaml"
+  "E2.4|BCRS Dual Evidence Gated|bcrs_dual_evidence_visdrone_spectral_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone_spectral.yaml"
+  "E2.6|BCRS Channel-Pooled Spectral (Gated)|bcrs_channel_pooled_spectral_visdrone_yolov5m|configs/experiments/bcrs_channel_pooled_spectral_visdrone.yaml"
 )
 
 # ===========================================================================
@@ -147,11 +156,11 @@ out_json   = sys.argv[2]
 sweep_date = sys.argv[3]
 
 MODELS = [
-    ("E1.0", "ESOD Baseline",                  "esod_visdrone_yolov5m"),
-    ("E2.1", "BCRS Dual Evidence Gated",        "bcrs_dual_evidence_visdrone_yolov5m"),
-    ("E2.3", "BCRS Dual Evidence Concat",       "bcrs_dual_evidence_concat_visdrone_yolov5m"),
-    ("E2.4", "BCRS Dual Evidence Spectral",     "bcrs_dual_evidence_visdrone_spectral_yolov5m"),
-    ("E2.6", "BCRS Channel-Pooled Spectral",    "bcrs_channel_pooled_spectral_visdrone_yolov5m"),
+    ("E1.0", "ESOD Baseline",                          "esod_visdrone_yolov5m"),
+    ("E2.1", "BCRS Semantic-Only (Coverage-Supervised)", "bcrs_dual_evidence_visdrone_yolov5m"),
+    ("E2.3", "BCRS Dual Evidence Concat",               "bcrs_dual_evidence_concat_visdrone_yolov5m"),
+    ("E2.4", "BCRS Dual Evidence Gated",                "bcrs_dual_evidence_visdrone_spectral_yolov5m"),
+    ("E2.6", "BCRS Channel-Pooled Spectral (Gated)",    "bcrs_channel_pooled_spectral_visdrone_yolov5m"),
 ]
 K_VALUES = [16, 32, 48, 64]
 
