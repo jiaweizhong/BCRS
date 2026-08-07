@@ -35,9 +35,9 @@ fi
 export TINYPERSON_ROOT
 
 WORK_DIR="/root/BCRS/BCRS/work_dirs"
-TINYPERSON_LABELS="${TINYPERSON_ROOT}/labels/test"
+TINYPERSON_LABELS="${TINYPERSON_ROOT}/labels/val"
 if [ ! -d "${TINYPERSON_LABELS}" ]; then
-  TINYPERSON_LABELS="${TINYPERSON_ROOT}/labels/val"
+  TINYPERSON_LABELS="${TINYPERSON_ROOT}/labels/test"
 fi
 AUDIT_TOOL="python tools/audit_failure_cases.py"
 
