@@ -10,8 +10,8 @@ adapters:
   esod:
     splits:
       train: {images: images/train}
-      val: {images: images/test}
-      test: {images: images/test}
+      val: {images: images/val}
+      test: {images: images/val}
   querydet:
     runner: tinyperson
     splits:
@@ -19,11 +19,11 @@ adapters:
         images: images/train
         annotations: annotations/train.json
       val:
-        images: images/test
-        annotations: annotations/test.json
+        images: images/val
+        annotations: annotations/val.json
       test:
-        images: images/test
-        annotations: annotations/test.json
+        images: images/val
+        annotations: annotations/val.json
   ceasc:
     dataset_type: TinyPersonDataset
     splits:
@@ -31,8 +31,8 @@ adapters:
         images: images/train
         annotations: annotations/train.json
       val:
-        images: images/test
-        annotations: annotations/test.json
+        images: images/val
+        annotations: annotations/val.json
       test:
-        images: images/test
-        annotations: annotations/test.json
+        images: images/val
+        annotations: annotations/val.json
