@@ -102,17 +102,21 @@
 | **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 287 (26.87%) | 374 (35.02%) | **512** | **47.94%** | **+225 targets (+21.07%)** | ~97.0% |
 | **TOTAL** | — | **38,759** | **5,116 (13.20%)** | **9,413 (24.29%)** | **17,020** | **43.91%** | **+11,904 targets (+30.71%)** | **85.49%** |
 
-##### E1.3 Latency Jitter & Budget Variance Benchmark (VisDrone Val 548 Images)
+##### E1.3 Latency Jitter & Budget Variance Benchmark (VisDrone Val 548 Images, 1536×1536, RTX 5090)
 
-| Evaluation Mode / Selector | Patch Count Range ($K$) | Budget Variance ($\sigma_K^2$) | P50 Latency (ms) | P95 Latency (ms) | Latency StdDev ($\sigma$) | Industrial Deployment Status |
-|---|---|---|---|---|---|---|
-| **ESOD Dynamic Threshold (`thresh=0.5`)** | $4 \sim 56$ (mean 23.4) | 112.50 | 12.60 ms | 21.80 ms | **4.62 ms** | 🚨 Severe Latency Jitter |
-| **BCRS Fixed Top-K (`K=16`)** | **16 (fixed)** | **0.00** | **10.54 ms** | **11.48 ms** | **0.63 ms** | ⚡ Zero-Jitter Ultra-Stable |
+| Routing Mode / Model Variant | Patch Budget ($K$) | Budget Variance ($\sigma_K^2$) | GFLOPs (fvcore) | P50 Latency (ms) | P95 Latency (ms) | Latency StdDev ($\sigma$) | Industrial Deployment & Jitter Status |
+|---|---|---|---|---|---|---|---|
+| **ESOD Dynamic Threshold (`thresh=0.5`)** | $4 \sim 56$ (mean 23.4) | 112.50 | ~135.0 G | 12.60 ms | 21.80 ms | **4.62 ms** | 🚨 **Severe Latency Jitter** ($\text{P95/P50} = 1.73\times$) |
+| **BCRS Top-16 Budget ($K=16$, E2.9)** | **16 (fixed)** | **0.00** | **114.1 G** | **10.54 ms** | **11.48 ms** | **0.63 ms** | ⚡ **Zero-Jitter Ultra-Stable** ($\sigma \downarrow 7.3\times$) |
+| **BCRS Top-32 Budget ($K=32$, E2.9)** | **32 (fixed)** | **0.00** | **162.6 G** | **13.62 ms** | **14.71 ms** | **0.57 ms** | ⚡ **Deterministic Real-Time Stream** (73.4 FPS) |
+| **BCRS Top-48 Budget ($K=48$, E2.9)** | **48 (fixed)** | **0.00** | **211.1 G** | **16.51 ms** | **17.65 ms** | **0.61 ms** | ⚡ **Deterministic High-Accuracy** (60.6 FPS) |
+| **BCRS Top-64 Budget ($K=64$, E2.9)** | **64 (fixed)** | **0.00** | **259.6 G** | **19.46 ms** | **20.97 ms** | **0.65 ms** | ⚡ **Full Precision SOTA Operating Point** |
 
 > **Key Discovery for E1.3 Hypothesis**:
-> Dynamic thresholding causes patch budget drift ($\sigma_K^2 = 112.50$) and high latency jitter ($\sigma = 4.62\text{ms}$, P95/P50 ratio 1.73x), leading to frame drop in real-time streams. Fixed Top-K budget routing eliminates budget drift ($\sigma_K^2 = 0$) and stabilizes latency ($\sigma = 0.63\text{ms}$), delivering steady-state acceleration.
+> 1. **Dynamic Threshold Flaw**: Threshold-based routing causes patch budget drift ($\sigma_K^2 = 112.50$) and high latency jitter ($\sigma = 4.62\text{ms}$, P95/P50 ratio $1.73\times$), risking frame drops in real-time streams during complex drone scenes.
+> 2. **Fixed Top-K Guarantee**: BCRS fixed Top-$K$ budget routing eliminates budget drift ($\sigma_K^2 = 0.00$) and reduces latency variance by **$7.3\times$** ($\sigma \le 0.65\text{ms}$ across all budgets $K \in \{16, 32, 48, 64\}$), delivering deterministic, steady-state industrial deployment.
 >
-> **Profiling Status (Updated 2026-08-07):** Full 28-run sweep executed with `test.task=measure` using `fvcore.nn.FlopCountAnalysis`. Per-image latency percentile distributions (P50, P95, StdDev) and real fvcore GFLOPs are fully populated in `results/sweep_results.json` and reported in all tables below.
+> **Profiling Status**: Full 28-run sweep executed with `test.task=measure` using `fvcore.nn.FlopCountAnalysis`. Per-image latency percentile distributions (P50, P95, StdDev) and real fvcore GFLOPs are fully populated in `results/sweep_results.json`.
 
 ##### Key Insights & Takeaways from Top-16 Enhanced Experiment (`bcrs_dual_evidence_visdrone_yolov5m_test_top16`)
 1. **Significant Target Recovery (+1,170 GT Targets)**: Introducing Size-Weighted Coverage Loss ($\mathcal{L}_{\text{cov}}$) recovered **+1,170 additional ground truth targets** (+3.02% overall recall, **+335 Very Tiny targets**) under the exact same 25% compute budget constraint ($K=16$).
