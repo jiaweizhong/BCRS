@@ -299,9 +299,7 @@ def prepare_tinyperson_dataset(raw_dir: Path, output_dir: Path) -> None:
     }
 
     def _is_layout_a() -> bool:
-        return any(
-            (raw_dir / s / "images").is_dir() for s in layout_a_splits
-        )
+        return any((raw_dir / s / "images").is_dir() for s in layout_a_splits)
 
     def _is_layout_b() -> bool:
         return (raw_dir / "images").is_dir()

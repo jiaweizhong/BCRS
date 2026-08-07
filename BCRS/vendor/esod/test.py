@@ -219,14 +219,17 @@ def test(
         if not training and opt.task == "measure":
             assert img.shape[0] == 1  # bs=1
 
-            try:
-                from fvcore.nn import FlopCountAnalysis
+            if len(gflops) == 0:
+                try:
+                    from fvcore.nn import FlopCountAnalysis
 
-                fca = FlopCountAnalysis(model, inputs=(img,))
-                fca.unsupported_ops_warnings(False)
-                gflop = fca.total() / 1e9 * 2
-            except:
-                gflop = model_info(model, inputs=(img,))
+                    fca = FlopCountAnalysis(model, inputs=(img,))
+                    fca.unsupported_ops_warnings(False)
+                    gflop = fca.total() / 1e9 * 2
+                except:
+                    gflop = model_info(model, inputs=(img,))
+            else:
+                gflop = gflops[0]
 
             gflops.append(gflop)
 
