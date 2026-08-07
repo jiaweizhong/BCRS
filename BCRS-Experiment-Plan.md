@@ -274,6 +274,22 @@ Use a two-stage funnel to avoid an uncontrolled Cartesian product.
 
 > **Efficiency Takeaway**: E2.9 delivers a +14.0pp mAP@0.5 jump and +20.9pp Very Tiny Recall boost for only **+1.0 GFLOP (+0.38% overhead)** and **0.4ms latency overhead (19.5ms P50 vs 19.1ms)** at 51.0 FPS.
 
+#### Hardware & Computational Efficiency Analysis: Why E2.9 Beats E2.4 / E2.5 / E2.6 in Latency & FLOPs
+
+##### 1. 频域降维机制 (Channel Pooling 95%+ 算力压缩)
+- **E2.4 / E2.5 (未池化全通道滤波 `MultiKernelSpectralFilter`)**：在 P3/8 阶段高分辨率 ($192 \times 192$) 特征图上，全通道 $C=256$ 深度卷积需在 256 个通道上做 $3\times 3$ 和 $5\times 5$ 卷积，输出 1024 通道中间特征再升降维，为整个网络额外增加了 **+7.5 ~ +10.6 GFLOPs**。
+- **E2.6 / E2.9 (通道池化 `ChannelPooledSpectralFilter`)**：利用 Max 与 Avg Pooling 将 $256 \times 192 \times 192$ 压缩为 **$2 \times 192 \times 192$** 的空间显著性图，仅对 2 通道做物理 Laplacian 滤波（6 输出通道）。频域子模块本身的计算量被**物理压缩掉 95% 以上**，因此总 GFLOPs 从 E2.3 (266.1G) 剧降至 E2.9 (259.6G)。
+
+##### 2. 融合机制降维 (Logits Concat 1×1 vs. Feature Gated 门控子网络)
+- **E2.4 / E2.6 (Gated 门控融合 `GatedEvidenceFusion`)**：需拼接 $256+256=512$ 通道特征图，通过两层 Conv2d + BN + SiLU 的门控决策子网络（$512 \to 256 \to 1$）计算动态 Sigmoid 门控 $g$，再做逐元素乘加。引入额外 **+3.1 GFLOPs** 算力，且 Sigmoid 乘法在 GPU 上属于 Memory-bound 访存瓶颈。
+- **E2.3 / E2.9 (Concat 联合融合 `ConcatEvidenceSegmenter`)**：直接在类别 Logits 层面（各自仅 $nc=10$ 通道，共 $10+10=20$ 通道）拼接，通过极轻量的 **$1\times 1$ Conv2d ($20 \to 10$)** 融合。融合算子 FLOPs 几乎为 0 且访存极佳，大幅降低推理延迟。
+
+##### 3. 双分支 E2.9 比单频域分支 E2.5 更快更轻的原因
+- E2.5 (Spectral-Only) 虽然是单分支，但使用的是未池化的重型 256 通道频域滤波 (266.1G / 20.3ms)。
+- E2.9 (Channel-Pooled Concat) 虽然是双分支，但频域分支经过了通道池化降维 ($256 \to 2$)，融合仅为 20 通道 1×1 Conv。因此**轻量化双分支 E2.9 (259.6G / 19.5ms) 总体算力与延迟远低于未池化的单频域分支 E2.5 (266.1G / 20.3ms)**，相比单语义基线 E2.1 (258.8G / 19.3ms) 仅增加 **+0.8 GFLOPs** 和 **+0.2ms 延迟**。
+
+---
+
 #### Fusion Mechanism Analysis: why Gated underperforms Concat (2026-08-06)
 
 `GatedEvidenceFusion` (used by E2.4, E2.6) computes:
