@@ -1,0 +1,38 @@
+name: tinyperson
+# TINYPERSON_ROOT must be exported by the caller (matches the VISDRONE_ROOT / UAVDT_ROOT pattern)
+root: ${TINYPERSON_ROOT:-../../data/TinyPerson}
+num_classes: 1
+classes: [person]
+
+splits: {train: {}, val: {}, test: {}}
+
+adapters:
+  esod:
+    splits:
+      train: {images: images/train}
+      val: {images: images/test}
+      test: {images: images/test}
+  querydet:
+    runner: tinyperson
+    splits:
+      train:
+        images: images/train
+        annotations: annotations/train.json
+      val:
+        images: images/test
+        annotations: annotations/test.json
+      test:
+        images: images/test
+        annotations: annotations/test.json
+  ceasc:
+    dataset_type: TinyPersonDataset
+    splits:
+      train:
+        images: images/train
+        annotations: annotations/train.json
+      val:
+        images: images/test
+        annotations: annotations/test.json
+      test:
+        images: images/test
+        annotations: annotations/test.json

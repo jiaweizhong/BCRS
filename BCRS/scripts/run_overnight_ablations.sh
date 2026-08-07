@@ -173,8 +173,8 @@ run_experiment \
 
 run_experiment \
   "[B2] E2.1u — Semantic-Only, Coverage-Supervised (UAVDT)" \
-  "configs/experiments/bcrs_dual_evidence_uavdt.yaml" \
-  "${WORK_DIR}/bcrs_dual_evidence_uavdt_yolov5m/weights/best.pt" \
+  "configs/experiments/bcrs_semantic_only_uavdt.yaml" \
+  "${WORK_DIR}/bcrs_semantic_only_uavdt_yolov5m/weights/best.pt" \
   "${UAVDT_LABELS}"
 
 run_experiment \
