@@ -1,23 +1,27 @@
 # BCRS Experiment Plan
 
 **Source:** `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md`  
-**Status:** Phase 2 FULLY COMPLETED (VisDrone — all 7 models E1.0–E2.9 swept across K∈{16,32,48,64} with real fvcore `task=measure` profiling, 2026-08-07); E2.9 Channel-Pooled Concat established as **best-in-class primary architecture (0.507 mAP@0.5, 70.2% VTiny recall, 81.1% Total recall at 19.5ms P50 latency)**; E2.5 Spectral-Only confirms spectral alone is insufficient without spatial evidence; **Phase 3 (single-model multi-budget routing) descoped from conference plan**  
-**Primary question (reframed 2026-08-06):** At ESOD's own fixed inference operating point and near-identical compute, does a semantic-spectral dual-evidence selector recover substantially more tiny-object recall than the objectness-only baseline? *(Superseded framing, kept for history: "Can dual semantic-spectral evidence allocate a fixed inference budget better than objectness alone" — this framed BCRS as a budget-routing framework across many operating points; the evidence built so far supports a narrower, stronger claim — same cost, better recall at one well-chosen operating point — not a budget-dial story. See Phase 3 descoping note.)*
+**Status:** Phase 2 FULLY COMPLETED (VisDrone — all 7 models E1.0–E2.9 swept across $K \in \{16,32,48,64\}$ with real fvcore `task=measure` profiling, 2026-08-07); E2.9 Channel-Pooled Concat established as **best-in-class primary architecture (0.507 mAP@0.5, 70.2% VTiny recall, 81.1% Total recall at 19.5ms P50 latency)**; E2.5 Spectral-Only confirms spectral alone is insufficient without spatial evidence.  
+**Metric Protocol Strategy:**
+- **Main Paper Benchmark**: **`mAP@0.5`** (ESOD/YOLOv5 native protocol, matching the IEEE TIP 2024 paper benchmark of 36.4%), **Patch BPR ($BPR_{\text{box}}$)**, and **Very Tiny Target Recall ($<16^2\text{px}$)**.
+- **Appendix / Supplementary Material**: PyCOCOtools standard COCO metrics (**`AP50`**, **`AP[.5:.95]`**, **`AR500`**).
+
+---
 
 ## 0. Baseline Benchmark & Execution Tracking
 
 ### Verification & Dual-Evidence Summary (50-Epoch VisDrone)
 
-| Metric | Target / Claim | Baseline ESOD | BCRS Dual-Evidence (E2.9) | Delta / Improvement | Notes |
+| Metric | Target / Claim | Baseline ESOD | BCRS Dual-Evidence (E2.9) | Delta / Improvement | Paper Section Alignment |
 |---|---|---|---|---|---|
-| **mAP@0.5** | $\ge 0.360$ (Paper 640p) | **0.3670 (36.7%)** | **0.5070 (50.7%)** | **+14.0% (+38.1% rel)** | Huge mAP boost at K=64 sparse routing |
-| **Patch BPR ($BPR_{box}$)**| $\ge 0.800$ | **0.6070 (60.7%)** | **0.8540 (85.4%)** | **+24.7%** | Outstanding patch coverage |
-| **PyCOCO AP50** | Baseline | **0.084** | **0.114** | **+0.030 (+35.7% rel)** | Official COCO benchmark AP50 |
-| **Very Tiny Recall ($<16^2$)**| Audit Target | **49.28% (5,892)** | **70.20% (8,392)** | **+2,500 Very Tiny objects** | **+20.92%** on hardest tiny objects |
-| **Tiny Recall ($16^2 \sim 32^2$)**| Class Audit | **62.29% (9,114)** | **82.23% (12,031)** | **+2,917 Tiny objects** | **+19.94%** on tiny targets |
-| **Total GT Recall**| Benchmark | **61.25% (23,740)** | **81.07% (31,423)** | **+7,683 targets** | **+19.82%** overall target recovery |
-| **Real GFLOPs (fvcore)** | Parity | **258.6 GFLOPs** | **259.6 GFLOPs** | **+1.0 GFLOP (+0.38%)** | Virtual compute parity |
-| **Inference Latency P50** | $< 20.0\text{ms}$ | **19.1ms / img** | **19.5ms / img** | **+0.4ms overhead** | Batch size 1 on RTX 5090 |
+| **mAP@0.5 (Primary)** | $\ge 0.360$ (Paper 640p) | **0.3670 (36.7%)** | **0.5070 (50.7%)** | **+14.0% (+38.1% rel)** | **Main Paper Main Table** (Matches ESOD paper 36.4%) |
+| **Patch BPR ($BPR_{\text{box}}$)**| $\ge 0.800$ | **0.6070 (60.7%)** | **0.8540 (85.4%)** | **+24.7%** | **Main Paper Main Table** (Patch coverage) |
+| **Very Tiny Recall ($<16^2$)**| Audit Target | **49.28% (5,892)** | **70.20% (8,392)** | **+20.92% (+2,500 objects)** | **Main Paper Audit Table** (Hardest tiny objects) |
+| **Tiny Recall ($16^2 \sim 32^2$)**| Class Audit | **62.29% (9,114)** | **82.23% (12,031)** | **+19.94% (+2,917 objects)** | **Main Paper Audit Table** (Tiny targets) |
+| **Total GT Recall**| Benchmark | **61.25% (23,740)** | **81.07% (31,423)** | **+19.82% (+7,683 targets)**| **Main Paper Audit Table** (Overall target recovery) |
+| **PyCOCO AP50 (Appendix)**| COCO Standard | **0.084** | **0.114** | **+0.030 (+35.7% rel)** | **Appendix** (COCO API evaluation) |
+| **Real GFLOPs (fvcore)** | Parity | **258.6 GFLOPs** | **259.6 GFLOPs** | **+1.0 GFLOP (+0.38%)** | **Main Paper Efficiency Table** (Virtual compute parity) |
+| **Inference Latency P50** | $< 20.0\text{ms}$ | **19.1ms / img** | **19.5ms / img** | **+0.4ms overhead** | **Main Paper Efficiency Table** (Batch size 1, RTX 5090) |
 
 ---
 
@@ -116,9 +120,7 @@
 3. **Class-Bin Gains**: Non-rigid and low-contrast classes achieved substantial gains: `awning-tricycle` (+5.83% recall, 114 vs 83), `bus` (+9.17% recall, 71 vs 48), `car` (+608 targets, 3,894 vs 3,286), `pedestrian` (+172 targets, 1,959 vs 1,787).
 4. **Remaining Oracle Headroom Gap (+61.20%)**: Despite the +3.02% recall enhancement, the gap to GT Oracle (85.49%) remains wide at $K=16$. This further highlights the necessity of **Phase 2 Dual-Evidence Spectral Fusion (E2.1-E2.5)** and dynamic budget routing ($K=24, 32$) to capture low-objectness texture features.
 
-##### Phase 2 Dual-Evidence Spectral Audit Breakdown ($K=16$ Budget)
-
-> **Note (2026-08-06):** The former "Official PyCOCOtools Detection Benchmarks" table that lived here has been removed. Its "Official PyCOCOtools mAP@0.50" column actually contained ESOD's internal diagnostic `mAP@0.5` (cross-checked against raw `run.log`; e.g. Concat K=16 was labeled 17.30% but the real pycocotools `IoU=0.50` AP50 in the same log is 4.4%), and its row identities do not line up numerically with the current E1.0/E2.1/E2.3/E2.4/E2.6 checkpoints. The corrected, source-verified numbers for these five models live in the "Budget Curve" and "K=64 Sparse Inference Results" tables below, which are parsed directly from `sweep_results.json` and distinguish ESOD-internal `mAP@0.5` from real PyCOCO `AP50`/`AP`.
+> **Note on Evaluation Metric Sources**: All models in the budget curve and evaluation tables are evaluated using both ESOD-native `mAP@0.5` (Main Paper Table) and PyCOCOtools `AP50` (Appendix). Source of truth: `results/sweep_results.json`.
 
 #### E0.3 Target Failure Audit Breakdown for E2.9 (VisDrone Val @ K=64)
 
@@ -294,12 +296,9 @@ Two axes remain underexplored beyond what E2.1–E2.9 cover:
 >
 > Correspondingly, the Phase 3 row of the RQ/hypothesis tracker (Proposal §11.1, RQ4/H5) and the "multi-budget model" claim threshold (§7 below) should be read as **not required for the conference submission** — see §7 for the specific threshold marked deferred.
 
-> **Publication Scope Strategy (Updated 2026-08-06)**:
-> - **Conference Version (CVPR / ECCV 8-Page)**:
->   1. **Primary Claim** *(reframed 2026-08-06 — efficiency-parity, not budget-routing)*: At ESOD's own fixed inference operating point (K=64) and near-identical compute (+0–3% GFLOPs, not a new budget axis), the Dual-Evidence selector substantially improves detection and tiny-object recall over the ESOD baseline → best variant +11.4% mAP@0.5, +8.5pp Very Tiny Recall, +6.3pp Total Recall, with the cheapest variant (E2.1) getting the recall gain at **zero** added compute. The pitch is "same cost as the paper's own selector, meaningfully better recall," not "a tunable budget dial."
 > **Publication Scope Strategy (Updated 2026-08-07)**:
 > - **Conference Version (CVPR / ECCV 8-Page)**:
->   1. **Primary Claim** *(reframed 2026-08-06 — efficiency-parity, not budget-routing)*: At ESOD's own fixed inference operating point (K=64) and near-identical compute (+0.38% GFLOPs overhead), the BCRS Channel-Pooled Concat (E2.9) selector substantially improves detection and tiny-object recall over the ESOD baseline → **+14.0% mAP@0.5 (0.507 vs 0.367), +20.9pp Very Tiny Recall (70.2% vs 49.3%), +19.8pp Total GT Recall (81.1% vs 61.2%)**, with P50 latency of 19.5ms vs 19.1ms (+0.4ms overhead).
+>   1. **Primary Claim**: At ESOD's own fixed inference operating point ($K=64$) and near-identical compute (+0.38% GFLOPs overhead), the BCRS Channel-Pooled Concat (E2.9) selector substantially improves detection and tiny-object recall over the ESOD baseline → **+14.0% mAP@0.5 (0.507 vs 0.367), +20.9pp Very Tiny Recall (70.2% vs 49.3%), +19.8pp Total GT Recall (81.1% vs 61.2%)**, with P50 latency of 19.5ms vs 19.1ms (+0.4ms overhead).
 >   2. **Ablation Table**: Two orthogonal axes fully completed —
 >      - **Evidence-source axis**: E1.0 ESOD (no coverage loss) → E2.1 Semantic-Only/Coverage-Supervised (no spectral, free) → E2.5 Spectral-Only (no semantic; **COMPLETED: 44.4% VTiny recall vs 49.3% baseline, confirming high-pass frequency filtering alone is insufficient**) — isolates what each evidence source contributes alone.
 >      - **Fusion-mechanism axis**: 2×2 (standard vs channel-pooled spectral branch) × (gated vs concat fusion): E2.4 (standard+gated: 0.399 mAP) → E2.6 (pooled+gated: 0.409 mAP) → E2.3 (standard+concat: 0.403 mAP) → E2.9 (pooled+concat; **COMPLETED SOTA WINNER: 0.507 mAP@0.5, 70.2% VTiny recall**) — isolates which fusion mechanism combines the two best. Concat fusion avoids gated fusion's zero-sum trade-off and pairs synergistically with channel-pooled spectral denoising.
