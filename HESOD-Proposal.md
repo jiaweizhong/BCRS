@@ -1,7 +1,7 @@
-# BCRS：面向无人机微小目标检测的预算约束召回安全选择器
+# HESOD：面向无人机微小目标检测的高效小目标检测框架
 
-> **Budget-Constrained Recall-Safe Selector for Tiny Object Detection**  
-> 工作名称：**BCRS**  
+> **HESOD: Highly Efficient Small Object Detection**  
+> 工作名称：**HESOD**（核心选择器模块沿用 **BCRS**，即 Budget-Constrained Recall-Safe Selector）  
 > 核心定位：在显式推理预算下，用语义与频谱双证据优先级替代单一 objectness，为微小目标分配高分辨率计算。
 
 ## 1. 执行摘要
@@ -13,7 +13,7 @@
 
 现有 selector 通常主要学习 objectness，并通过固定阈值、固定 patch size 或目标前景比例间接控制计算量。微小目标可能同时具有低 objectness 和低语义显著性，却仍在局部频谱或显著性上留下弱异常，因此容易在早期选择阶段被删除。
 
-本研究提出 **Budget-Constrained Recall-Safe Selector（BCRS）**：
+本研究提出 **HESOD（Highly Efficient Small Object Detection）**，其核心是一个 **Budget-Constrained Recall-Safe Selector（BCRS）**：
 
 1. 同时使用语义 objectness 与 SET 启发的频谱/局部显著性证据；
 2. 融合两类证据，直接预测区域的保留优先级；
