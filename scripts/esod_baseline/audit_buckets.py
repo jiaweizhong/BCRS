@@ -179,6 +179,7 @@ def load_predictions(
         raise ValueError(f"Prediction JSON must contain a list: {prediction_path}")
 
     predictions: list[Prediction] = []
+    degenerate_count = 0
     for row_index, row in enumerate(payload, start=1):
         if not isinstance(row, dict):
             raise ValueError(f"Prediction row {row_index} is not an object")
@@ -196,13 +197,21 @@ def load_predictions(
                 f"category_id must be 0-indexed in [0, {len(class_names) - 1}], got "
                 f"{class_id} in row {row_index}"
             )
-        if width <= 0 or height <= 0 or not all(
-            math.isfinite(v) for v in (x, y, width, height)
-        ):
-            raise ValueError(f"Invalid bbox in prediction row {row_index}: {row['bbox']}")
+        if not all(math.isfinite(v) for v in (x, y, width, height)):
+            raise ValueError(f"Non-finite bbox in prediction row {row_index}: {row['bbox']}")
+        if width <= 0 or height <= 0:
+            # A real (if rare) model output, not a parse error -- e.g. a near-zero
+            # regressed height that rounds to 0.000 at the 3-decimal precision
+            # test.py writes (`round(x, 3)`). Can never achieve IoU>0 with any GT
+            # box, so it contributes nothing to recall either way; skip rather than
+            # abort the whole audit over it.
+            degenerate_count += 1
+            continue
         predictions.append(
             Prediction(image_key=image_key, class_id=class_id, box=(x, y, x + width, y + height), score=score)
         )
+    if degenerate_count:
+        print(f"NOTE: skipped {degenerate_count} degenerate (zero/negative-area) prediction box(es)")
     return predictions
 
 
