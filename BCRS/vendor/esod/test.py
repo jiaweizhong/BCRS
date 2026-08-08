@@ -27,6 +27,7 @@ from tqdm import tqdm
 
 from models.experimental import attempt_load
 from utils.datasets import create_dataloader, norm_imgs
+from utils.coco_mapping import align_esod_predictions
 from utils.general import (
     coco80_to_coco91_class,
     check_dataset,
@@ -489,7 +490,9 @@ def test(
     # Diagnostic logging
     num_preds = len(stats[1]) if len(stats) > 1 else 0
     num_correct_hits = (
-        int(stats[0].sum()) if len(stats) > 0 and hasattr(stats[0], "sum") else 0
+        int(stats[0][:, 0].sum())
+        if len(stats) > 0 and getattr(stats[0], "ndim", 0) == 2
+        else 0
     )
     print(
         f"\n[ESOD Validation Diagnostic] GT Targets: {nt.sum():.0f} | "
@@ -575,39 +578,11 @@ def test(
                 print(f"Evaluating pycocotools mAP with ground-truth {anno_json}...")
                 anno = COCO(anno_json)  # init annotations api
 
-                # Build filename/stem to image_id mapping for VisDrone
-                stem_to_id = {
-                    Path(img["file_name"]).stem: img["id"]
-                    for img in anno.dataset.get("images", [])
-                }
-                gt_cat_ids = set(
-                    cat["id"] for cat in anno.dataset.get("categories", [])
+                aligned_jdict = (
+                    align_esod_predictions(jdict, anno.dataset, names)
+                    if "visdrone" in data_str
+                    else jdict
                 )
-
-                # Align jdict image_id and category_id
-                aligned_jdict = []
-                for p in jdict:
-                    raw_id = p["image_id"]
-                    matched_id = raw_id
-                    if isinstance(raw_id, str):
-                        matched_id = stem_to_id.get(raw_id, raw_id)
-
-                    cat_id = p["category_id"]
-                    if (
-                        min(gt_cat_ids, default=1) == 1
-                        and cat_id < 10
-                        and cat_id not in gt_cat_ids
-                    ):
-                        cat_id += 1
-
-                    aligned_jdict.append(
-                        {
-                            "image_id": matched_id,
-                            "category_id": cat_id,
-                            "bbox": p["bbox"],
-                            "score": p["score"],
-                        }
-                    )
 
                 aligned_json = str(save_dir / "_aligned_predictions.json")
                 with open(aligned_json, "w") as f:

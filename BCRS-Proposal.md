@@ -704,7 +704,28 @@ C_{\mathrm{extra}}<\Delta C_{\mathrm{saved}}.
 - 选择策略理论上还有多少上限？
 - 若 learned selector 不成功，是风险估计失败，还是路由空间本身没有价值？
 
+### 7.3.1 ESOD Patch Adapter 基础五臂（当前锁定实现）
+
+在 §5.2 的 Patch Adapter（ESOD 主实现）上，§7.4 Evidence/Fusion Ablation 的抽象条目当前已收敛为一个锁定的五臂 + baseline 执行名单；训练/复现状态以 `BCRS-Experiment-Plan.md`「Locked VisDrone retraining roster」为准，本节只锁定设计与假设映射，不引用其中任何历史数值。六个 arm 共享相同 backbone、输入尺寸和训练 schedule，仅下表列出的组件不同，满足 §7.13 的公平性要求。
+
+| Arm | 名称 | 对应假设 | Selector 结构 | 训练监督 | 评测路由 | 在消融体系中的角色 |
+|---|---|---|---|---|---|---|
+| E1.0 | ESOD upstream baseline | H1 的参照系 | 纯语义 objectness head，无频谱分支 | 官方 weighted BCE（`upstream`），不含任何 BCRS coverage/QFL 项 | 固定阈值路由，patch 数随输入动态变化，不启用 SparseHead | Objectness-only 固定阈值基线（§7.3 第 6 条） |
+| E2.1 | Semantic coverage-supervised | H1、H4（coverage 约束单独作用于语义分支的效果） | 与 E1.0 相同的纯语义 objectness head | BCRS coverage loss（对象级 soft coverage + tiny 尺寸加权），不引入频谱证据 | 精确 Top-K，显式启用 SparseHead | Evidence Ablation 的 semantic-only 臂，隔离"仅加 coverage 监督"这一变量 |
+| E2.5 | Spectral only | H1、H2（频谱证据单独能否发现语义遗漏的目标） | 仅频谱分支（多核 depthwise 高通滤波 → 融合头），最终优先级不含语义 head 输出 | 同 E2.1 的 BCRS coverage loss | 精确 Top-K，显式启用 SparseHead | Evidence/Fusion Ablation 的 spectral-only 臂 |
+| E2.4 | Dual-evidence gated fusion | H2、H3（门控融合是否优于单证据） | 语义 head 与频谱分支并行，逐位置动态门 $`g=\sigma(\mathrm{Conv}([f_{\mathrm{sem}},f_{\mathrm{spec}}]))`$ 加权融合两路优先级 | 同上 | 精确 Top-K，显式启用 SparseHead | Fusion Ablation 的 gated fusion 臂 |
+| E2.3 | Dual-evidence concat fusion | H2、H3（拼接融合是否优于单证据，并与门控融合对照） | 语义与频谱优先级拼接后经融合层输出，不含输入相关的门控权重 | 同上 | 精确 Top-K，显式启用 SparseHead | Fusion Ablation 的 concatenation 臂；与 E2.4 对照融合方式本身的影响 |
+| E2.9 | Channel-pooled spectral + concat | H2、H7（轻量化频谱证据是否仍互补，同时降低 selector 自身开销） | 频谱分支先做通道池化压缩再滤波（相比 E2.3/E2.4 的频谱分支显著降低通道数与计算量），其余沿用 concat 融合 | 同上 | 精确 Top-K，显式启用 SparseHead | §7.9 低开销 Spectral Implementation 消融与 concat 融合臂的组合验证 |
+
+对齐说明：
+
+- 语义有无 coverage 监督的对照落在 E1.0 vs E2.1；语义证据是否需要频谱补充的对照落在 E2.1 vs {E2.4, E2.3, E2.9}；融合方式（门控 vs 拼接）的对照落在 E2.4 vs E2.3；频谱实现轻量化的代价—收益对照落在 E2.3 vs E2.9。
+- 该名单尚未覆盖 §7.4 中 raw high-frequency energy oracle、完整融合 + 显式 recall hinge 的独立验证等条目；这些留待后续阶段单独实施，见 §7.4 其余消融小节。
+- 具体 AP/AP50/BPR/coverage 数值必须在 `BCRS-Experiment-Plan.md` Gate B（重训练）与 Gate C（子群与等预算审计）完成后按 §8 指标体系重新报告；本节之前遗留的任何历史结果均不作为方法结论依据。
+
 ### 7.4 逐步消融
+
+> 上述六个 ESOD Patch Adapter 基础臂是本节 Evidence/Fusion Ablation 在当前锁定实现下的可执行子集，映射关系见 §7.3.1；下列条目描述完整消融空间，其余部分（如 raw 高频能量证据、独立的 recall-hinge 消融）仍待后续阶段实施。
 
 #### Evidence Ablation
 

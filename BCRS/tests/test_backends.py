@@ -109,6 +109,7 @@ def test_esod_builds_generated_dataset_and_exact_top_level_command(
     assert command.cwd == tmp_path / "backend"
     assert "--cfg" in command.argv
     assert "--data" in command.argv
+    assert command.argv[command.argv.index("--selector-loss") + 1] == "upstream"
     expected_env = {"CUDA_VISIBLE_DEVICES": "0"}
     if sys.version_info < (3, 12):
         expected_env["SETUPTOOLS_USE_DISTUTILS"] = "stdlib"
@@ -123,6 +124,63 @@ def test_esod_builds_generated_dataset_and_exact_top_level_command(
     assert "--weights" in test_command.argv
     assert "--top-k" not in test_command.argv
     assert "--sparse-head" not in test_command.argv
+
+
+def test_esod_coverage_loss_requires_explicit_mode(tmp_path: Path) -> None:
+    experiment = load_experiment(
+        build_experiment(tmp_path, "esod"),
+        [
+            "train.selector_loss=bcrs_coverage",
+            "train.lambda_cov=0.5",
+            "train.pos_weight=2.0",
+        ],
+    )
+
+    command = get_backend("esod").build("train", experiment)
+
+    assert command.argv[command.argv.index("--selector-loss") + 1] == "bcrs_coverage"
+    assert command.argv[command.argv.index("--lambda-cov") + 1] == "0.5"
+    assert command.argv[command.argv.index("--pos-weight") + 1] == "2.0"
+
+
+def test_esod_rejects_unknown_selector_loss(tmp_path: Path) -> None:
+    experiment = load_experiment(
+        build_experiment(tmp_path, "esod"),
+        ["train.selector_loss=implicit-drift"],
+    )
+
+    with pytest.raises(ConfigError, match="selector_loss"):
+        get_backend("esod").build("train", experiment)
+
+
+def test_esod_canonical_training_requires_every_selector_mask(tmp_path: Path) -> None:
+    experiment_path = build_experiment(tmp_path, "esod")
+    dataset_path = tmp_path / "configs/datasets/sample.yaml"
+    dataset = {
+        "name": "sample",
+        "root": "../../data",
+        "num_classes": 2,
+        "classes": ["a", "b"],
+        "splits": {
+            "train": {"images": "images/train", "annotations": "train.json"},
+            "val": {"images": "images/val", "annotations": "val.json"},
+        },
+        "adapters": {"esod": {}},
+    }
+    write_yaml(dataset_path, dataset)
+    image_path = tmp_path / "data/images/train/example.jpg"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    image_path.write_bytes(b"fixture")
+
+    with pytest.raises(ConfigError, match="selector masks are missing"):
+        get_backend("esod").build("train", load_experiment(experiment_path))
+
+    mask_path = tmp_path / "data/masks/train/example.npy"
+    mask_path.parent.mkdir(parents=True, exist_ok=True)
+    mask_path.write_bytes(b"fixture")
+
+    command = get_backend("esod").build("train", load_experiment(experiment_path))
+    assert "--selector-loss" in command.argv
 
 
 def test_esod_top_k_is_explicit_and_does_not_enable_sparse_head(

@@ -924,13 +924,22 @@ if __name__ == "__main__":
         help="disable FP16 half-precision training",
     )
     parser.add_argument(
-        "--lambda-cov", type=float, default=0.2, help="coverage supervision loss weight"
+        "--selector-loss",
+        choices=("upstream", "bcrs_coverage"),
+        default=None,
+        help="selector supervision objective (default: upstream ESOD BCE)",
+    )
+    parser.add_argument(
+        "--lambda-cov",
+        type=float,
+        default=None,
+        help="selector supervision loss weight",
     )
     parser.add_argument(
         "--pos-weight",
         type=float,
-        default=5.0,
-        help="positive class weight for coverage loss",
+        default=None,
+        help="positive class weight for BCRS coverage loss",
     )
     opt = parser.parse_args()
 
@@ -1011,6 +1020,8 @@ if __name__ == "__main__":
     # Hyperparameters
     with open(opt.hyp) as f:
         hyp = yaml.safe_load(f)  # load hyps
+    if hasattr(opt, "selector_loss") and opt.selector_loss is not None:
+        hyp["selector_loss"] = opt.selector_loss
     if hasattr(opt, "lambda_cov") and opt.lambda_cov is not None:
         hyp["lambda_cov"] = opt.lambda_cov
     if hasattr(opt, "pos_weight") and opt.pos_weight is not None:

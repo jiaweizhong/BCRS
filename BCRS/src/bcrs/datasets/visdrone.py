@@ -12,6 +12,8 @@ from pathlib import Path
 import tempfile
 from typing import Any, Sequence
 
+import numpy as np
+
 VISDRONE_CLASSES = (
     "pedestrian",
     "people",
@@ -38,6 +40,7 @@ class SplitSummary:
     skipped_rows: int
     labels_dir: Path
     coco_file: Path
+    masks_dir: Path | None = None
 
 
 def _image_size(path: Path) -> tuple[int, int]:
@@ -98,6 +101,77 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def _atomic_write_numpy(path: Path, array: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "wb", dir=path.parent, prefix=f".{path.name}.", delete=False
+        ) as handle:
+            temporary = Path(handle.name)
+            np.save(handle, array)
+        os.replace(temporary, path)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _gaussian2d(shape: tuple[int, int], threshold: float = 0.5) -> np.ndarray:
+    """Match ESOD's Gaussian pseudo-mask fallback (without optional SAM)."""
+
+    height, width = shape
+    if height <= 0 or width <= 0:
+        return np.zeros((max(height, 0), max(width, 0)), dtype=np.float32)
+    m, n = (height - 1.0) / 2.0, (width - 1.0) / 2.0
+    y, x = np.ogrid[-m : m + 1, -n : n + 1]
+    adjusted = threshold + 1e-6
+    epsilon = 1e-9
+    var_x = n**2 / math.log(adjusted) + epsilon
+    var_y = m**2 / math.log(adjusted) + epsilon
+    gaussian = np.exp(x * x / var_x + y * y / var_y)
+    gaussian *= 1.0 / gaussian.max()
+    gaussian[gaussian < adjusted] = 0.0
+    return gaussian.astype(np.float32, copy=False)
+
+
+def _build_esod_mask(
+    width: int, height: int, annotations: Sequence[dict[str, Any]]
+) -> np.ndarray:
+    """Build the two-channel ``[semantic_mask, weight]`` ESOD target."""
+
+    mask = np.zeros((height, width), dtype=np.float16)
+    weight = np.ones_like(mask)
+    class_ratio = (1.83, 5.35, 13.82, 1.00, 5.80, 11.25, 30.11, 44.63, 24.45, 4.89)
+    area_min = 4 * 4 * 100
+
+    for annotation in annotations:
+        x, y, box_width, box_height = map(float, annotation["bbox"])
+        x1 = max(0, min(width, int(math.floor(x))))
+        y1 = max(0, min(height, int(math.floor(y))))
+        x2 = max(0, min(width, int(math.ceil(x + box_width))))
+        y2 = max(0, min(height, int(math.ceil(y + box_height))))
+        if x2 <= x1 or y2 <= y1:
+            continue
+
+        gaussian = _gaussian2d((y2 - y1, x2 - x1)).astype(np.float16)
+        np.maximum(mask[y1:y2, x1:x2], gaussian, out=mask[y1:y2, x1:x2])
+
+        scaled_area = (x2 - x1) * (y2 - y1) / (width * height) * (1920 * 1080)
+        size_ratio = max(area_min / max(scaled_area, 1e-9), 1.0) ** 2
+        class_index = int(annotation["category_id"]) - 1
+        category_ratio = class_ratio[class_index] ** 0.7
+        importance = math.log(max(size_ratio, category_ratio)) + 1.0
+        current_weight = (gaussian > 0).astype(np.float16) * importance
+        np.maximum(
+            weight[y1:y2, x1:x2],
+            current_weight,
+            out=weight[y1:y2, x1:x2],
+        )
+
+    return np.stack((mask, weight), axis=-1)
 
 
 def _as_coco_number(value: float) -> int | float:
@@ -180,7 +254,13 @@ def _parse_annotation_file(
     return labels, annotations, skipped_rows, annotation_id
 
 
-def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSummary:
+def prepare_split(
+    root: Path,
+    split: str,
+    *,
+    dry_run: bool = False,
+    esod_masks: bool = False,
+) -> SplitSummary:
     """Prepare one canonical VisDrone split below ``root``."""
 
     images_dir = root / "images" / split
@@ -254,6 +334,7 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
     coco_images: list[dict[str, Any]] = []
     coco_annotations: list[dict[str, Any]] = []
     label_outputs: list[tuple[Path, str]] = []
+    mask_jobs: list[tuple[Path, int, int, list[dict[str, Any]]]] = []
     skipped_rows = 0
     next_annotation_id = 1
 
@@ -276,6 +357,8 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
         )
         coco_annotations.extend(annotations)
         label_outputs.append((labels_dir / f"{image_path.stem}.txt", "".join(labels)))
+        if esod_masks:
+            mask_jobs.append((image_path, width, height, annotations))
         skipped_rows += skipped
 
     payload = {
@@ -293,6 +376,11 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
         for label_path, content in label_outputs:
             _atomic_write_text(label_path, content)
         _atomic_write_json(coco_file, payload)
+        for image_path, width, height, annotations in mask_jobs:
+            _atomic_write_numpy(
+                root / "masks" / split / f"{image_path.stem}.npy",
+                _build_esod_mask(width, height, annotations),
+            )
         # Automatically clean up stale YOLO dataset cache files
         cache_file = labels_dir.parent / f"{split}.cache"
         if cache_file.is_file():
@@ -305,6 +393,7 @@ def prepare_split(root: Path, split: str, *, dry_run: bool = False) -> SplitSumm
         skipped_rows=skipped_rows,
         labels_dir=labels_dir,
         coco_file=coco_file,
+        masks_dir=root / "masks" / split if esod_masks else None,
     )
 
 
@@ -313,6 +402,7 @@ def prepare_visdrone(
     *,
     splits: Sequence[str] = ("train", "val", "test"),
     dry_run: bool = False,
+    esod_masks: bool = False,
 ) -> tuple[SplitSummary, ...]:
     """Generate YOLO labels and COCO JSON below a unified VisDrone root."""
 
@@ -328,7 +418,13 @@ def prepare_visdrone(
         raise ValueError("VisDrone splits must not be repeated")
 
     return tuple(
-        prepare_split(dataset_root, split, dry_run=dry_run) for split in splits
+        prepare_split(
+            dataset_root,
+            split,
+            dry_run=dry_run,
+            esod_masks=esod_masks,
+        )
+        for split in splits
     )
 
 
@@ -354,6 +450,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="validate and count annotations without writing outputs",
     )
+    parser.add_argument(
+        "--esod-masks",
+        action="store_true",
+        help=(
+            "generate the full-resolution Gaussian pseudo masks required for "
+            "ESOD selector training (disk intensive)"
+        ),
+    )
     return parser
 
 
@@ -364,7 +468,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--root is required when VISDRONE_ROOT is not set")
     try:
         summaries = prepare_visdrone(
-            args.root, splits=args.splits, dry_run=args.dry_run
+            args.root,
+            splits=args.splits,
+            dry_run=args.dry_run,
+            esod_masks=args.esod_masks,
         )
     except (OSError, RuntimeError, ValueError) as exc:
         parser.error(str(exc))
@@ -378,6 +485,8 @@ def main(argv: list[str] | None = None) -> int:
         if not args.dry_run:
             print(f"  YOLO: {summary.labels_dir}")
             print(f"  COCO: {summary.coco_file}")
+            if summary.masks_dir is not None:
+                print(f"  ESOD masks: {summary.masks_dir}")
     return 0
 
 

@@ -859,7 +859,14 @@ def load_image(self, index):
         if os.path.exists(mask_path):
             mask = np.load(mask_path).astype(np.float32)  # shape(h,w,2)
         else:
-            # mask = None
+            if self.augment:
+                raise FileNotFoundError(
+                    "Missing ESOD selector supervision mask: "
+                    f"{mask_path}. Generate masks before training; BCRS VisDrone "
+                    "users should rerun the converter with --esod-masks."
+                )
+            # Evaluation can run without ground-truth heatmap metrics. Keep the
+            # upstream neutral placeholder for that inference-only case.
             mask = np.zeros((h0, w0, 2), dtype=np.float32)
             mask[..., 1] += 1.0
 

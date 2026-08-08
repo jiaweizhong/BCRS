@@ -202,18 +202,19 @@ pip install -r requirements.txt
 
 ---
 
-## 10. Size-Weighted Coverage Loss Supervision ($\mathcal{L}_{\text{cov}}$) & Training Integration
+## 10. Explicit Baseline vs BCRS Coverage Loss Isolation
 
 - **Locations**:
   - [`vendor/esod/utils/loss.py#L185-L191`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/utils/loss.py#L185-L191), [`#L326-L352`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/utils/loss.py#L326-L352)
   - [`vendor/esod/train.py#L549-L555`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/train.py#L549-L555), [`#L598-L605`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/train.py#L598-L605)
   - [`src/bcrs/backends/esod.py#L61-L68`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L61-L68)
-- **Symptom / Motivation**:
-  In vanilla ESOD, segmentation loss (`compute_loss_seg`) relied on fixed hardcoded weights (`pos_weight = 5.0`, `lambda_cov = 0.2`) and uniform target pixel weighting. Standard objectness supervision treats large targets and tiny targets equally per patch, allowing large objects to dominate selector priority scores and causing 82.37% of Very Tiny targets ($<16\times 16\text{ px}$) to be pruned away under $K=16$ budget constraints.
+- **Audit finding (corrected 2026-08-07)**:
+  The official ESOD objective is dataset-weighted binary cross entropy multiplied by `0.2`. It does **not** use `pos_weight=5`, Dice loss, or quality focal loss. The vendor fork had made these BCRS terms active through global defaults, so even `esod_visdrone.yaml` no longer represented the upstream baseline.
 - **Fix**:
-  1. **Tiny-Target Size-Weighted Boost**: Modified `compute_loss_seg` in `vendor/esod/utils/loss.py`. For each ground-truth target with area $< 16\times 16\text{ px}$ (area $< 256\text{ px}^2$), it calculates an inverse-size weight boost factor ($1.0 + 3.0 \times \frac{256 - \text{Area}}{256}$) applied directly to the positive mask loss map, penalizing selector misses on tiny objects heavily.
-  2. **Configurable Loss Hyperparameters**: Updated `ComputeLoss` and `compute_loss_seg` in `vendor/esod/utils/loss.py` to read `lambda_cov` and `pos_weight` dynamically from `self.hyp`.
-  3. **CLI & Adapter Integration**: Added `--lambda-cov` and `--pos-weight` CLI flags to `vendor/esod/train.py` and updated `EsodAdapter` in `src/bcrs/backends/esod.py` to forward `train.lambda_cov` and `train.pos_weight` settings during `bcrs train`.
+  1. `selector_loss: upstream` executes only the official weighted BCE objective. It is the adapter default and is explicit in `esod_visdrone.yaml`.
+  2. `selector_loss: bcrs_coverage` explicitly enables `pos_weight`, Dice/QFL, and the tiny-target positive-region boost. No BCRS term can leak into the baseline.
+  3. `--lambda-cov` and `--pos-weight` now default to `None`; they modify hyperparameters only when a BCRS experiment requests them.
+  4. The tiny boost now composes with the official pseudo-mask weight channel instead of being skipped whenever that channel exists.
 
 ---
 
@@ -285,8 +286,8 @@ pip install -r requirements.txt
   2. **Category ID Index Offset**: `test.py` generated 0-indexed prediction category IDs (`0..9`), whereas VisDrone `val.json` used 1-indexed category IDs (`1..10`). Standard PyCOCOtools attempted to match category 0 against non-existent GT category 0, mismatching ~90% of bounding box predictions.
   3. **`maxDets` Truncation**: Default COCOeval capped evaluation at 100 detections per image (`maxDets=100`). Aerial drone images in VisDrone contain 200~500 targets per image, causing dense targets to be truncated as false negatives.
 - **Fix**:
-  1. Updated `test.py` pycocotools execution block to build `stem_to_id` mapping, converting string filename stems to `val.json` integer `image_id`s.
-  2. Applied automatic category ID shift (`cat_id += 1`) when predictions use 0..9 and ground truth categories use 1..10.
+  1. Updated `test.py` to map both string and numeric/zero-padded filename stems to the exact `image_id` declared by the annotation JSON.
+  2. Replaced the flawed conditional `cat_id += 1` heuristic. That heuristic shifted class 0 but left raw classes 1â€“9 unchanged because those numbers already existed in the GT ID set. The repaired mapper resolves the model class name against the annotation category name, producing the exact mapping `0â†’1, â€¦, 9â†’10` and failing on unknown IDs.
   3. Configured `eval.params.maxDets = [10, 100, 500]` for VisDrone evaluation.
 
 ---
@@ -364,23 +365,33 @@ pip install -r requirements.txt
 
 ---
 
+## 21. Missing ESOD Pseudo Masks Silently Train an Empty Selector
+
+- **Locations**:
+  - `vendor/esod/utils/datasets.py` mask loading
+  - `src/bcrs/datasets/visdrone.py` dataset conversion
+  - `src/bcrs/backends/esod.py` training preflight
+- **Observed symptom**: The 548-image validation run contains 38,759 GT boxes, yet threshold 0.5 and 0.1 both produce zero selected patches, zero detections, and zero heatmap BPR.
+- **Root cause**: The BCRS converter generated `labels/*.txt` and COCO JSON but not the official two-channel `masks/*.npy` selector targets. For every missing file, the upstream dataloader silently substituted an all-zero semantic mask with unit weights. The selector therefore learned the correct optimum for the wrong target: output no foreground anywhere. The old forced Top-K route hid this failure by selecting cells even when all scores were tied near zero.
+- **Fix**:
+  1. Augmented training now raises `FileNotFoundError` on the first missing selector mask instead of creating a zero target.
+  2. The ESOD adapter scans canonical VisDrone training directories and fails before launch when mask coverage is incomplete.
+  3. The converter flag `--esod-masks` generates official-format full-resolution `[semantic_mask, weight]` arrays using the official Gaussian fallback recipe.
+  4. The official SAM-assisted pseudo-mask path remains a separate protocol choice and must be recorded for paper-parity runs.
+
+---
+
 ## Summary of Impact
 
-With these fixes applied:
-1. Ground truth label counts report accurately as **38,759** across all validation passes.
-2. Precision and Recall metrics display correctly without being overwritten by uninitialized heatmap metrics.
-3. Feature patches are dynamically routed to detection heads in early epochs, eliminating `Predictions: 0` deadlocks.
-4. Top-$K$ patch selection ($K=16, 24, 32$) functions reliably during sparse evaluation, enabling precise compute budget experiments.
-5. Size-weighted coverage loss ($\mathcal{L}_{\text{cov}}$) supervision forces the patch selector to prioritize Very Tiny targets ($<16\times 16\text{ px}$), enabling recall recovery under tight budget constraints.
-6. Parameter aliases (`patch_budget` and `coverage_loss_weight`) and `--sparse-head` flag injection resolve seamlessly in the backend CLI adapter.
-7. `DualEvidenceSegmenter`, `SpectralOnlySegmenter`, `ConcatEvidenceSegmenter`, and `ChannelPooledDualEvidenceSegmenter` integrate semantic Objectness, multi-kernel Laplacian/Sobel spectral filtering, and gated/concat fusion into PyTorch execution graphs.
-8. `SpectralBranch` channel projection ensures exact 384-channel alignment for gated evidence fusion.
-9. PyCOCOtools evaluations in native `bcrs test` automatically align image IDs, 1-indexed category IDs, and dense `maxDets=500` settings, outputting official COCO metrics seamlessly.
-10. Precision-Recall AP integrals compute cleanly on modern NumPy 2.0+ without `AttributeError` crashes.
-11. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
-12. UAVDT dataset configuration aligns with single-class `vehicle` benchmark protocol (`nc: 1`), reproducing the official ESOD paper benchmark (~22.5% AP).
-13. `fvcore` FLOPs profiling caches symbolic graph traces after batch 1, eliminating per-image CPU overhead and speeding up `--task measure` evaluations by 16x+.
-14. `format_tinyperson` dynamically resolves TinyPerson annotation JSON paths and handles missing files gracefully, allowing automated overnight evaluation scripts to finish seamlessly.
-15. Target class IDs clamp to `0` under single-class evaluation (`nc: 1`), eliminating `confusion_matrix` out-of-bounds `IndexError` crashes.
-16. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+The latest audit changes the interpretation of all old checkpoints and results:
+
+1. `548` in the progress bar is the image count; `69` is only the number of batches at batch size 8. The validation set contains 38,759 GT boxes and is not an empty-image prefix.
+2. The BCRS converter previously wrote labels but no `masks/*.npy`. The upstream dataloader silently replaced every missing mask with an all-zero target, training the selector to reject every patch. This exactly explains zero predictions and zero heatmap BPR at both threshold 0.5 and 0.1.
+3. Training now fails closed on a missing selector mask. `python -m bcrs.datasets.visdrone --esod-masks` generates the official Gaussian fallback targets; use and record the official SAM-assisted preparation separately when paper-parity requires it.
+4. The instantiated vendor baseline and official model are structurally identical: 35,842,600 parameters, 581 state entries, the same state-key/shape hash, and a plain `Segmenter` at module 6. The detector graph is checkpoint-compatible, but the old checkpoint is **not scientifically reusable** because its selector supervision was invalid and its loss objective drifted.
+5. The five focused BCRS arms instantiate, respectively, `Segmenter`, `SpectralOnlySegmenter`, `DualEvidenceSegmenter`, `ConcatEvidenceSegmenter`, and `ChannelPooledConcatEvidenceSegmenter`. The old `bcrs_dual_evidence_visdrone_yolov5m` semantic-only naming conflict is removed; its config now points to the gated dual-evidence graph under a new output stem.
+6. Upstream fixed-threshold routing and BCRS exact Top-K are isolated. A threshold run may validly select 0â€“64 patches; an explicit Top-K run emits exactly K coarse cells.
+7. Raw ESOD predictions are now mapped to COCO by filename stem and class name, covering all classes `0â†’1, â€¦, 9â†’10`; unknown IDs fail closed.
+8. `audit_failure_cases.py` now uses real image dimensions, an explicit confidence floor, class-aware one-to-one IoU matching, and paired recovered/regressed GT accounting. Historical size-bin recall values must be recomputed.
+9. Source tests cover routing, loss isolation, mask generation, COCO mapping, experiment-module mapping, and recall matching. Old inference and training artifacts remain quarantined until rerun.
 

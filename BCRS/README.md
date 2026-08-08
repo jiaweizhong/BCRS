@@ -52,6 +52,7 @@ VisDrone/
   images/{train,val,test}/
   raw_annotations/{train,val,test}/
   labels/{train,val,test}/
+  masks/{train,val}/                 # ESOD [semantic, weight] .npy targets
   annotations/{train,val,test}.json
 ```
 
@@ -61,16 +62,25 @@ After copying the official or Kaggle VisDrone2019-DET splits into `images/` and
 ```bash
 export VISDRONE_ROOT=/root/autodl-tmp/VisDrone
 rm -f $VISDRONE_ROOT/labels/*.cache
-python -m bcrs.datasets.visdrone --root $VISDRONE_ROOT --splits train val test
+python -m bcrs.datasets.visdrone \
+  --root $VISDRONE_ROOT \
+  --splits train val test \
+  --esod-masks
 ```
 
 > [!IMPORTANT]
-> **Dataset Labels Prerequisite**: You MUST run the `python -m bcrs.datasets.visdrone` command above before running `bcrs train`. Otherwise, the validation split will find 0 labels (`Labels: 0`), causing evaluation metrics (`P`, `R`, `mAP@0.5`) to report `0.0`.
+> **ESOD supervision prerequisite**: run the command above before `bcrs train`.
+> Missing YOLO labels invalidate detector metrics; missing `masks/*.npy` previously
+> produced silent all-zero selector targets and a permanently empty heatmap. Training
+> now fails closed when a mask is absent. Full-resolution masks are disk intensive.
 
 The converter skips ignored regions and the unused `others` category, writes
 zero-based normalized YOLO labels for ESOD, and writes contiguous category IDs
-1-10 in COCO JSON for QueryDet and CEASC. It is safe to rerun and does not copy
-or modify images or `raw_annotations/`.
+1-10 in COCO JSON for QueryDet and CEASC. With `--esod-masks`, it also writes the
+Gaussian pseudo-mask fallback used by the official ESOD preparation script when
+Segment Anything is unavailable. Paper parity still requires recording whether the
+official SAM-assisted recipe was used. The converter is safe to rerun and does not
+copy or modify images or `raw_annotations/`.
 
 If another conversion uses a different layout, edit only the dataset YAML;
 backend code does not need to change.

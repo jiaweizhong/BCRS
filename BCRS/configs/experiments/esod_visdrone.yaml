@@ -25,6 +25,8 @@ train:
   image_size: 1536
   hyp: vendor/esod/configs/hyps/hyp.visdrone.yaml
   hm_metric: true
+  selector_loss: upstream
+  lambda_cov: 0.2
 
 test:
   checkpoint: work_dirs/esod_visdrone_yolov5m/weights/best.pt

@@ -2,13 +2,13 @@
 # =============================================================================
 # BCRS Full Inference Sweep — All Models × All Budgets
 #
-# Runs: E2.1 / E2.3 / E2.4 / E2.5 / E2.6 / E2.9  x  K={16, 32, 48, 64}
-# Total: 6 BCRS models × 4 budgets = 24 inference runs
+# Runs: E2.1 / E2.5 / E2.4 / E2.3 / E2.9  x  K={16, 32, 48, 64}
+# Total: 5 focused BCRS models × 4 budgets = 20 inference runs
 # E1.0 is intentionally excluded: upstream ESOD uses fixed-threshold routing
 # with a dynamic 0-64 patch count, not a fixed Top-K budget.
 #
 # Output naming convention: work_dirs/{stem}_k{K}/
-#   e.g.  bcrs_dual_evidence_visdrone_yolov5m_k16
+#   e.g.  bcrs_semantic_coverage_visdrone_yolov5m_k16
 #
 # Summary: work_dirs/sweep_results.json  (structured, ready for plotting)
 #
@@ -29,6 +29,7 @@ trap 'echo "  [TRAP] Command failed at line ${LINENO}: ${BASH_COMMAND}" >&2' ERR
 
 WORK_DIR="/root/BCRS/BCRS/work_dirs"
 VISDRONE_LABELS="/root/autodl-tmp/VisDrone/labels/val"
+VISDRONE_IMAGES="/root/autodl-tmp/VisDrone/images/val"
 AUDIT_TOOL="python tools/audit_failure_cases.py"
 SUMMARY_JSON="${WORK_DIR}/sweep_results.json"
 K_VALUES=(16 32 48 64)
@@ -36,20 +37,14 @@ SWEEP_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Model registry: EXP_ID|DISPLAY|STEM|CONFIG
 #
-# NOTE (2026-08-06): E2.1 and E2.4 display names were corrected after auditing the
-# actual model yaml / Segmenter class each config instantiates (see BCRS-Experiment-Plan.md
-# "Efficiency" section). E2.1's model yaml (visdrone_yolov5m.yaml) uses the plain `Segmenter`
-# class — identical to the E1.0 baseline, with NO spectral_branches/gated_fusions submodules —
-# so it is a semantic-only, coverage-loss-supervised selector, not a dual-evidence fusion.
-# E2.4's model yaml (visdrone_yolov5m_spectral.yaml) uses `DualEvidenceSegmenter`, which
-# instantiates `GatedEvidenceFusion` (sigmoid gate, zero-sum semantic/spectral mix) — this is
-# the actual "gated dual-evidence" architecture, previously mislabeled as "Spectral".
+# The focused roster intentionally excludes the extra channel-pooled gated arm.
+# Every row uses explicit BCRS coverage supervision and the same Top-K/SparseHead
+# evaluation controls; only the selector evidence/fusion module changes.
 MODELS=(
-  "E2.1|BCRS Semantic-Only (Coverage-Supervised)|bcrs_dual_evidence_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone.yaml"
-  "E2.3|BCRS Dual Evidence Concat|bcrs_dual_evidence_concat_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_concat_visdrone.yaml"
-  "E2.4|BCRS Dual Evidence Gated|bcrs_dual_evidence_visdrone_spectral_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone_spectral.yaml"
+  "E2.1|BCRS Semantic Coverage-Supervised|bcrs_semantic_coverage_visdrone_yolov5m|configs/experiments/bcrs_semantic_coverage_visdrone.yaml"
   "E2.5|BCRS Spectral-Only|bcrs_spectral_only_visdrone_yolov5m|configs/experiments/bcrs_spectral_only_visdrone.yaml"
-  "E2.6|BCRS Channel-Pooled Spectral (Gated)|bcrs_channel_pooled_spectral_visdrone_yolov5m|configs/experiments/bcrs_channel_pooled_spectral_visdrone.yaml"
+  "E2.4|BCRS Spectral + Semantic Gated|bcrs_spectral_semantic_gate_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone.yaml"
+  "E2.3|BCRS Spectral + Semantic Concat|bcrs_dual_evidence_concat_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_concat_visdrone.yaml"
   "E2.9|BCRS Channel-Pooled Concat|bcrs_channel_pooled_concat_visdrone_yolov5m|configs/experiments/bcrs_channel_pooled_concat_visdrone.yaml"
 )
 
@@ -134,7 +129,7 @@ run_one() {
   echo ""
   echo "--- Audit: [${EXP_ID}] @ K=${K} ---"
   if [ -f "${PRED}" ]; then
-    ${AUDIT_TOOL} "${PRED}" "${VISDRONE_LABELS}" 2>&1 | tee -a "${LOG}"
+    ${AUDIT_TOOL} "${PRED}" "${VISDRONE_LABELS}" "${VISDRONE_IMAGES}" 2>&1 | tee -a "${LOG}"
   else
     echo "  WARNING: predictions not found at ${PRED} — audit skipped."
   fi
@@ -175,11 +170,10 @@ out_json   = sys.argv[2]
 sweep_date = sys.argv[3]
 
 MODELS = [
-    ("E2.1", "BCRS Semantic-Only (Coverage-Supervised)", "bcrs_dual_evidence_visdrone_yolov5m"),
-    ("E2.3", "BCRS Dual Evidence Concat",               "bcrs_dual_evidence_concat_visdrone_yolov5m"),
-    ("E2.4", "BCRS Dual Evidence Gated",                "bcrs_dual_evidence_visdrone_spectral_yolov5m"),
+    ("E2.1", "BCRS Semantic Coverage-Supervised",       "bcrs_semantic_coverage_visdrone_yolov5m"),
     ("E2.5", "BCRS Spectral-Only",                      "bcrs_spectral_only_visdrone_yolov5m"),
-    ("E2.6", "BCRS Channel-Pooled Spectral (Gated)",    "bcrs_channel_pooled_spectral_visdrone_yolov5m"),
+    ("E2.4", "BCRS Spectral + Semantic Gated",          "bcrs_spectral_semantic_gate_visdrone_yolov5m"),
+    ("E2.3", "BCRS Spectral + Semantic Concat",         "bcrs_dual_evidence_concat_visdrone_yolov5m"),
     ("E2.9", "BCRS Channel-Pooled Concat",              "bcrs_channel_pooled_concat_visdrone_yolov5m"),
 ]
 K_VALUES = [16, 32, 48, 64]

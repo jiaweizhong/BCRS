@@ -15,12 +15,15 @@ class EsodAdapter(BackendAdapter):
     name = "esod"
     description = "ESOD patch selection on the upstream YOLOv5-style runtime"
     required_modules = ("torch", "torchvision", "cv2", "numpy", "yaml")
+    _image_suffixes = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
     def build(self, stage: str, experiment: ExperimentConfig) -> CommandSpec:
         if stage not in {"train", "test"}:
             raise ConfigError(f"ESOD does not support stage {stage!r}")
         data_config = self._materialize_dataset(experiment)
         section = experiment.train if stage == "train" else experiment.test
+        if stage == "train":
+            self._require_training_masks(experiment)
         output_dir = experiment.output_dir
         entrypoint = experiment.backend_root / (
             "train.py" if stage == "train" else "test.py"
@@ -61,9 +64,16 @@ class EsodAdapter(BackendAdapter):
             ):
                 if bool(section.get(flag, False)):
                     argv.append(option)
-            lambda_cov = section.get("lambda_cov") or section.get(
-                "coverage_loss_weight"
-            )
+            selector_loss = section.get("selector_loss", "upstream")
+            if selector_loss not in {"upstream", "bcrs_coverage"}:
+                raise ConfigError(
+                    "ESOD train.selector_loss must be 'upstream' or "
+                    "'bcrs_coverage'"
+                )
+            argv.extend(["--selector-loss", str(selector_loss)])
+            lambda_cov = section.get("lambda_cov")
+            if lambda_cov is None:
+                lambda_cov = section.get("coverage_loss_weight")
             if lambda_cov is not None:
                 argv.extend(["--lambda-cov", str(lambda_cov)])
             if section.get("pos_weight") is not None:
@@ -156,6 +166,33 @@ class EsodAdapter(BackendAdapter):
             if checkpoint is not None:
                 checks.append(self._path_diagnostic("checkpoint", checkpoint))
         return checks
+
+    def _require_training_masks(self, experiment: ExperimentConfig) -> None:
+        """Reject canonical directory datasets that would silently train on zeros."""
+
+        image_dir = self._split_input(experiment, "train")
+        if not image_dir.is_dir() or image_dir.parent.name != "images":
+            # Upstream list-file layouts may point at per-split mask trees that
+            # cannot be inferred without parsing the list; the dataloader still
+            # enforces each mask at load time.
+            return
+        images = sorted(
+            path
+            for path in image_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in self._image_suffixes
+        )
+        if not images:
+            return
+        mask_dir = image_dir.parent.parent / "masks" / image_dir.name
+        missing = [path for path in images if not (mask_dir / f"{path.stem}.npy").is_file()]
+        if missing:
+            preview = ", ".join(path.name for path in missing[:3])
+            raise ConfigError(
+                f"ESOD selector masks are missing for {len(missing)}/{len(images)} "
+                f"training images under {mask_dir} (for example: {preview}). "
+                "Run `python -m bcrs.datasets.visdrone --root "
+                "$VISDRONE_ROOT --splits train val --esod-masks` before training."
+            )
 
     @staticmethod
     def _split_input(experiment: ExperimentConfig, role: str) -> Path:

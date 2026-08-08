@@ -424,13 +424,31 @@ class ComputeLoss:
             torch.zeros(1, device=device),
         )
 
-        # Configure pos_weight from hyperparams if provided
-        pos_w_val = float(self.hyp.get("pos_weight", 5.0))
-        pos_weight = torch.tensor([pos_w_val], device=device)
+        selector_loss = str(self.hyp.get("selector_loss", "upstream"))
+        if selector_loss == "upstream":
+            # Keep the published ESOD objective byte-for-byte equivalent in
+            # meaning: weighted BCE only. BCRS coverage terms must never leak
+            # into the baseline merely because their CLI defaults exist.
+            lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight)
+            return lpixl, larea, ldist
+        if selector_loss != "bcrs_coverage":
+            raise ValueError(
+                "selector_loss must be 'upstream' or 'bcrs_coverage', got "
+                f"{selector_loss!r}"
+            )
 
-        # Size-weighted coverage enhancement for tiny targets (<16x16 px)
-        if weight is None and targets.shape[0] > 0:
-            weight = torch.ones_like(masks)
+        pos_w_val = float(self.hyp.get("pos_weight", 2.0))
+        pos_weight = torch.tensor([pos_w_val], device=device, dtype=p.dtype)
+        coverage_weight = (
+            weight.to(device=device, dtype=p.dtype).clone()
+            if weight is not None
+            else torch.ones_like(masks, dtype=p.dtype)
+        )
+
+        # Size-weighted coverage enhancement for tiny targets (<16x16 px).
+        # The upstream pseudo-mask weight is preserved and the extra boost is
+        # applied only where the soft semantic target is positive.
+        if targets.shape[0] > 0:
             img_h, img_w = ny * 8, nx * 8
             for t in targets:
                 b_idx = int(t[0].item())
@@ -441,16 +459,24 @@ class ComputeLoss:
                     xc_m, yc_m = int(t[2].item() * nx), int(t[3].item() * ny)
                     y1_m, y2_m = max(0, yc_m - 1), min(ny, yc_m + 2)
                     x1_m, x2_m = max(0, xc_m - 1), min(nx, xc_m + 2)
-                    weight[b_idx, 0, y1_m:y2_m, x1_m:x2_m] *= boost
+                    target_region = masks[b_idx, 0, y1_m:y2_m, x1_m:x2_m]
+                    coverage_weight[b_idx, 0, y1_m:y2_m, x1_m:x2_m] *= (
+                        1.0 + (boost - 1.0) * target_region
+                    )
 
         lpixl += F.binary_cross_entropy_with_logits(
-            p, masks, weight=weight, pos_weight=pos_weight
+            p, masks, weight=coverage_weight, pos_weight=pos_weight
         )
 
         nt = targets.shape[0]
         if nt:  # number of targets
-            larea += self.quality_dice_loss(p, masks, weight=weight)
-            ldist += self.sigmoid_quality_focal_loss(p, masks, weight=weight) * 5.0
+            larea += self.quality_dice_loss(p, masks, weight=coverage_weight)
+            ldist += (
+                self.sigmoid_quality_focal_loss(
+                    p, masks, weight=coverage_weight
+                )
+                * 5.0
+            )
 
         return lpixl, larea, ldist
 

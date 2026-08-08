@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 import pytest
 import yaml
@@ -72,6 +73,23 @@ def test_prepare_visdrone_dry_run_does_not_write_outputs(tmp_path: Path) -> None
     assert summaries[0].annotations == 1
     assert not (root / "labels").exists()
     assert not (root / "annotations").exists()
+
+
+def test_prepare_visdrone_can_generate_esod_selector_masks(tmp_path: Path) -> None:
+    root = tmp_path / "VisDrone"
+    make_image(root / "images/train/000001.jpg", (32, 16))
+    write_raw_annotation(root, "train", "000001", "8,4,8,4,1,4,0,0\n")
+
+    summaries = prepare_visdrone(root, splits=("train",), esod_masks=True)
+
+    mask_path = root / "masks/train/000001.npy"
+    target = np.load(mask_path)
+    assert summaries[0].masks_dir == root / "masks/train"
+    assert target.shape == (16, 32, 2)
+    assert target.dtype == np.float16
+    assert target[..., 0].max() == pytest.approx(1.0)
+    assert target[..., 0].sum() > 0
+    assert target[..., 1].min() >= 1.0
 
 
 def test_prepare_visdrone_rejects_missing_source_annotation(tmp_path: Path) -> None:
