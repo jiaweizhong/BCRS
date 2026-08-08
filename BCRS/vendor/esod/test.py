@@ -545,12 +545,16 @@ def test(
             ]
             anno_json = str(next((p for p in cand_paths if p.exists()), cand_paths[0]))
         elif "tinyperson" in data_str:
+            tinyperson_root = os.environ.get("TINYPERSON_ROOT", "/root/autodl-tmp/TinyPerson")
             cand_paths = [
-                Path(opt.data).parent / "test.json",
-                Path("./datasets/TinyPerson/test.json"),
+                Path(tinyperson_root) / "annotations" / "val.json",
+                Path(tinyperson_root) / "annotations" / "test.json",
+                Path(opt.data).parent / "annotations" / "val.json",
+                Path(opt.data).parent / "annotations" / "test.json",
+                Path("./datasets/TinyPerson/mini_annotations/tiny_set_test_all.json"),
             ]
             anno_json = str(next((p for p in cand_paths if p.exists()), cand_paths[0]))
-            format_tinyperson(jdict)
+            format_tinyperson(jdict, anno_json)
         else:
             anno_json = None
 
@@ -646,16 +650,30 @@ def test(
     )
 
 
-def format_tinyperson(jdict):
-    with open("datasets/TinyPerson/mini_annotations/tiny_set_test_all.json", "r") as f:
-        anno = json.load(f)
-    image_id_dict = {
-        item["file_name"].split("/")[1][:-4]: item["id"] for item in anno["images"]
-    }
+def format_tinyperson(jdict, anno_json=None):
+    if not anno_json or not os.path.exists(anno_json):
+        return
+    try:
+        with open(anno_json, "r") as f:
+            anno = json.load(f)
+        image_id_dict = {
+            item["file_name"].split("/")[1][:-4]: item["id"]
+            for item in anno.get("images", [])
+            if "file_name" in item and "/" in item["file_name"]
+        }
+        if not image_id_dict:
+            image_id_dict = {
+                Path(item["file_name"]).stem: item["id"]
+                for item in anno.get("images", [])
+                if "file_name" in item
+            }
 
-    for item in jdict:
-        item["image_id"] = image_id_dict[item["image_id"]]
-        item["category_id"] += 1
+        for item in jdict:
+            if item["image_id"] in image_id_dict:
+                item["image_id"] = image_id_dict[item["image_id"]]
+            item["category_id"] += 1
+    except Exception as e:
+        print(f"format_tinyperson skipped: {e}")
 
 
 if __name__ == "__main__":

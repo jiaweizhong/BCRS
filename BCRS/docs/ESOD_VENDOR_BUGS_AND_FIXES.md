@@ -346,6 +346,17 @@ pip install -r requirements.txt
 
 ---
 
+## 19. `format_tinyperson` Hardcoded Annotation Path & `FileNotFoundError` Crash
+
+- **Location**: [`vendor/esod/test.py#L547-L553`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L547-L553) & [`vendor/esod/test.py#L650-L665`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L650-L665)
+- **Symptom**: Evaluation on TinyPerson completed model evaluation (`mAP@0.5: 0.4654`), but crashed immediately after saving JSON predictions with `FileNotFoundError: [Errno 2] No such file or directory: 'datasets/TinyPerson/mini_annotations/tiny_set_test_all.json'`.
+- **Root Cause**:
+  `format_tinyperson` attempt to open a hardcoded local path `"datasets/TinyPerson/mini_annotations/tiny_set_test_all.json"` without checking dataset root, environment variables (`TINYPERSON_ROOT`), or wrapping the file I/O in error handling.
+- **Fix**:
+  Updated [`vendor/esod/test.py`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py) to dynamically search for TinyPerson COCO annotation files in `TINYPERSON_ROOT`, dataset directory, and candidate paths, passing `anno_json` safely to `format_tinyperson` with `try-except` fallback.
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
@@ -362,5 +373,6 @@ With these fixes applied:
 11. Pinned environment manifests (`requirements.txt` and `environments/torch2.8-cu128/requirements.txt`) ensure 100% reproducible execution on RTX 5090 / CUDA 12.8 hardware.
 12. UAVDT dataset configuration aligns with single-class `vehicle` benchmark protocol (`nc: 1`), reproducing the official ESOD paper benchmark (~22.5% AP).
 13. `fvcore` FLOPs profiling caches symbolic graph traces after batch 1, eliminating per-image CPU overhead and speeding up `--task measure` evaluations by 16x+.
-14. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+14. `format_tinyperson` dynamically resolves TinyPerson annotation JSON paths and handles missing files gracefully, allowing automated overnight evaluation scripts to finish seamlessly.
+15. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
 
