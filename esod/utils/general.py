@@ -21,13 +21,15 @@ import cv2
 import numpy as np
 import pandas as pd
 try:
-    # HESOD local patch: pkg_resources is gone/broken under modern Python
-    # (removed from setuptools on newer versions; on Python 3.12 even old
-    # setuptools pins crash inside pkg_resources itself, since it calls
-    # pkgutil.ImpImporter which 3.12 removed). check_python()/
-    # check_requirements() below are guarded to no-op when pkg is None.
+    # HESOD local patch: pkg_resources is gone/broken under modern Python.
+    # It can fail two different ways depending on the installed setuptools
+    # version: raising ImportError (removed entirely on newer setuptools),
+    # or importing fine but raising AttributeError from its OWN module-level
+    # init code on Python 3.12+ (e.g. `pkgutil.ImpImporter`, removed in
+    # 3.12). Catch both -- check_python()/check_requirements() below are
+    # guarded to no-op when pkg is None.
     import pkg_resources as pkg
-except ImportError:
+except (ImportError, AttributeError):
     pkg = None
 import torch
 import torch.nn.functional as F
