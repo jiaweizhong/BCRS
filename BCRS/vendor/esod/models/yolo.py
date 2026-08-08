@@ -23,7 +23,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 from models.common import *
-from models.routing import expanded_threshold_centers
 from models.replknet import *
 
 try:

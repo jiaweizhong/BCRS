@@ -250,7 +250,7 @@
       "repository": "esod",
       "source": "models/common.py",
       "target": "vendor/esod/models/common.py",
-      "sha256": "75a5ab223a3438c5e3408c8b2adcdc4795ca017e1541eb517e9d00409672cb11"
+      "sha256": "d55ccaad792ad0f82a00547f1fa1d2ee31ad12cddab0bb771959881445e56934"
     },
     {
       "repository": "esod",
@@ -263,12 +263,6 @@
       "source": "models/replknet.py",
       "target": "vendor/esod/models/replknet.py",
       "sha256": "d09cfe82ad5a980c2f1dbe56de5001f55631a0f28c851cc52d17c69eac6fef04"
-    },
-    {
-      "repository": "esod",
-      "source": "models/routing.py",
-      "target": "vendor/esod/models/routing.py",
-      "sha256": "a29a19f5d4ad29d362c89771007b1ba0acdf3b66ecf8910760cdc219073491e2"
     },
     {
       "repository": "esod",

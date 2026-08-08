@@ -13,8 +13,8 @@ sys.path.insert(0, str(ESOD_ROOT))
 sys.modules.setdefault("seaborn", types.ModuleType("seaborn"))
 sys.modules.setdefault("pkg_resources", types.ModuleType("pkg_resources"))
 
-from models.common import HeatMapParser  # noqa: E402
-from models.routing import (  # noqa: E402
+from models.common import (  # noqa: E402
+    HeatMapParser,
     expanded_threshold_centers,
     fixed_threshold_centers,
     topk_cell_centers,

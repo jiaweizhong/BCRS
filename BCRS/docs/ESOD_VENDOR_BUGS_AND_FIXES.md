@@ -195,7 +195,7 @@ pip install -r requirements.txt
   2. Top-K was later implemented as “K-th cell score → global pixel cutoff”. Tied scores could activate more than K cells, so it was not an exact budget.
   3. Parser configuration was incorrectly nested under `--sparse-head`, coupling two independent mechanisms.
 - **Fix (corrected 2026-08-07)**:
-  1. `models/routing.py` ranks coarse cells by their maximum response and marks exactly one representative peak in each of the best K cells; stable ordering makes ties deterministic.
+  1. The routing helpers in `models/common.py` rank coarse cells by their maximum response and mark exactly one representative peak in each of the best K cells; stable ordering makes ties deterministic.
   2. Top-K is enabled only by an explicit positive `top_k` / `patch_budget`. Omitting it preserves upstream fixed-threshold, dynamic-count routing.
   3. `HeatMapParser` routing is configured independently of SparseHead. `--sparse-head` is emitted only when the experiment explicitly requests it.
   4. Budgets outside `[1, 64]` are rejected at the adapter boundary.

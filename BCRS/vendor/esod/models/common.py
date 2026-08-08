@@ -30,7 +30,82 @@ from utils.general import (
 )
 from utils.plots import colors, plot_one_box
 from utils.torch_utils import time_synchronized
-from models.routing import fixed_threshold_centers, topk_cell_centers
+
+
+def fixed_threshold_centers(
+    mask: torch.Tensor, threshold: float
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return upstream ESOD's threshold activations and local maxima."""
+    activated = mask >= threshold
+    maxima = F.max_pool2d(mask, 3, stride=1, padding=1) == mask
+    return activated, activated & maxima
+
+
+def expanded_threshold_centers(mask: torch.Tensor, threshold: float) -> torch.Tensor:
+    """Return the 3x3-expanded threshold peaks used by SparseHead."""
+    _, centers = fixed_threshold_centers(mask, threshold)
+    return F.max_pool2d(centers.to(mask.dtype), 3, stride=1, padding=1)
+
+
+def topk_cell_centers(
+    mask: torch.Tensor,
+    *,
+    cluster_height: int,
+    cluster_width: int,
+    top_k: int,
+) -> torch.Tensor:
+    """Select exactly ``top_k`` coarse cells and mark one peak in each cell."""
+    if mask.ndim != 3:
+        raise ValueError(f"expected mask shaped [B, H, W], got {tuple(mask.shape)}")
+    if cluster_height <= 0 or cluster_width <= 0:
+        raise ValueError("cluster dimensions must be positive")
+
+    batch_size, height, width = mask.shape
+    rows = int(math.ceil(height / cluster_height))
+    columns = int(math.ceil(width / cluster_width))
+    cell_count = rows * columns
+    k = min(max(int(top_k), 0), cell_count)
+    centers = torch.zeros_like(mask, dtype=torch.bool)
+    if k == 0:
+        return centers
+
+    pad_bottom = rows * cluster_height - height
+    pad_right = columns * cluster_width - width
+    padded = F.pad(
+        mask,
+        (0, pad_right, 0, pad_bottom),
+        value=torch.finfo(mask.dtype).min,
+    )
+    cells = (
+        padded.view(
+            batch_size,
+            rows,
+            cluster_height,
+            columns,
+            cluster_width,
+        )
+        .permute(0, 1, 3, 2, 4)
+        .reshape(batch_size, cell_count, cluster_height * cluster_width)
+    )
+    cell_scores, peak_indices = cells.max(dim=2)
+    selected_cells = torch.argsort(
+        cell_scores, dim=1, descending=True, stable=True
+    )[:, :k]
+    selected_peaks = peak_indices.gather(1, selected_cells)
+
+    center_y = (
+        selected_cells.div(columns, rounding_mode="floor") * cluster_height
+        + selected_peaks.div(cluster_width, rounding_mode="floor")
+    )
+    center_x = (
+        selected_cells.remainder(columns) * cluster_width
+        + selected_peaks.remainder(cluster_width)
+    )
+    batch_indices = (
+        torch.arange(batch_size, device=mask.device).view(-1, 1).expand(-1, k)
+    )
+    centers[batch_indices, center_y, center_x] = True
+    return centers
 
 
 def autopad(k, p=None):  # kernel, padding
