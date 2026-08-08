@@ -20,7 +20,15 @@ from subprocess import check_output
 import cv2
 import numpy as np
 import pandas as pd
-import pkg_resources as pkg
+try:
+    # HESOD local patch: pkg_resources is gone/broken under modern Python
+    # (removed from setuptools on newer versions; on Python 3.12 even old
+    # setuptools pins crash inside pkg_resources itself, since it calls
+    # pkgutil.ImpImporter which 3.12 removed). check_python()/
+    # check_requirements() below are guarded to no-op when pkg is None.
+    import pkg_resources as pkg
+except ImportError:
+    pkg = None
 import torch
 import torch.nn.functional as F
 import torchvision
@@ -140,6 +148,8 @@ def check_git_status(err_msg=', for updates see https://github.com/ultralytics/y
 
 def check_python(minimum='3.6.0', required=True):
     # Check current python version vs. required python version
+    if pkg is None:  # pkg_resources unavailable (see import guard above)
+        return True
     current = platform.python_version()
     result = pkg.parse_version(current) >= pkg.parse_version(minimum)
     if required:
@@ -149,6 +159,8 @@ def check_python(minimum='3.6.0', required=True):
 
 def check_requirements(requirements='requirements.txt', exclude=()):
     # Check installed dependencies meet requirements (pass *.txt file or list of packages)
+    if pkg is None:  # pkg_resources unavailable (see import guard above)
+        return
     prefix = colorstr('red', 'bold', 'requirements:')
     check_python()  # check python version
     if isinstance(requirements, (str, Path)):  # requirements.txt file
