@@ -7,6 +7,24 @@ from threading import Thread
 
 import numpy as np
 import torch
+
+# HESOD local patch: PyTorch 2.6+ defaults torch.load(weights_only=True), which
+# rejects the legacy pickled checkpoints (yolov5 pretrained weights, this
+# project's own .pt saves) this codebase was written against. Default it back
+# to False for every call in this process; explicit weights_only kwargs from
+# callers still win.
+try:
+    _orig_torch_load = torch.load
+
+    def _compat_torch_load(*args, **kwargs):
+        if "weights_only" not in kwargs:
+            kwargs["weights_only"] = False
+        return _orig_torch_load(*args, **kwargs)
+
+    torch.load = _compat_torch_load
+except Exception:
+    pass
+
 import torch.nn.functional as F
 import yaml
 from tqdm import tqdm
