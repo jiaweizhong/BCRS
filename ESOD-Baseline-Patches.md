@@ -73,6 +73,50 @@ This document records every local change made to the `esod/` checkout at the rep
   ```
   **Trade-off, stated explicitly:** `format_tinyperson(jdict)` mutates `jdict` in memory (remaps `image_id`, `category_id += 1`) for the *upstream* pycocotools comparison. Since it now runs after `pred_json` is already on disk, the saved file always stays in raw ESOD format (0-indexed `category_id`, filename-stem `image_id`) regardless of dataset — which is exactly the format downstream tooling (`scripts/esod_baseline/audit_buckets.py`) expects. The upstream pycocotools comparison for TinyPerson specifically now evaluates against a mutated in-memory copy while reading the unmutated file from disk via `anno.loadRes(pred_json)`, so that comparison is unreliable for TinyPerson — it was already effectively non-functional in this environment anyway (its `anno_json`/annotation path never matched this project's dataset layout), and it was always best-effort/non-fatal by design (wrapped in the same `try/except`).
 
+## 3. `torch.load` rejects legacy checkpoints under PyTorch 2.6+
+
+- **Location:** `esod/train.py`, `esod/test.py` (top-level, right after `import torch`)
+- **Symptom:** `train.py` crashed on startup while loading the pretrained YOLOv5m init weights:
+  ```
+  File ".../torch/serialization.py", line 1529, in load
+      raise pickle.UnpicklingError(_get_wo_message(str(e))) from None
+  _pickle.UnpicklingError: Weights only load failed. ...
+  WeightsUnpickler error: Unsupported global: GLOBAL numpy.core.multiarray._reconstruct
+  was not an allowed global by default.
+  ```
+- **Root cause:** PyTorch 2.6 changed `torch.load`'s default from `weights_only=False` to `weights_only=True`. The restricted unpickler then refuses any checkpoint containing non-allowlisted globals — which includes the `ultralytics/yolov5` v5.0-era `yolov5m.pt` release (and this codebase's own `.pt` saves), since they pickle plain Python/numpy objects (e.g. `numpy.core.multiarray._reconstruct`), not just tensors. Both `train.py` (`torch.load(weights).get('wandb_id')`, then `torch.load(weights, map_location=device)`) and everything reachable from it (`models/experimental.py::attempt_load`, checkpoint resume, etc.) call `torch.load` without `weights_only=False`.
+- **Fix:** Same pattern already used in `BCRS/vendor/esod/{train,test}.py` for this exact issue — monkey-patch `torch.load` once near the top of each entrypoint, right after `import torch`, so every call in that process defaults to `weights_only=False` unless the caller explicitly overrides it:
+  ```python
+  try:
+      _orig_torch_load = torch.load
+
+      def _compat_torch_load(*args, **kwargs):
+          if "weights_only" not in kwargs:
+              kwargs["weights_only"] = False
+          return _orig_torch_load(*args, **kwargs)
+
+      torch.load = _compat_torch_load
+  except Exception:
+      pass
+  ```
+  Applied to `train.py` and `test.py` only (the two entrypoints this project's pipeline actually runs); every other module that calls `torch.load` after either of those has started (`models/experimental.py`, `utils/datasets.py` cache loading, ...) shares the same patched `torch` module object via Python's module cache, so it needs no separate edit. `detect.py` is unpatched since it isn't part of the reproduction pipeline.
+  - **Trust note:** this widens `torch.load` back to full unrestricted unpickling for every checkpoint/cache loaded in-process, which is only safe because every `.pt`/cache file this pipeline touches is either the official ultralytics/ESOD release or produced locally by this same pipeline. Do not point this environment at untrusted third-party checkpoints without reconsidering this patch.
+
+## 4. `train.py` not idempotent under `--exist-ok` reruns
+
+- **Location:** `esod/train.py`, run-settings snapshot block (`if rank in [-1, 0] and not opt.resume: ...`)
+- **Symptom:** Re-running `train.py` against an output directory from a previous (even failed) attempt crashed immediately:
+  ```
+  File ".../esod/train.py", line 81, in train
+      os.mkdir(save_dir / 'scripts')
+  FileExistsError: [Errno 17] File exists: '.../scripts'
+  ```
+- **Root cause:** `train.py` copies its own source (`train.py`, `test.py`, `utils/loss.py`, `utils/general.py`, `utils/datasets.py`, `models/yolo.py`, `models/common.py`, the model cfg) into `<save_dir>/scripts/` for provenance, via a plain `os.mkdir(save_dir / 'scripts')`. `scripts/esod_baseline/run_baseline.sh` always passes `--project`/`--name`/`--exist-ok` so retries reuse the same directory (see `ESOD_VENDOR_BUGS_AND_FIXES.md`'s own precedent of the same `os.mkdir` vs `os.makedirs(exist_ok=True)` class of bug in `data_prepare.py`) — any second attempt into that directory (crash-and-retry, or intentionally continuing a `--resume`-less run) hit the non-idempotent `os.mkdir` and died before training started.
+- **Fix:**
+  ```python
+  os.makedirs(save_dir / 'scripts', exist_ok=True)
+  ```
+
 ## Pre-flatten commit history (esod's own git history, discarded)
 
 Before `esod/.git` was removed, the clone carried 3 local commits on top of upstream `alibaba/esod`. Preserved here since that history is no longer retrievable locally:

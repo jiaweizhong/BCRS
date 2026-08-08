@@ -78,7 +78,7 @@ def train(hyp, opt, device, tb_writer=None):
     with open(save_dir / 'opt.yaml', 'w') as f:
         yaml.safe_dump(vars(opt), f, sort_keys=False)
     if rank in [-1, 0] and not opt.resume:
-        os.mkdir(save_dir / 'scripts')
+        os.makedirs(save_dir / 'scripts', exist_ok=True)  # HESOD local patch: idempotent under --exist-ok reruns
         for file in ['train.py', 'test.py', 'utils/loss.py', 'utils/general.py', 'utils/datasets.py', 
                      'models/yolo.py', 'models/common.py', opt.cfg]:
             shutil.copyfile(file, save_dir / 'scripts' / os.path.basename(file))
