@@ -6,19 +6,23 @@
 #   ./run_baseline.sh <visdrone|uavdt|tinyperson|all> [gpu_index]
 #
 # Config via env vars (all optional):
-#   ESOD_REPO   path to the official alibaba/esod checkout (default: $HOME/BCRS/esod)
-#   GPU         cuda device index (default: 0, overridden by $2)
-#   EPOCHS      training epochs (default: 50, matches the paper)
-#   RUN_ROOT    where logs/checkpoints go (default: $HOME/esod_baseline_runs)
-#   SKIP_MASKS  set to 1 to skip mask generation/verification (dangerous: only
-#               do this if you already know masks/<split>/*.npy exist for every
-#               labeled image)
+#   ESOD_REPO     path to the official alibaba/esod checkout (default: $HOME/BCRS/esod)
+#   GPU           cuda device index (default: 0, overridden by $2)
+#   EPOCHS        training epochs (default: 50, matches the paper)
+#   RUN_ROOT      where logs/checkpoints go (default: $HOME/esod_baseline_runs)
+#   SKIP_MASKS    set to 1 to skip mask generation/verification (dangerous: only
+#                 do this if you already know masks/<split>/*.npy exist for every
+#                 labeled image)
+#   AUDIT_SCRIPT  path to the bucket-recall auditor (default: audit_buckets.py
+#                 next to this script -- standalone, no BCRS package dependency)
+#   SKIP_AUDIT    set to 1 to skip the per-bucket recall audit step
 #
 # Each dataset run: generate+verify masks -> download yolov5m.pt if missing ->
-# train.py (50 epochs, paper hyperparameters) -> test.py (AP/AP50) ->
-# test.py --task measure (GFLOPs/FPS). Every step's stdout+stderr is tee'd to
-# $RUN_ROOT/logs/, and the checkpoint path is fixed via --exist-ok so reruns
-# are idempotent.
+# train.py (50 epochs, paper hyperparameters) -> test.py (AP/AP50, --save-json)
+# -> test.py --task measure (GFLOPs/FPS) -> audit_failure_cases.py (size/class
+# bucket recall on the saved predictions). Every step's stdout+stderr is tee'd
+# to $RUN_ROOT/logs/, and the checkpoint path is fixed via --exist-ok so
+# reruns are idempotent.
 #
 # Run this under tmux/screen/nohup -- a dropped SSH session must not kill an
 # overnight training run.
@@ -31,6 +35,8 @@ ESOD_REPO="${ESOD_REPO:-$HOME/BCRS/esod}"
 EPOCHS="${EPOCHS:-50}"
 RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
 SKIP_MASKS="${SKIP_MASKS:-0}"
+SKIP_AUDIT="${SKIP_AUDIT:-0}"
+AUDIT_SCRIPT="${AUDIT_SCRIPT:-$SCRIPT_DIR/audit_buckets.py}"
 GPU="${GPU:-0}"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
@@ -73,9 +79,48 @@ gen_and_verify_masks() {
     "${extra_flags[@]}"
 }
 
+# Per-size-bin / per-class recall audit on the saved val predictions. Never
+# allowed to abort the whole run: this is a diagnostic on top of an already
+#-completed baseline, not a prerequisite for having reproduced it.
+run_bucket_audit() {
+  local name="$1" dataset_root="$2" pred_json="$3" classes_csv="$4" audit_log="$5"
+
+  if [ "$SKIP_AUDIT" = "1" ]; then
+    log "SKIP_AUDIT=1: skipping bucket recall audit for $name"
+    return 0
+  fi
+  if [ ! -f "$AUDIT_SCRIPT" ]; then
+    log "WARN: audit script not found at $AUDIT_SCRIPT, skipping bucket audit for $name"
+    return 0
+  fi
+  if [ ! -f "$pred_json" ]; then
+    log "WARN: $pred_json was not produced (test.py --save-json likely wrote 0 predictions), skipping bucket audit for $name"
+    return 0
+  fi
+
+  local classes_args=()
+  if [ -n "$classes_csv" ]; then
+    classes_args=(--classes "$classes_csv")
+  fi
+
+  log "Auditing $name per-size/per-class recall -> $audit_log"
+  set +e
+  python "$AUDIT_SCRIPT" \
+    --pred "$pred_json" \
+    --labels "$dataset_root/labels/val" \
+    --images "$dataset_root/images/val" \
+    "${classes_args[@]}" \
+    2>&1 | tee "$audit_log"
+  local audit_status=$?
+  set -e
+  if [ "$audit_status" -ne 0 ]; then
+    log "WARN: bucket audit for $name exited non-zero ($audit_status); see $audit_log"
+  fi
+}
+
 run_dataset() {
-  local name="$1" data_yaml="$2" model_cfg="$3" hyp="$4" img_size="$5" batch="$6" dataset_root="$7"
-  shift 7
+  local name="$1" data_yaml="$2" model_cfg="$3" hyp="$4" img_size="$5" batch="$6" dataset_root="$7" classes_csv="$8"
+  shift 8
   local mask_extra_flags=("$@")
 
   log "===== $name: baseline reproduction start (GPU=$GPU, epochs=$EPOCHS, img=$img_size, batch=$batch) ====="
@@ -98,6 +143,7 @@ run_dataset() {
   local train_log="$RUN_ROOT/logs/${run_name}_train.log"
   local test_log="$RUN_ROOT/logs/${run_name}_test.log"
   local measure_log="$RUN_ROOT/logs/${run_name}_measure.log"
+  local audit_log="$RUN_ROOT/logs/${run_name}_audit.log"
 
   cd "$ESOD_REPO"
 
@@ -119,13 +165,14 @@ run_dataset() {
   local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
   require_file "$ckpt"
 
-  log "Evaluating $name (AP/AP50, vanilla) -> $test_log"
+  log "Evaluating $name (AP/AP50, vanilla, --save-json) -> $test_log"
   python test.py \
     --data "$data_yaml" \
     --weights "$ckpt" \
     --batch-size "$batch" \
     --img-size "$img_size" \
     --device "$GPU" \
+    --save-json \
     --project "$RUN_ROOT/test" \
     --name "$run_name" \
     --exist-ok \
@@ -144,11 +191,19 @@ run_dataset() {
     --exist-ok \
     2>&1 | tee "$measure_log"
 
+  # test.py names it "<weights-stem>_predictions.json" (best.pt -> best_predictions.json)
+  local pred_json="$RUN_ROOT/test/$run_name/best_predictions.json"
+  run_bucket_audit "$name" "$dataset_root" "$pred_json" "$classes_csv" "$audit_log"
+
   log "===== $name: done ====="
   log "---- $name test.py tail (AP/AP50) ----"
   tail -n 20 "$test_log"
   log "---- $name measure tail (GFLOPs/FPS) ----"
   tail -n 20 "$measure_log"
+  if [ -f "$audit_log" ]; then
+    log "---- $name bucket audit tail (size/class recall) ----"
+    tail -n 40 "$audit_log"
+  fi
 }
 
 DATASET="${1:-}"
@@ -162,21 +217,35 @@ fi
 
 case "$DATASET" in
   visdrone)
+    # classes_csv left empty -> audit_failure_cases.py uses its built-in 10-class
+    # VisDrone default (pedestrian..motor), which matches the labels this pipeline
+    # writes (see esod/scripts/data_prepare.py::prepare_visdrone(), cls - 1).
     run_dataset visdrone \
       /root/autodl-tmp/VisDrone.yaml \
       models/cfg/esod/visdrone_yolov5m.yaml \
       data/hyps/hyp.visdrone.yaml \
       1536 8 \
       /root/autodl-tmp/VisDrone \
+      "" \
       --cls-ratio
     ;;
   uavdt)
+    # NOTE on classes: the official esod/scripts/data_prepare.py::prepare_uavdt()
+    # collapses ALL UAVDT categories to a single class 0 ("car") when it writes YOLO
+    # labels -- despite the dataset nominally having 3 categories. We don't know
+    # whether /root/autodl-tmp/UAVDT_processed/labels/*.txt was produced by that
+    # official script (1 class) or by BCRS's own converter (3 classes: car/truck/bus,
+    # per BCRS/configs/datasets/uavdt.yaml). "car,truck,bus" below assumes the
+    # latter. If your labels only ever contain class id 0, change this to just "car"
+    # (or the audit will still run correctly for size buckets -- only the per-class
+    # table would be mislabeled).
     run_dataset uavdt \
       /root/autodl-tmp/UAVDT_processed/uavdt.yaml \
       models/cfg/esod/uavdt_yolov5m.yaml \
       data/hyps/hyp.uavdt.yaml \
       1280 8 \
-      /root/autodl-tmp/UAVDT_processed
+      /root/autodl-tmp/UAVDT_processed \
+      "car,truck,bus"
     ;;
   tinyperson)
     # NOTE: the official repo ships hyp.tinyperson.finetune.yaml and
@@ -191,7 +260,8 @@ case "$DATASET" in
       models/cfg/esod/tinyperson_yolov5m.yaml \
       data/hyps/hyp.tinyperson.finetune.yaml \
       2048 8 \
-      /root/autodl-tmp/TinyPerson
+      /root/autodl-tmp/TinyPerson \
+      "person"
     ;;
   all)
     "$0" visdrone "$GPU"
