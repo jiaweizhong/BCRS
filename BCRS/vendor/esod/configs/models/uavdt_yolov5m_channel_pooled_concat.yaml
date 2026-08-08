@@ -1,5 +1,5 @@
 # parameters
-nc: 1  # UAVDT: single class (vehicle) — overridden to 3 (car/truck/bus) via dataset yaml at runtime
+nc: 3  # UAVDT: 3 classes (car, truck, bus)
 depth_multiple: 0.67  # model depth multiple
 width_multiple: 0.75  # layer channel multiple
 

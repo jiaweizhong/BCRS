@@ -4,8 +4,8 @@ name: uavdt
 # here. The relative placeholder below only exists so a missing env var
 # fails loudly and locally rather than resolving into some unrelated path.
 root: ${UAVDT_ROOT:-../../data/UAVDT}
-num_classes: 1
-classes: [vehicle]
+num_classes: 3
+classes: [car, truck, bus]
 
 splits: {train: {}, val: {}, test: {}}
 
