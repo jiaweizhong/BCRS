@@ -88,9 +88,14 @@ run_experiment() {
   echo "  config: ${CONFIG}"
   echo "============================================================"
 
-  echo "[$(date '+%H:%M:%S')] Starting training: ${LABEL}"
-  bcrs train "${CONFIG}"
-  echo "[$(date '+%H:%M:%S')] Training complete: ${LABEL}"
+  if [ -f "${CKPT}" ]; then
+    echo "[$(date '+%H:%M:%S')] Checkpoint already exists at: ${CKPT}"
+    echo "[$(date '+%H:%M:%S')] Skipping training for ${LABEL} and proceeding to inference."
+  else
+    echo "[$(date '+%H:%M:%S')] Starting training: ${LABEL}"
+    bcrs train "${CONFIG}"
+    echo "[$(date '+%H:%M:%S')] Training complete: ${LABEL}"
+  fi
 
   echo "[$(date '+%H:%M:%S')] Running inference (K=64): ${LABEL}"
   bcrs test "${CONFIG}" \

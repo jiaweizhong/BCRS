@@ -213,6 +213,8 @@ def test(
         m_weights = m_weights.to(device, non_blocking=True)
         m_weights = m_weights.half() if half else m_weights.float()
         targets = targets.to(device)
+        if single_cls or nc == 1:
+            targets[:, 1] = 0
         nb, _, height, width = img.shape  # batch size, channels, height, width
 
         # Run model

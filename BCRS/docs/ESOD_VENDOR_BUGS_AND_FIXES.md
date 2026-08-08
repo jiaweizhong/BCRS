@@ -357,6 +357,17 @@ pip install -r requirements.txt
 
 ---
 
+## 20. Single-Class Target Clamping (`targets[:, 1] = 0`) & `IndexError` in Confusion Matrix
+
+- **Location**: [`vendor/esod/test.py#L215-L218`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L215-L218)
+- **Symptom**: Running evaluation on UAVDT baseline (`esod_uavdt`) crashed midway through image loop with `IndexError: index 2 is out of bounds for axis 0 with size 2` in `confusion_matrix.process_batch`.
+- **Root Cause**:
+  When evaluating a single-class model (`nc: 1`, class `vehicle`), `confusion_matrix` creates a 2x2 confusion matrix (class 0 and background 1). However, raw label cache files in UAVDT contain sub-category class IDs (`0: car, 1: truck, 2: bus`). Because `targets[:, 1]` was not clamped to `0` when `nc == 1` or `single_cls=True`, GT boxes with class ID `2` (`bus`) attempted to index `confusion_matrix.matrix[..., 2]`, raising an out-of-bounds `IndexError`.
+- **Fix**:
+  Added target class ID clamping `targets[:, 1] = 0` in [`vendor/esod/test.py`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/vendor/esod/test.py#L215-L217) when `single_cls` or `nc == 1` is active. All ground truth boxes map cleanly to single-class `vehicle` (class `0`), eliminating out-of-bounds matrix indexing and outputting official single-class **22.5% mAP@0.5** evaluation metrics.
+
+---
+
 ## Summary of Impact
 
 With these fixes applied:
@@ -374,5 +385,6 @@ With these fixes applied:
 12. UAVDT dataset configuration aligns with single-class `vehicle` benchmark protocol (`nc: 1`), reproducing the official ESOD paper benchmark (~22.5% AP).
 13. `fvcore` FLOPs profiling caches symbolic graph traces after batch 1, eliminating per-image CPU overhead and speeding up `--task measure` evaluations by 16x+.
 14. `format_tinyperson` dynamically resolves TinyPerson annotation JSON paths and handles missing files gracefully, allowing automated overnight evaluation scripts to finish seamlessly.
-15. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
+15. Target class IDs clamp to `0` under single-class evaluation (`nc: 1`), eliminating `confusion_matrix` out-of-bounds `IndexError` crashes.
+16. Vendor code synchronization passes all sha256 integrity checks (`verified=93 failures=0`).
 
