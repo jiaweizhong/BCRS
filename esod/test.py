@@ -296,11 +296,17 @@ def test(data,
 
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
-    if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
-        ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
-        mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+    # HESOD local patch: upstream gated nt (labels-per-class count) behind
+    # `stats[0].any()`, so any batch with zero IoU>0.5 hits (routine in early
+    # epochs) displayed "Labels: 0" and a nan BPR even though the real label
+    # count (and BPR denominator) was never zero. Decouple nt from the
+    # has-any-hit check; mp/mr/map50/map already default to 0.0 above.
+    if len(stats):
         nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
+        if stats[0].any():
+            p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+            ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
+            mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
     else:
         nt = torch.zeros(1)
     bpr, occupy = statistic_items[0] / nt.sum(), (statistic_items[1] + 1e-6) / (statistic_items[2] + 1e-6)

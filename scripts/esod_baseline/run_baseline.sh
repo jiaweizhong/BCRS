@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # Reproduce the official ESOD (YOLOv5m) baseline on VisDrone / UAVDT / TinyPerson
-# using the pristine official repo (NOT the BCRS vendored/modified fork).
+# via hesod/backends/esod (the frozen ESOD reference copy inside the HESOD
+# umbrella -- NOT the BCRS vendored/modified fork, and, as of 2026-08-08, no
+# longer the standalone top-level esod/ either; see ESOD-Baseline-Patches.md's
+# "Dual-tree coverage" note. Point ESOD_REPO at esod/ if you specifically need
+# the standalone copy for some reason.
 #
 # Usage:
 #   ./run_baseline.sh <visdrone|uavdt|tinyperson|all> [gpu_index]
 #
 # Config via env vars (all optional):
-#   ESOD_REPO     path to the official alibaba/esod checkout (default: $HOME/BCRS/esod)
+#   ESOD_REPO     path to the ESOD checkout to run (default: hesod/backends/esod,
+#                 resolved relative to this script's location)
 #   GPU           cuda device index (default: 0, overridden by $2)
 #   EPOCHS        training epochs (default: 50, matches the paper)
 #   RUN_ROOT      where logs/checkpoints go (default: $HOME/esod_baseline_runs)
@@ -31,7 +36,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ESOD_REPO="${ESOD_REPO:-$HOME/BCRS/esod}"
+ESOD_REPO="${ESOD_REPO:-$SCRIPT_DIR/../../hesod/backends/esod}"
 EPOCHS="${EPOCHS:-50}"
 RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
 SKIP_MASKS="${SKIP_MASKS:-0}"
@@ -68,14 +73,14 @@ ensure_weights() {
 }
 
 gen_and_verify_masks() {
-  local dataset_root="$1"
-  shift
+  local dataset_root="$1" val_split="$2"
+  shift 2
   local extra_flags=("$@")
-  log "Generating/verifying ESOD pseudo-masks under $dataset_root ..."
+  log "Generating/verifying ESOD pseudo-masks under $dataset_root (splits: train $val_split) ..."
   python "$SCRIPT_DIR/gen_masks.py" \
     --esod-repo "$ESOD_REPO" \
     --dataset-root "$dataset_root" \
-    --splits train val \
+    --splits train "$val_split" \
     "${extra_flags[@]}"
 }
 
@@ -83,7 +88,7 @@ gen_and_verify_masks() {
 # allowed to abort the whole run: this is a diagnostic on top of an already
 #-completed baseline, not a prerequisite for having reproduced it.
 run_bucket_audit() {
-  local name="$1" dataset_root="$2" pred_json="$3" classes_csv="$4" audit_log="$5"
+  local name="$1" dataset_root="$2" val_split="$3" pred_json="$4" classes_csv="$5" audit_log="$6"
 
   if [ "$SKIP_AUDIT" = "1" ]; then
     log "SKIP_AUDIT=1: skipping bucket recall audit for $name"
@@ -107,8 +112,8 @@ run_bucket_audit() {
   set +e
   python "$AUDIT_SCRIPT" \
     --pred "$pred_json" \
-    --labels "$dataset_root/labels/val" \
-    --images "$dataset_root/images/val" \
+    --labels "$dataset_root/labels/$val_split" \
+    --images "$dataset_root/images/$val_split" \
     "${classes_args[@]}" \
     2>&1 | tee "$audit_log"
   local audit_status=$?
@@ -119,31 +124,38 @@ run_bucket_audit() {
 }
 
 run_dataset() {
-  local name="$1" data_yaml="$2" model_cfg="$3" hyp="$4" img_size="$5" batch="$6" dataset_root="$7" classes_csv="$8"
-  shift 8
+  local name="$1" data_yaml="$2" model_cfg="$3" hyp="$4" img_size="$5" batch="$6" dataset_root="$7" classes_csv="$8" val_split="$9"
+  shift 9
   local mask_extra_flags=("$@")
 
-  log "===== $name: baseline reproduction start (GPU=$GPU, epochs=$EPOCHS, img=$img_size, batch=$batch) ====="
+  log "===== $name: baseline reproduction start (GPU=$GPU, epochs=$EPOCHS, img=$img_size, batch=$batch, val_split=$val_split) ====="
   require_file "$data_yaml"
   require_file "$ESOD_REPO/$model_cfg"
   require_file "$ESOD_REPO/$hyp"
   require_dir "$dataset_root/images"
   require_dir "$dataset_root/labels"
+  require_dir "$dataset_root/images/$val_split"
+  require_dir "$dataset_root/labels/$val_split"
 
   if [ "$SKIP_MASKS" != "1" ]; then
-    gen_and_verify_masks "$dataset_root" "${mask_extra_flags[@]}"
+    gen_and_verify_masks "$dataset_root" "$val_split" "${mask_extra_flags[@]}"
   else
     log "SKIP_MASKS=1: trusting existing masks/*.npy without checking"
   fi
 
   ensure_weights
 
-  mkdir -p "$RUN_ROOT/logs"
   local run_name="${name}_yolov5m_baseline"
-  local train_log="$RUN_ROOT/logs/${run_name}_train.log"
-  local test_log="$RUN_ROOT/logs/${run_name}_test.log"
-  local measure_log="$RUN_ROOT/logs/${run_name}_measure.log"
-  local audit_log="$RUN_ROOT/logs/${run_name}_audit.log"
+  # Co-located with everything test.py itself writes here (best_predictions.json,
+  # buckets.json, PR/F1 curves, confusion matrix) so one copy of this directory
+  # is a complete, self-contained result bundle -- no separate logs/ directory
+  # to remember to also copy.
+  local results_dir="$RUN_ROOT/test/$run_name"
+  mkdir -p "$results_dir"
+  local train_log="$results_dir/${run_name}_train.log"
+  local test_log="$results_dir/${run_name}_test.log"
+  local measure_log="$results_dir/${run_name}_measure.log"
+  local audit_log="$results_dir/${run_name}_audit.log"
 
   cd "$ESOD_REPO"
 
@@ -193,7 +205,7 @@ run_dataset() {
 
   # test.py names it "<weights-stem>_predictions.json" (best.pt -> best_predictions.json)
   local pred_json="$RUN_ROOT/test/$run_name/best_predictions.json"
-  run_bucket_audit "$name" "$dataset_root" "$pred_json" "$classes_csv" "$audit_log"
+  run_bucket_audit "$name" "$dataset_root" "$val_split" "$pred_json" "$classes_csv" "$audit_log"
 
   log "===== $name: done ====="
   log "---- $name test.py tail (AP/AP50) ----"
@@ -227,6 +239,7 @@ case "$DATASET" in
       1536 8 \
       /root/autodl-tmp/VisDrone \
       "" \
+      val \
       --cls-ratio
     ;;
   uavdt)
@@ -239,13 +252,17 @@ case "$DATASET" in
     # latter. If your labels only ever contain class id 0, change this to just "car"
     # (or the audit will still run correctly for size buckets -- only the per-class
     # table would be mislabeled).
+    # val_split is "test", not "val": uavdt.yaml maps val -> images/test on disk
+    # (UAVDT ships train/test, no separate val split). gen_masks.py/audit_buckets.py
+    # need the real on-disk name or they silently skip the split entirely.
     run_dataset uavdt \
       /root/autodl-tmp/UAVDT_processed/uavdt.yaml \
       models/cfg/esod/uavdt_yolov5m.yaml \
       data/hyps/hyp.uavdt.yaml \
       1280 8 \
       /root/autodl-tmp/UAVDT_processed \
-      "car,truck,bus"
+      "car,truck,bus" \
+      test
     ;;
   tinyperson)
     # NOTE: the official repo ships hyp.tinyperson.finetune.yaml and
@@ -261,7 +278,8 @@ case "$DATASET" in
       data/hyps/hyp.tinyperson.finetune.yaml \
       2048 8 \
       /root/autodl-tmp/TinyPerson \
-      "person"
+      "person" \
+      val
     ;;
   all)
     "$0" visdrone "$GPU"

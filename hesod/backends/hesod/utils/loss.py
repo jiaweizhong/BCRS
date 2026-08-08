@@ -91,10 +91,21 @@ class QFocalLoss(nn.Module):
 
 class ComputeLoss:
     # Compute losses
-    def __init__(self, model, autobalance=False):
+    def __init__(self, model, autobalance=False, selector_loss='upstream', lambda_cov=0.5, pos_weight=2.0):
         super(ComputeLoss, self).__init__()
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
+
+        # HESOD selector loss isolation (HESOD-Proposal.md SS3.4, SS5.4): 'upstream'
+        # trains the selector on the official per-pixel weighted BCE only, with no
+        # BCRS term active -- this is what E1.0 baseline must use. 'coverage' adds
+        # the object-level soft-coverage term (SS3.3) plus a positive-class weight
+        # boost on the base BCE; no coverage term can leak into 'upstream' mode.
+        if selector_loss not in ('upstream', 'coverage'):
+            raise ValueError(f"selector_loss must be 'upstream' or 'coverage', got {selector_loss!r}")
+        self.selector_loss = selector_loss
+        self.lambda_cov = lambda_cov if selector_loss == 'coverage' else 0.0
+        self.mask_pos_weight = pos_weight if selector_loss == 'coverage' else None
 
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
@@ -329,22 +340,66 @@ class ComputeLoss:
         assert nc == 1
         lpixl, larea, ldist = torch.zeros(1, device=device), torch.zeros(1, device=device), \
                               torch.zeros(1, device=device)
-        
-        # weight = None
-        lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight)
+
+        pos_weight = None
+        if self.selector_loss == 'coverage' and self.mask_pos_weight is not None:
+            pos_weight = torch.as_tensor(self.mask_pos_weight, device=device, dtype=p.dtype)
+        lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight, pos_weight=pos_weight)
 
         nt = targets.shape[0]
-        if nt:  # number of targets
-            pass
+        if self.selector_loss == 'coverage' and nt:
+            larea += self.compute_coverage_loss(p, targets, ny, nx) * self.lambda_cov
 
-            # larea += self.dice_loss(p, masks)
-            # ldist += self.sigmoid_focal_loss(p, masks) * 20
-            
-            # larea += self.quality_dice_loss(p, masks, weight=weight)
-            # ldist += self.sigmoid_quality_focal_loss(p, masks, weight=weight) * 20
-
-    
         return lpixl, larea, ldist
+
+    def compute_coverage_loss(self, p, targets, ny, nx):
+        """Object-level soft coverage loss (HESOD-Proposal.md SS3.3, SS5.4).
+
+        p: (bs, 1, ny, nx) raw selector logits.
+        targets: (nt, 6) [image_idx, class, xc, yc, w, h], normalized [0, 1].
+
+        For each GT object j, N(j) is the set of selector cells whose grid
+        footprint overlaps j's box. The soft probability that j is covered by
+        at least one retained cell is p_cover = 1 - prod_{i in N(j)}(1 - s_i),
+        s_i = sigmoid(p_i). Loss is -w_j * log(p_cover), w_j larger for
+        smaller objects, so it only takes one confident cell per object to
+        drive this term to ~0 -- unlike per-pixel BCE, it does not push every
+        cell touching an object toward 1.
+        """
+        device = p.device
+        s = p[:, 0].sigmoid()  # (bs, ny, nx)
+        eps = 1e-6
+
+        # HESOD: reference object area (in grid cells) below which the tiny-size
+        # weight saturates, and the weight cap itself. Kept as fixed constants for
+        # this MVP rather than exposed flags -- see HESOD-Proposal.md SS3.4 on
+        # lambda/weight tuning being an open research knob, not a solved default.
+        ref_area_cells = 4.0
+        max_weight = 5.0
+
+        losses = []
+        for bi in range(s.shape[0]):
+            obj = targets[targets[:, 0] == bi]
+            if obj.shape[0] == 0:
+                continue
+            xc, yc = obj[:, 2] * nx, obj[:, 3] * ny
+            w, h = (obj[:, 4] * nx).clamp(min=1e-3), (obj[:, 5] * ny).clamp(min=1e-3)
+            x1 = (xc - w / 2).floor().clamp(0, nx - 1).long()
+            y1 = (yc - h / 2).floor().clamp(0, ny - 1).long()
+            x2 = torch.maximum((xc + w / 2).ceil().clamp(0, nx).long(), x1 + 1)
+            y2 = torch.maximum((yc + h / 2).ceil().clamp(0, ny).long(), y1 + 1)
+
+            area_cells = (w * h).clamp(min=1e-3)
+            weight = (ref_area_cells / area_cells).clamp(1.0, max_weight)
+
+            for j in range(obj.shape[0]):
+                region = s[bi, y1[j]:y2[j], x1[j]:x2[j]]
+                p_cover = 1.0 - torch.prod(1.0 - region)
+                losses.append(-weight[j] * torch.log(p_cover.clamp(min=eps)))
+
+        if not losses:
+            return torch.zeros(1, device=device)
+        return torch.stack(losses).mean()
 
     @staticmethod
     def dice_loss(inputs, targets):

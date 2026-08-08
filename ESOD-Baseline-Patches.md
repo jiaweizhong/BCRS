@@ -139,6 +139,38 @@ This document records every local change made to the `esod/` checkout at the rep
 - **Resolution:** Kept 3-class, matching both the paper's own dataset description and this project's actual label data. Changed `models/cfg/esod/uavdt_yolov5m.yaml` from `nc: 1` to `nc: 3` to align the model head with `uavdt.yaml` and the real labels, rather than changing the data side to fake single-class.
 - **Reporting caveat (not a code issue):** Table I's paper-reported UAVDT AP (22.5%, 23.6% at 1.25×) was not independently re-derived here as single-class vs. 3-class-averaged — when comparing against it, label paper-reported and locally-reproduced numbers separately rather than treating them as verified equivalent under an identical evaluation convention.
 
+## 7. `test.py` displayed `Labels: 0` / `BPR: nan` on validation passes with zero IoU>0.5 hits
+
+- **Location:** `esod/test.py`, statistics block (`stats = [np.concatenate(x, 0) for x in zip(*stats)]` onward)
+- **Symptom:** Any validation pass with zero correct IoU>0.5 matches (routine in early training epochs, and observed on the first 3 epochs of a UAVDT run whose 53k-image validation set took longer to produce a first lucky match than VisDrone's 548-image one) printed `Labels: 0` and `BPR: nan`, even though the real label count was never zero (later epochs on the same run correctly showed 375883 labels):
+  ```
+  all      53676          0          0          0          0          0        nan          1
+  ```
+- **Root cause:**
+  ```python
+  if len(stats) and stats[0].any():
+      p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+      ap50, ap = ap[:, 0], ap.mean(1)
+      mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+      nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
+  else:
+      nt = torch.zeros(1)
+  ```
+  `nt` (labels-per-class, used both for the printed `Labels` column and as `bpr`'s denominator via `nt.sum()`) was gated behind `stats[0].any()` — "did any prediction hit a GT at IoU>0.5" — instead of being computed whenever `stats` has any rows at all. Same bug class already documented and fixed in `BCRS/docs/ESOD_VENDOR_BUGS_AND_FIXES.md` (#2) for the separate vendored fork; this pristine copy had the identical unfixed upstream code. `mp`/`mr`/`map50`/`map` were not affected — they already default to `0.0` earlier in the function (line ~149), so the `else` branch never raised `NameError`, it only silently mis-reported `nt`.
+- **Fix:** decouple `nt` from the has-any-hit check:
+  ```python
+  if len(stats):
+      nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
+      if stats[0].any():
+          p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+          ap50, ap = ap[:, 0], ap.mean(1)
+          mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+  else:
+      nt = torch.zeros(1)
+  ```
+  Applied to `esod/test.py`, `hesod/backends/esod/test.py`, and `hesod/backends/hesod/test.py` (the latter is HESOD's active dev copy, out of this doc's normal dual-tree scope per the Scope Boundary note above, but this specific fix is a pure upstream bug fix with no algorithmic content, so all three copies were kept in sync rather than letting a third silent fork of the same bug develop).
+  - **Display-only, no effect on any reported metric to date:** neither the VisDrone E1.0 run (`HESOD-Experiment-Plan.md`) nor UAVDT's in-progress run had this branch active by their final epoch — VisDrone's very first validation pass already had real matches, so this bug never fired for VisDrone at all.
+
 ## Pre-flatten commit history (esod's own git history, discarded)
 
 Before `esod/.git` was removed, the clone carried 3 local commits on top of upstream `alibaba/esod`. Preserved here since that history is no longer retrievable locally:

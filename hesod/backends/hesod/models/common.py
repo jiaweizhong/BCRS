@@ -320,6 +320,11 @@ class HeatMapParser(nn.Module):
         self.cluster_only = cluster_only
 
         self.grid = None
+        # HESOD exact Top-K (Proposal SS5.6 Action Space A): when set (positive
+        # int), ada_slicer_fast() ranks the ratio*ratio uniform coarse cells by
+        # score and keeps exactly this many per image, ignoring self.threshold.
+        # None preserves upstream fixed-threshold, dynamic-count routing.
+        self.top_k = None
     
     def forward(self, x):
         x, heatmaps = x
@@ -470,6 +475,9 @@ class HeatMapParser(nn.Module):
         half_clus_w,  half_clus_h = cluster_w // 2, cluster_h // 2
         outs = []
 
+        if self.top_k is not None:
+            return self._top_k_slicer(mask_pred, ratio_x, ratio_y, cluster_w, cluster_h)
+
         if getattr(self, 'grid_vtx', None) is None or self.grid_vtx.size(0) != ratio_x*ratio_y*bs:
             gy, gx = torch.meshgrid(torch.arange(ratio_y), torch.arange(ratio_x))
             gxy = torch.stack((gy.reshape(-1), gx.reshape(-1)), dim=1).unsqueeze(0).repeat(bs, 1, 1).view(-1, 2)  # shape(bs*8*8,2)
@@ -521,6 +529,39 @@ class HeatMapParser(nn.Module):
         for bi in range(bs):
             outs.append(bboxes[cb == bi])
 
+        return outs
+
+    @torch.no_grad()
+    def _top_k_slicer(self, mask_pred: torch.Tensor, ratio_x, ratio_y, cluster_w, cluster_h):
+        """HESOD exact Top-K routing (Proposal SS5.6 Action Space A).
+
+        Ranks the ratio_x*ratio_y uniform coarse cells by max response per
+        image and keeps exactly min(top_k, ratio_x*ratio_y) of them, emitting
+        the raw (unrefined) grid-cell boundaries for the selected cells --
+        this is the fixed-size-candidate contract Action Space A describes,
+        not the activated-region-refined boxes ada_slicer_fast produces for
+        threshold routing. Ties are broken deterministically by ascending
+        cell index (stable sort), so repeated runs at the same K are
+        bit-identical.
+        """
+        bs, height, width = mask_pred.shape
+        device = mask_pred.device
+        pad_h, pad_w = ratio_y * cluster_h - height, ratio_x * cluster_w - width
+        padded = F.pad(mask_pred, (0, pad_w, 0, pad_h))
+        cell_max = F.max_pool2d(padded, (cluster_h, cluster_w), stride=(cluster_h, cluster_w), padding=0)
+        cell_max = cell_max.reshape(bs, -1)  # (bs, ratio_y*ratio_x), flat index = cy*ratio_x + cx
+
+        k = min(self.top_k, cell_max.shape[1])
+        order = torch.argsort(cell_max, dim=1, descending=True, stable=True)[:, :k]  # (bs, k)
+
+        outs = []
+        for bi in range(bs):
+            idx = order[bi]
+            cy, cx = idx // ratio_x, idx % ratio_x
+            x1 = (cx * cluster_w).clamp(0, width - cluster_w)
+            y1 = (cy * cluster_h).clamp(0, height - cluster_h)
+            x2, y2 = x1 + cluster_w, y1 + cluster_h
+            outs.append(torch.stack((x1, y1, x2, y2), dim=1).long().to(device))
         return outs
 
     def uni_slicer(self, feat, mask_pred, ratio=8, threshold=0.3, device='cuda'):

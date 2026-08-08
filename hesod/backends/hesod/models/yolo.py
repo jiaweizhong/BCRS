@@ -27,6 +27,15 @@ except:
     warnings.warn('Package mmdet is not installed. You can follow https://github.com/ChenhongyiYang/GPViT to install dependencies.')
     SpatialPriorModule = GPViTAdapterSingleStageESOD = None
 from models.spconv import SPYOLOv5Head, SPYOLOv6Head
+from models.segmenter import (
+    Segmenter,
+    SpectralOnlySegmenter,
+    DualEvidenceSegmenter,
+    ConcatEvidenceSegmenter,
+    ChannelPooledSpectralOnlySegmenter,
+    ChannelPooledDualEvidenceSegmenter,
+    ChannelPooledConcatEvidenceSegmenter,
+)
 from models.experimental import *
 from utils.autoanchor import check_anchor_order
 from utils.general import make_divisible, check_file, set_logging, xyxy2xywh
@@ -220,15 +229,6 @@ class Detect(nn.Module):
         yv, xv = torch.meshgrid([torch.arange(ny), torch.arange(nx)])
         return torch.stack((xv, yv), 2).view((1, 1, ny, nx, 2)).float()
 
-
-class Segmenter(nn.Module):
-    def __init__(self, nc=10, ch=()):
-        super(Segmenter, self).__init__()
-        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)  # output conv
-    
-    def forward(self, x):
-        return [self.m[i](x[i]) for i in range(len(x))]
-    
 
 class Center(nn.Module):
     def __init__(self, nc=80, ch=()):  # detection layer
@@ -454,7 +454,15 @@ class Model(nn.Module):
             
             x = m(x)  # run
 
-            if isinstance(m, Segmenter):
+            if isinstance(m, (
+                Segmenter,
+                SpectralOnlySegmenter,
+                DualEvidenceSegmenter,
+                ConcatEvidenceSegmenter,
+                ChannelPooledSpectralOnlySegmenter,
+                ChannelPooledDualEvidenceSegmenter,
+                ChannelPooledConcatEvidenceSegmenter,
+            )):
                 pred_masks = x
                 if hm_only:
                     return (None, None), pred_masks
@@ -513,12 +521,25 @@ class Model(nn.Module):
                 mi.cls_pred.bias.data.fill_(math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum()))
 
         for m_ in self.model:
-            if str(m_.type) == 'models.yolo.Segmenter':  # stupid
-                for mi in m_.m:
-                    b = mi.bias.view(-1)
-                    b.data += math.log(0.6 / (m.nc - 0.99) if cf is None else torch.log(cf / cf.sum()))  # cls
-                    mi.bias = torch.nn.Parameter(b, requires_grad=True)
-                break
+            # HESOD: bias-warm-start every final nc-channel output conv that
+            # directly feeds the segmenter's foreground logit, not just the
+            # semantic head -- for gated/concat fusion variants the spectral
+            # branch (or the concat conv) also contributes to that output.
+            if isinstance(m_, Segmenter):
+                bias_convs = list(m_.m)
+            elif isinstance(m_, (DualEvidenceSegmenter, ChannelPooledDualEvidenceSegmenter)):
+                bias_convs = list(m_.m) + [branch.head for branch in m_.spectral_branches]
+            elif isinstance(m_, (SpectralOnlySegmenter, ChannelPooledSpectralOnlySegmenter)):
+                bias_convs = [branch.head for branch in m_.spectral_branches]
+            elif isinstance(m_, (ConcatEvidenceSegmenter, ChannelPooledConcatEvidenceSegmenter)):
+                bias_convs = list(m_.concat_convs)
+            else:
+                continue
+            for mi in bias_convs:
+                b = mi.bias.view(-1)
+                b.data += math.log(0.6 / (m.nc - 0.99) if cf is None else torch.log(cf / cf.sum()))  # cls
+                mi.bias = torch.nn.Parameter(b, requires_grad=True)
+            break
 
     def _print_biases(self):
         m = self.model[-1]  # Detect() module
@@ -606,7 +627,16 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             c2 = sum([ch[x] for x in f])
         elif m in [Add, nn.Identity]:
             pass
-        elif m in [Detect, Segmenter]:  # Detect2 deprecated
+        elif m in [
+            Detect,
+            Segmenter,
+            SpectralOnlySegmenter,
+            DualEvidenceSegmenter,
+            ConcatEvidenceSegmenter,
+            ChannelPooledSpectralOnlySegmenter,
+            ChannelPooledDualEvidenceSegmenter,
+            ChannelPooledConcatEvidenceSegmenter,
+        ]:  # Detect2 deprecated
             args.append([ch[x] for x in f])
             if len(args) > 1 and isinstance(args[1], int):  # number of anchors
                 args[1] = [list(range(args[1] * 2))] * len(f)

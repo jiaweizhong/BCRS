@@ -72,6 +72,34 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def require_training_masks(dataset):
+    """Fail closed if any labeled training image is missing its selector mask.
+
+    utils/datasets.py::load_image() silently substitutes an all-zero mask
+    (weight=1) for any image whose masks/<split>/<stem>.npy is absent -- for
+    a genuinely empty image that fallback is correct, but for an image WITH
+    GT boxes it silently trains the selector on a wrong target (see
+    ESOD-Baseline-Patches.md). Raise before training starts instead of
+    letting that happen quietly.
+    """
+    missing = []
+    for img_path, labels in zip(dataset.img_files, dataset.labels):
+        if labels.shape[0] == 0:
+            continue  # background-only image: the all-zero fallback is correct here
+        mask_path = img_path.replace('/images/', '/masks/').replace('.jpg', '.npy')
+        if not os.path.exists(mask_path):
+            missing.append(img_path)
+    if missing:
+        preview = ', '.join(Path(p).name for p in missing[:5])
+        raise FileNotFoundError(
+            f'{len(missing)}/{len(dataset.img_files)} training images have GT boxes but no '
+            f'selector mask (e.g. {preview}). Generate masks before training '
+            f'(see scripts/esod_baseline/gen_masks.py) -- training on a missing mask silently '
+            f'produces an all-zero selector target.'
+        )
+
+
 def train(hyp, opt, device, tb_writer=None):
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
     save_dir, epochs, batch_size, total_batch_size, weights, rank = \
@@ -245,6 +273,8 @@ def train(hyp, opt, device, tb_writer=None):
                                             image_weights=opt.image_weights, quad=opt.quad, prefix=colorstr('train: '))
     mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     nb = len(dataloader)  # number of batches
+    if rank in [-1, 0]:
+        require_training_masks(dataset)
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
     # Process 0
@@ -298,7 +328,8 @@ def train(hyp, opt, device, tb_writer=None):
     results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = amp.GradScaler(enabled=cuda)
-    compute_loss = ComputeLoss(model)  # init loss class
+    compute_loss = ComputeLoss(model, selector_loss=opt.selector_loss, lambda_cov=opt.lambda_cov,
+                                pos_weight=opt.pos_weight)  # init loss class
     logger.info(f'Image sizes {imgsz} train, {imgsz_test} test\n'
                 f'Using {dataloader.num_workers} dataloader workers\n'
                 f'Logging results to {save_dir}\n'
@@ -568,6 +599,12 @@ if __name__ == '__main__':
     parser.add_argument('--hm-only', action='store_true', help='training on heatmap prediction only')
     parser.add_argument('--hm-metric', action='store_true', help='use heatmap-related evaluation metrics')
     parser.add_argument('--disable-half', action='store_true', help='disable FP16 half-precision training')
+    parser.add_argument('--selector-loss', type=str, default='upstream', choices=('upstream', 'coverage'),
+                         help="'upstream': official weighted BCE only (E1.0 baseline). "
+                              "'coverage': adds HESOD object-level soft coverage loss + pos_weight boost "
+                              "(HESOD-Proposal.md SS3.3/SS5.4)")
+    parser.add_argument('--lambda-cov', type=float, default=0.5, help='coverage loss weight (selector_loss=coverage only)')
+    parser.add_argument('--pos-weight', type=float, default=2.0, help='mask BCE positive-class weight (selector_loss=coverage only)')
     opt = parser.parse_args()
 
     # Set DDP variables

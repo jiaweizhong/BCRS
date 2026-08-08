@@ -29,6 +29,7 @@ import torch.nn.functional as F
 import yaml
 from tqdm import tqdm
 
+from models.common import HeatMapParser
 from models.experimental import attempt_load
 from utils.datasets import create_dataloader, norm_imgs
 from utils.general import coco80_to_coco91_class, check_dataset, check_file, check_img_size, check_requirements, \
@@ -66,6 +67,8 @@ def test(data,
          use_gt=True,
          sparse_head=False,
          hm_metric=False,
+         top_k=None,
+         hm_threshold=None,
          opt=None):
     # Initialize/load model and set device
     training = model is not None
@@ -90,6 +93,19 @@ def test(data,
         imgsz = check_img_size(imgsz, s=gs)  # check img_size TODO: 32 or 64
         if opt.compute_loss:
             compute_loss = ComputeLoss(model)
+
+        # HESOD routing config: apply --top-k / --hm-threshold to every
+        # HeatMapParser in the model. top_k switches from upstream
+        # fixed-threshold, dynamic-count routing to exact Top-K (Proposal
+        # SS5.6 Action Space A); omitting it preserves upstream behavior.
+        if top_k is not None and not (1 <= top_k <= 64):
+            raise ValueError(f'--top-k must be in [1, 64], got {top_k}')
+        for m in model.model:
+            if isinstance(m, HeatMapParser):
+                if top_k is not None:
+                    m.top_k = top_k
+                if hm_threshold is not None:
+                    m.threshold = hm_threshold
 
         # Multi-GPU disabled, incompatible with .half() https://github.com/ultralytics/yolov5/issues/99
         # if device.type != 'cpu' and torch.cuda.device_count() > 1:
@@ -296,11 +312,17 @@ def test(data,
 
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
-    if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
-        ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
-        mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+    # HESOD local patch: upstream gated nt (labels-per-class count) behind
+    # `stats[0].any()`, so any batch with zero IoU>0.5 hits (routine in early
+    # epochs) displayed "Labels: 0" and a nan BPR even though the real label
+    # count (and BPR denominator) was never zero. Decouple nt from the
+    # has-any-hit check; mp/mr/map50/map already default to 0.0 above.
+    if len(stats):
         nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
+        if stats[0].any():
+            p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+            ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
+            mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
     else:
         nt = torch.zeros(1)
     bpr, occupy = statistic_items[0] / nt.sum(), (statistic_items[1] + 1e-6) / (statistic_items[2] + 1e-6)
@@ -424,6 +446,12 @@ if __name__ == '__main__':
     parser.add_argument('--compute-loss', action='store_true', help='compute loss')
     parser.add_argument('--sparse-head', action='store_true', help='use sparse detection head')
     parser.add_argument('--hm-metric', action='store_true', help='use heatmap-related evaluation metrics')
+    parser.add_argument('--top-k', type=int, default=None,
+                         help='HESOD exact Top-K patch routing (Proposal SS5.6), range [1,64]; '
+                              'omit for upstream fixed-threshold, dynamic-count routing')
+    parser.add_argument('--hm-threshold', type=float, default=None,
+                         help='override the selector heatmap threshold baked into the model cfg '
+                              '(upstream fixed-threshold routing only; ignored when --top-k is set)')
     opt = parser.parse_args()
     opt.save_json |= opt.data.endswith('coco.yaml')
     opt.data = check_file(opt.data)  # check file
@@ -448,6 +476,8 @@ if __name__ == '__main__':
              use_gt=opt.use_gt,
              sparse_head=opt.sparse_head,
              hm_metric=opt.hm_metric,
+             top_k=opt.top_k,
+             hm_threshold=opt.hm_threshold,
              opt=opt
              )
 
