@@ -118,8 +118,8 @@ This document records technical bugs discovered in the ESOD vendor source code (
 - **Symptom**: `Predictions: 0` during validation in early to mid epochs or when `--sparse-head` is enabled, preventing candidate boxes from reaching the detection head and reporting mAP.
 - **Root Cause**:
   Both `HeatMapParser` (`threshold = 0.5`) and `Detect.get_indices` (`thresh = 0.3`) used strict hard thresholds to activate feature patch regions and sparse convolution indices. When predicted heatmap values `mask_pred` were relatively low (< 0.3), zero pixels passed the threshold, causing `ada_slicer_fast` to return `[torch.zeros((0, 4))]` or `get_indices` to yield empty indices (`Predictions: 0`).
-- **Fix**:
-  Added dynamic threshold fallbacks in `ada_slicer`/`ada_slicer_fast` (`vendor/esod/models/common.py`) and `Detect.get_indices` (`vendor/esod/models/yolo.py`). If zero pixels exceed `threshold`, the system dynamically relaxes the activation threshold to relative local maxima (`max(0.05, float(mask.max()) * 0.5)`), ensuring feature patches and sparse convolutions function reliably across all training and evaluation modes.
+- **Resolution (corrected 2026-08-07)**:
+  The dynamic-threshold and full-feature fallbacks were removed. They were not upstream bug fixes: they changed ESOD's published fixed-threshold inference semantics and made weak heatmaps silently select patches/features that upstream would reject. Upstream-compatible evaluation now permits zero selected patches. BCRS fixed-budget evaluation uses the separate explicit Top-K router instead of mutating the threshold.
 
 ---
 
@@ -191,13 +191,14 @@ pip install -r requirements.txt
   - [`src/bcrs/backends/esod.py#L93-L98`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L93-L98)
 - **Symptom**: Passing `--set test.top_k=16` during `bcrs test` resulted in zero predictions (`Predictions: 0`).
 - **Root Cause**:
-  1. **Threshold Fallback Failure**: `HeatMapParser` in `vendor/esod/models/common.py` natively supported only fixed threshold-based patch selection (`mask_pred >= threshold`). When raw heatmap output values were below `threshold = 0.5`, zero patches were selected, causing `ada_slicer_fast` to return empty cluster lists (`Predictions: 0`).
-  2. **Unparsed CLI Arguments**: `vendor/esod/test.py` lacked `--top-k` and `--hm-threshold` CLI flags and did not pass `topk_patches` to `HeatMapParser` instances.
-  3. **Adapter Propagation Gap**: `EsodAdapter` in `src/bcrs/backends/esod.py` did not forward `top_k` or `hm_threshold` settings from `ExperimentConfig` to `test.py`.
-  1. **Top-K Patch Slicing**: Updated `HeatMapParser` and `ada_slicer_fast` in `vendor/esod/models/common.py`. When `topk` is specified, `ada_slicer_fast` computes 2D max pooled patch scores and dynamically calculates the cutoff score to select the exact Top-$K$ highest response patches per image.
-  2. **Pixel Index Fallback**: Updated `Detect.get_indices` in `vendor/esod/models/yolo.py` with an automatic fallback (`if not indices.any(): indices = torch.ones_like(mask)`). If sub-patch local-maxima filtering returns zero hit pixels, it preserves full patch features across all selected Top-$K$ patches.
-  3. **CLI Argument Parser**: Added `--top-k` and `--hm-threshold` arguments to `vendor/esod/test.py` and configured `topk_patches` and `threshold` attributes on `HeatMapParser` modules when `--sparse-head` is active.
-  4. **Backend Adapter Forwarding**: Updated `EsodAdapter` in `src/bcrs/backends/esod.py` to forward `top_k` and `hm_threshold` configuration options seamlessly during `bcrs test`.
+  1. `vendor/esod/test.py` initially lacked `--top-k` and `--hm-threshold` CLI flags.
+  2. Top-K was later implemented as “K-th cell score → global pixel cutoff”. Tied scores could activate more than K cells, so it was not an exact budget.
+  3. Parser configuration was incorrectly nested under `--sparse-head`, coupling two independent mechanisms.
+- **Fix (corrected 2026-08-07)**:
+  1. `models/routing.py` ranks coarse cells by their maximum response and marks exactly one representative peak in each of the best K cells; stable ordering makes ties deterministic.
+  2. Top-K is enabled only by an explicit positive `top_k` / `patch_budget`. Omitting it preserves upstream fixed-threshold, dynamic-count routing.
+  3. `HeatMapParser` routing is configured independently of SparseHead. `--sparse-head` is emitted only when the experiment explicitly requests it.
+  4. Budgets outside `[1, 64]` are rejected at the adapter boundary.
 
 ---
 
@@ -235,7 +236,7 @@ pip install -r requirements.txt
 
 ---
 
-## 12. Sparse Head Flag Requirement Gate for Top-K Evaluation
+## 12. Top-K / SparseHead Coupling (Reverted)
 
 - **Locations**:
   - [`src/bcrs/backends/esod.py#L90-L105`](file:///c:/Users/jiawe/Repos/BCRS/BCRS/src/bcrs/backends/esod.py#L90-L105)
@@ -243,13 +244,8 @@ pip install -r requirements.txt
 - **Symptom**: Passing `--top-k 16` during evaluation failed to activate patch pruning, executing in unconstrained dense mode (`Occupy: 1.04`, 260,713 predictions).
 - **Root Cause**:
   In `vendor/esod/test.py`, the patch selection initialization logic (`m.topk_patches = opt.top_k`) was nested inside `if sparse_head:`. If `--sparse-head` was omitted from the command line, `test.py` ignored `opt.top_k` and executed the dense backbone pipeline.
-- **Fix**:
-  Updated `EsodAdapter` in `src/bcrs/backends/esod.py` to automatically inject `--sparse-head` whenever `top_k` / `patch_budget` is set to a value $> 0$:
-  ```python
-  is_sparse = bool(section.get("sparse_head", False)) or (top_k is not None and int(top_k) > 0)
-  if is_sparse:
-      argv.append("--sparse-head")
-  ```
+- **Resolution (corrected 2026-08-07)**:
+  Parser setup was moved outside the `if sparse_head` block. Top-K now works with either a dense or sparse detection head, and the adapter no longer silently enables SparseHead. This preserves each experiment's declared network path while keeping Top-K a BCRS-only routing option.
 
 ---
 

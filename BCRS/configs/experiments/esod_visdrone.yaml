@@ -28,8 +28,9 @@ train:
 
 test:
   checkpoint: work_dirs/esod_visdrone_yolov5m/weights/best.pt
-  batch_size: 1
+  batch_size: 8
   image_size: 1536
   sparse_head: false
+  hm_threshold: 0.5
   hm_metric: false
   save_json: true

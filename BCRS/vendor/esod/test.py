@@ -130,14 +130,16 @@ def test(
     # Configure
     if sparse_head:
         model.model[-1].set_sparse()
-        from models.common import HeatMapParser
 
-        for m in model.modules():
-            if isinstance(m, HeatMapParser):
-                if hasattr(opt, "top_k") and opt.top_k > 0:
-                    m.topk_patches = opt.top_k
-                if hasattr(opt, "hm_threshold") and opt.hm_threshold > 0:
-                    m.threshold = opt.hm_threshold
+    from models.common import HeatMapParser
+
+    for m in model.modules():
+        if isinstance(m, HeatMapParser):
+            # Upstream ESOD is fixed-threshold/dynamic-count routing. Exact Top-K
+            # is enabled only when the BCRS-only flag is explicitly positive.
+            m.topk_patches = opt.top_k if opt is not None and opt.top_k > 0 else None
+            if opt is not None and opt.hm_threshold > 0:
+                m.threshold = opt.hm_threshold
     model.eval()
     if isinstance(data, str):
         is_coco = data.endswith("coco.yaml")
@@ -744,7 +746,11 @@ if __name__ == "__main__":
         help="use heatmap-related evaluation metrics",
     )
     parser.add_argument(
-        "--top-k", "--topk", type=int, default=0, help="top-k patches to select"
+        "--top-k",
+        "--topk",
+        type=int,
+        default=0,
+        help="BCRS-only exact patch budget; 0 keeps ESOD fixed-threshold routing",
     )
     parser.add_argument(
         "--hm-threshold", type=float, default=0.0, help="heatmap activation threshold"

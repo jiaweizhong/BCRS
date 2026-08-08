@@ -1,566 +1,300 @@
-# BCRS Experiment Plan
+# BCRS Experiment Plan — Audited
 
-**Source:** `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md`  
-**Status:** Phase 2 FULLY COMPLETED (VisDrone — all 7 models E1.0–E2.9 swept across $K \in \{16,32,48,64\}$ with real fvcore `task=measure` profiling, 2026-08-07); E2.9 Channel-Pooled Concat established as **best-in-class primary architecture (0.507 mAP@0.5, 70.2% VTiny recall, 81.1% Total recall at 19.5ms P50 latency)**; E2.5 Spectral-Only confirms spectral alone is insufficient without spatial evidence.  
-**Metric Protocol Strategy:**
-- **Main Paper Benchmark**: **`mAP@0.5`** (ESOD/YOLOv5 native protocol, matching the IEEE TIP 2024 paper benchmark of 36.4%), **Patch BPR ($BPR_{\text{box}}$)**, and **Very Tiny Target Recall ($<16^2\text{px}$)**.
-- **Appendix / Supplementary Material**: PyCOCOtools standard COCO metrics (**`AP50`**, **`AP[.5:.95]`**, **`AR500`**).
+**Source of research requirements:** `BCRS-Proposal.md`
 
----
+**Audit date:** 2026-08-07
 
-## 0. Baseline Benchmark & Execution Tracking
-
-### Verification & Dual-Evidence Summary (50-Epoch VisDrone)
-
-| Metric | Target / Claim | Baseline ESOD | BCRS Dual-Evidence (E2.9) | Delta / Improvement | Paper Section Alignment |
-|---|---|---|---|---|---|
-| **mAP@0.5 (Primary)** | $\ge 0.360$ (Paper 640p) | **0.3670 (36.7%)** | **0.5070 (50.7%)** | **+14.0% (+38.1% rel)** | **Main Paper Main Table** (Matches ESOD paper 36.4%) |
-| **Patch BPR ($BPR_{\text{box}}$)**| $\ge 0.800$ | **0.6070 (60.7%)** | **0.8540 (85.4%)** | **+24.7%** | **Main Paper Main Table** (Patch coverage) |
-| **Very Tiny Recall ($<16^2$)**| Audit Target | **49.28% (5,892)** | **70.20% (8,392)** | **+20.92% (+2,500 objects)** | **Main Paper Audit Table** (Hardest tiny objects) |
-| **Tiny Recall ($16^2 \sim 32^2$)**| Class Audit | **62.29% (9,114)** | **82.23% (12,031)** | **+19.94% (+2,917 objects)** | **Main Paper Audit Table** (Tiny targets) |
-| **Total GT Recall**| Benchmark | **61.25% (23,740)** | **81.07% (31,423)** | **+19.82% (+7,683 targets)**| **Main Paper Audit Table** (Overall target recovery) |
-| **PyCOCO AP50 (Appendix)**| COCO Standard | **0.084** | **0.114** | **+0.030 (+35.7% rel)** | **Appendix** (COCO API evaluation) |
-| **Real GFLOPs (fvcore)** | Parity | **258.6 GFLOPs** | **259.6 GFLOPs** | **+1.0 GFLOP (+0.38%)** | **Main Paper Efficiency Table** (Virtual compute parity) |
-| **Inference Latency P50** | $< 20.0\text{ms}$ | **19.1ms / img** | **19.5ms / img** | **+0.4ms overhead** | **Main Paper Efficiency Table** (Batch size 1, RTX 5090) |
+**Audited artifacts:** `results/**/run.log`, `results/**/best_predictions.json`, `results/**/buckets.json`, the ESOD validation/inference path, and the post-hoc failure-audit path.
+**Current status:** the 7-model × 4-requested-budget VisDrone inference sweep is complete, but the metric/data validation gate is reopened. E2.9 is the best model **inside the local sweep**; paper-parity, SOTA, official COCO, strict fixed-budget, and size-bin recall claims are not yet validated.
 
 ---
 
-### 0.1 SOTA Competitor Analysis & Baseline Reproduction Strategy
+## 0. Audit outcome and corrected headline
 
-#### VisDrone Benchmark SOTA Comparison Table
+The previous plan mixed two different metric columns:
 
-| 论文 / 方法 | 论文出处 | 核心机制 / 架构 | 算力 / 参数量 | VisDrone mAP@0.5 | 极小目标召回率 (VTiny Recall) | BCRS 能否 Beat 并超越？ |
-|---|---|---|---|---|---|---|
-| **ESOD Baseline** | IEEE TIP 2024 | 浅层 $1\times 1$ Semantic + AdaSlicer | 258.6 GFLOPs | 36.4% (论文) / **36.7% (实测)** | 49.3% | 绝对 Beat (+14.0% mAP) 💥 |
-| **QueryDet** | CVPR 2022 | 级联稀疏 Query Head (FPN级) | 依赖高分辨率 | ~26.6% (AP50) | 低 (背景冗余大) | 绝对 Beat (BCRS 从 Stem 剪枝) |
-| **CEASC** | ECCV 2022 | AMM 逐层激活掩码 | 仅稀疏 Head | ~30.1% (AP50) | 存在漏检风险 | 绝对 Beat (BCRS 包含召回安全下界) |
-| **DM-EFS** | ICCV 2025 | YOLOv7 动态特征复用 (DFM) | 640p 限制 | 51.8% (AP50@640p) | 仅处理 640p 低分辨率 | 绝对 Beat (BCRS 专注 1536p 高分辨率) |
-| **HPS-DETR** | TechRxiv 2025 | RT-DETR + Faster-CGSU + CDFF | 15.5M (重头) | 49.7% (mAP@0.5) | 未做 Patch 级稀疏加速 | 绝对 Beat (+1.0% mAP, 51 FPS) ⚡ |
-| **BCRS E2.9 (Ours)** | CVPR/ECCV Target | 通道池化去噪频域 + Concat 联合融合 + $\mathcal{L}_{\text{cov}}$ 约束 | **259.6 GFLOPs (19.5ms P50)** | **50.7% (mAP@0.5)** | **70.2% (VTiny $<16^2\text{px}$)** | **SOTA 冠军 👑** |
+- local `test.py` variable `map50` / diagnostic `mAP@0.5` is **AP50**;
+- the following native table column `mAP@.5:.95` / variable `map` is **AP@[.5:.95]**.
 
-#### Baseline 复用与数据来源策略 (Baseline Reproduction Protocol)
+The ESOD paper defines the columns the same way: `AP` is averaged over IoU 0.50:0.95 and `AP50` uses IoU 0.50. Therefore the local E1.0 value `0.3669` is local **AP50**, not paper `AP=0.360`. The local E1.0 AP is `0.215`, so the current run does **not** reproduce the paper result (`AP=0.360`, `AP50=0.597`). See the [ESOD evaluation protocol](https://arxiv.org/html/2407.16424#S4.SS2).
 
-##### 1. 是否需要重新复现所有竞争对手代码？
-- **结论：不需要全部本地重跑代码！**
-- **原生基线 ESOD (IEEE TIP 2024)**：**已完成 100% 本地代码复现与评估**（50-epoch 完整训练，1536×1536 分辨率，RTX 5090 硬件，测得 36.7% mAP@0.5 / 49.3% VTiny 召回率，与 ESOD 原论文 36.4% 保持高度一致）。
-- **其他 SOTA 竞争对手 (QueryDet, CEASC, DM-EFS, HPS-DETR)**：
-  - **Main Paper 主表对比**：直接引用 published paper 官方报告数据（Paper-Reported Metrics）符合 CVPR/ECCV 顶会规范，前提是评估 Benchmark 协议一致（如 VisDrone Val set mAP@0.5）。
-  - **深层架构迁移 (Query-Adapter E5.2 / CEASC Mask-Adapter Phase 6)**：属于 **Journal Extension (IEEE TPAMI/TIP 扩展版)** 内容，会议投稿阶段无需本地重跑其完整训练代码。
+### Corrected K=64 comparison
 
-##### 2. 为什么 BCRS 能全面超越同赛道对手？（四大核心优势）
-1. **Beat ESOD (IEEE TIP 2024)**：ESOD 仅依赖浅层 $1\times 1$ Semantic 分支，82.37% 的 $<16^2\text{px}$ 极小目标在早期被错判为背景丢弃。BCRS 引入 Laplacian 通道池化去噪频域 + Concat 非零和联合融合 + 尺寸加权覆盖损失 $\mathcal{L}_{\text{cov}}$，在仅增加 **+0.38% GFLOPs (+1.0G)** 与 **+0.4ms 延迟** 下，mAP@0.5 从 36.7% $\rightarrow$ **50.7% (+14.0% 净增)**，VTiny 召回率从 49.3% $\rightarrow$ **70.2% (+20.9pp 净增)**。
-2. **Beat QueryDet (CVPR 2022) & CEASC (ECCV 2022)**：两者仅在 Head/FPN 阶段做稀疏化，Backbone (占算力 70%+) 仍全图计算。BCRS 在 Backbone 浅层 (P3/8) 完成决策，剔除 75% 背景 Patch，剪枝更彻底 (19.5ms P50, 51 FPS)。
-3. **Beat HPS-DETR (2025 Remote Sensing DETR)**：HPS-DETR 是基于 RT-DETR 的密集小目标 Transformer (49.7% mAP@0.5)，包含昂贵 Cross-Scale Fusion 且无法动态裁剪。BCRS E2.9 精度超越 **+1.0% mAP@0.5 (50.7% vs 49.7%)**，且具备 YOLO 稀疏路由的高吞吐与低延迟。
-4. **Beat DM-EFS (ICCV 2025)**：DM-EFS 限制在 640p 分辨率，航拍中 $<16^2\text{px}$ 微小目标像素已被抹平。BCRS 专为 **1536p 高分辨率** 航拍图设计，从根源解决高分辨率算力贵与微小目标丢失的矛盾。
+| Auditable metric | E1.0 ESOD | E2.9 channel-pooled concat | Delta | Status |
+|---|---:|---:|---:|---|
+| Native AP@[.5:.95] | 0.215 | 0.299 | +0.084 (+39.1% rel) | Valid local comparison; log is rounded to 3 decimals |
+| Native AP50 | 0.3669 | 0.5071 | +0.1402 (+38.2% rel) | Valid local comparison |
+| Patch BPRbox | 0.6065 | 0.8540 | +0.2475 (+40.8% rel) | Valid selector box-coverage comparison |
+| Effective patches, mean [min,max] | 55.94 [54,56] | 55.95 [54,56] | +0.01 | Requested `K=64` is not 64 executed patches |
+| fvcore GFLOPs, artifact mean | 258.63 | 259.56 | +0.93 (+0.36%) | Artifact is internally usable; exact code revision is not recorded |
+| Model-forward latency P50/P95 | 19.07/19.86 ms | 19.50/20.92 ms | +0.43/+1.06 ms | Forward only, not end-to-end |
+| Mean inference + NMS from log | 20.8 ms | 21.7 ms | +0.9 ms (+4.3%) | Aggregate mean, not a percentile distribution |
 
-##### 3. 论文写作定位 (CVPR/ECCV Positioning)
-- **Efficiency & Selective Compute Track**：BCRS 在与 ESOD、QueryDet、CEASC 的同算力/同等裁剪下，实现了同赛道的 SOTA 性能。
-- **Recall Safety**：BCRS 是第一个提出并解决选择器非对称漏检风险（Asymmetric Recall Risk）的选择性计算架构，在 Very Tiny 目标（$<16^2\text{px}$）上实现了前所未有的 **70.2%** 高召回率！
+**Correct claim:** E2.9 improves local native AP, AP50, and BPR over E1.0 at approximately equal executed patch count and +0.36% artifact GFLOPs, with a +0.43 ms model-forward P50 and +0.9 ms mean inference+NMS cost.
 
----
+**Claims withdrawn pending repair:** “paper baseline reproduced,” “50.7 AP / SOTA,” official PyCOCO AP/AP50/AR, 70.2% Very-Tiny recall, 81.1% total recall, “exact fixed Top-K,” “zero budget violation,” and end-to-end speedup.
 
-### Phase 0 — Infrastructure, reproduction, and problem confirmation
+### 2026-08-07 inference repair status
 
-| ID | Experiment | Runs/variables | Required outputs | Status |
-|---|---|---|---|---|
-| E0.1 | Data and metric validation | AI-TOD, VisDrone; dense detector | Dataset manifests, visual annotation audit, official metric parity | **COMPLETED** |
-| E0.2 | ESOD reproduction | Original and high-resolution dense baselines; ESOD; 50 epochs | AP/APt/APvt, FLOPs, latency, variance, checkpoints | **COMPLETED** |
-| E0.3 | Selector failure audit | Objectness quantiles × size/density/texture/light bins | Object-level coverage curves and low-objectness tiny prevalence | **COMPLETED** |
-| E0.4 | Oracle headroom | Random, objectness, GT coverage, semantic+spectral GT oracle × budget | Selector recall/AP upper-bound curves | **COMPLETED** |
-| E0.5 | Cost calibration | Patch size/count, input size, batch size, downstream modules | Latency lookup table and predicted-vs-measured residuals | **MERGED WITH PHASE 4** |
-| E0.6 | Module microbenchmarks | Sobel/Laplacian depthwise, fusion, top-k dispatch | Median/P95 latency, memory, kernels, break-even curves | **MERGED WITH PHASE 4** |
+- E1.0 now follows upstream ESOD inference: fixed `hm_threshold=0.5`, no `top_k` / `patch_budget`, and a dynamic 0–64 patch count. The canonical metric run uses batch 8 and does not enable SparseHead, matching the upstream README command.
+- BCRS Top-K is now an explicit, separate route. It performs stable coarse-cell ranking and emits exactly K patches for every feasible `K∈[1,64]`, including tied scores. Top-K no longer implicitly enables SparseHead.
+- The non-upstream low-score threshold relaxation and “empty SparseHead → full patch” fallbacks were removed. Zero selected patches are once again a valid consequence of the upstream threshold.
+- The current and upstream E1.0 model YAML/hyperparameters are byte-identical. Fresh model construction produces the same 35,842,600 parameters, 581 state-dict entries, identical state-key/shape hash, and identical 28-module class sequence. The repair changes no parameter name or tensor shape, so the existing E1.0 `best.pt` is reusable.
+- All 28 saved K-sweep rows below remain **legacy artifacts from the pre-repair router**. They are retained for audit history, not as repaired fixed-budget or ESOD-reproduction results; E1.0 must be rerun once with threshold routing, and the six BCRS models must be rerun with the corrected Top-K router.
 
 ---
 
-### Phase 1 — Fixed-budget semantic MVP and recall constraint
+## 1. Locked metric contract
 
-| ID | Comparison | Swept variables | Primary readout | Status |
-|---|---|---|---|---|
-| E1.1 | Dual-Evidence Priority Head vs Objectness | Baseline vs BCRS Dual-Evidence | BBox Precision, Recall, Very Tiny Recall | **COMPLETED** |
-| E1.2 | Coverage Supervision ($\lambda_{\text{cov}}$) | `pos_weight` & `quality_dice_loss` screen | Miss rate, P10 coverage, background ratio | **COMPLETED** |
-| E1.3 | Fixed Top-K vs Threshold routing | Patch budgets $K \in \{16, 24, 32, 48\}$ | Budget drift and latency jitter | **COMPLETED ($K=16$)** |
-| E1.4 | Pseudo-label audit | Gaussian, SAM, hybrid labels | Tiny-target coverage bias by size/objectness bin | **COMPLETED** |
-
-#### E0.3 Target Failure Audit Breakdown for E2.9 (VisDrone Val @ K=64)
-
-##### 1. Size-Bin Recall Breakdown (Baseline ESOD vs BCRS Channel-Pooled Concat E2.9)
-| Size Category | Area Range | GT Count | ESOD Baseline Recalled (K=64) | BCRS E2.9 Recalled (K=64) | Recall Rate (%) | Delta vs Baseline |
-|---|---|---|---|---|---|---|
-| **Very Tiny** | $< 16 \times 16\text{ px}$ | 11,955 | 5,892 (49.28%) | 8,392 | **70.20%** | **+2,500 objects (+20.92%)** |
-| **Tiny** | $16 \times 16 \sim 32 \times 32\text{ px}$ | 14,631 | 9,114 (62.29%) | 12,031 | **82.23%** | **+2,917 objects (+19.94%)** |
-| **Small** | $32 \times 32 \sim 96 \times 96\text{ px}$ | 11,105 | 7,720 (69.52%) | 9,992 | **89.98%** | **+2,272 objects (+20.46%)** |
-| **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 1,014 (94.94%) | 1,008 | **94.38%** | -6 objects (-0.56%) |
-| **TOTAL** | — | **38,759** | **23,740 (61.25%)** | **31,423** | **81.07%** | **+7,683 objects (+19.82%)** |
-
-##### 2. Class-Bin Recall Breakdown (BCRS Channel-Pooled Concat E2.9 @ K=64)
-| Class Name | GT Count | BCRS E2.9 Recalled | BCRS E2.9 Recall Rate (%) | Primary Audit Observation |
-|---|---|---|---|---|
-| `pedestrian` | 8,844 | 6,749 | **76.31%** | Substantial recovery of small pedestrian instances |
-| `people` | 5,125 | 3,707 | **72.33%** | Significant improvement in dense non-rigid crowd groups |
-| `bicycle` | 1,287 | 908 | **70.55%** | Thin wireframe structures captured by spectral filter |
-| `car` | 14,064 | 12,518 | **89.01%** | Very high recall across all distances |
-| `van` | 1,975 | 1,646 | **83.34%** | Reliable detection of medium vehicles |
-| `truck` | 750 | 599 | **79.87%** | Good coverage under background clutter |
-| `tricycle` | 1,045 | 765 | **73.21%** | Improved recall on complex overlapping forms |
-| `awning-tricycle` | 532 | 353 | **66.35%** | Enhanced canopy and low-contrast feature extraction |
-| `bus` | 251 | 202 | **80.48%** | Robust detection despite occasional occlusions |
-| `motor` | 4,886 | 3,976 | **81.38%** | High recall on dynamic small two-wheelers |
-
----
-
-### Phase 0 Gate Assessment: **PASSED — GREEN LIGHT FOR PHASE 1 GO**
-- **ESOD Reproduction**: Verified ($36.7\%\text{ mAP@0.5}$ sparse K=64, $60.7\%\text{ Patch BPR}$, $19.1\text{ms}$ latency).
-- **Selector Failure Audit**: Confirmed (61.6% of missed targets concentrated in Very Tiny $<16^2\text{px}$).
-- **Oracle Headroom**: Confirmed ($85.49\%$ recall at $25\%$ budget; $95.97\%$ recall at $50\%$ budget).
-
----
-
-### Phase 1 — Fixed-budget semantic MVP and recall constraint
-
-#### Very Tiny (<16x16) Target Recall Enhancement Strategy
-
-##### Empirical Findings at $K=16$ Budget (25% Compute, Occupy = 0.296)
-- **Dense Baseline ($K=64$)**: 61.25% total recall, **49.28% Very Tiny recall** (selector bypassed).
-- **Un-supervised Objectness Selector ($K=16$)**: 13.20% total recall (5,116 GT), **10.92% Very Tiny recall** (1,306 GT), 10.5ms latency.
-- **Coverage-Supervised Selector ($\lambda_{\text{cov}}=0.5$, $\text{pos\_weight}=2.0$, Top-16 Budget, E2.1)**: **24.29% total recall** (9,413 GT), **20.43% Very Tiny recall** (2,443 GT), **10.9ms latency**.
-- **BCRS Channel-Pooled Concat (E2.9 Top-16 Budget)**: **43.91% total recall** (17,020 GT), **40.22% Very Tiny recall** (4,808 GT), **10.5ms latency** (nearly 4x Very Tiny recall of baseline).
-- **GT Oracle Upper Bound ($K=16$)**: **85.49% recall** (from E0.4 Oracle headroom analysis).
-
-##### E1.2 & E1.3 Target Failure Audit Comparison ($K=16$ Top-16 Budget)
-
-| Size Category | Area Range | GT Count | Unsupervised $K=16$ Recalled | Coverage-Supervised $K=16$ (E2.1) | Channel-Pooled Concat $K=16$ (E2.9) | E2.9 Recall Rate (%) | Target Recall Delta vs Baseline | GT Oracle Upper Bound ($K=16$) |
-|---|---|---|---|---|---|---|---|---|
-| **Very Tiny** | $< 16 \times 16\text{ px}$ | 11,955 | 1,306 (10.92%) | 2,443 (20.43%) | **4,808** | **40.22%** | **+3,502 targets (+29.30%)** | ~70.0% |
-| **Tiny** | $16 \times 16 \sim 32 \times 32\text{ px}$ | 14,631 | 1,841 (12.58%) | 3,608 (24.66%) | **6,451** | **44.09%** | **+4,610 targets (+31.51%)** | ~88.0% |
-| **Small** | $32 \times 32 \sim 96 \times 96\text{ px}$ | 11,105 | 1,682 (15.15%) | 2,988 (26.91%) | **5,249** | **47.27%** | **+3,567 targets (+32.12%)** | ~95.0% |
-| **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 287 (26.87%) | 374 (35.02%) | **512** | **47.94%** | **+225 targets (+21.07%)** | ~97.0% |
-| **TOTAL** | — | **38,759** | **5,116 (13.20%)** | **9,413 (24.29%)** | **17,020** | **43.91%** | **+11,904 targets (+30.71%)** | **85.49%** |
-
-##### E1.3 Latency Jitter & Budget Variance Benchmark (VisDrone Val 548 Images, 1536×1536, RTX 5090)
-
-| Routing Mode / Model Variant | Patch Budget ($K$) | Budget Variance ($\sigma_K^2$) | GFLOPs (fvcore) | P50 Latency (ms) | P95 Latency (ms) | Latency StdDev ($\sigma$) | Industrial Deployment & Jitter Status |
-|---|---|---|---|---|---|---|---|
-| **ESOD Dynamic Threshold (`thresh=0.5`)** | $4 \sim 56$ (mean 23.4) | 112.50 | ~135.0 G | 12.60 ms | 21.80 ms | **4.62 ms** | 🚨 **Severe Latency Jitter** ($\text{P95/P50} = 1.73\times$) |
-| **BCRS Top-16 Budget ($K=16$, E2.9)** | **16 (fixed)** | **0.00** | **114.1 G** | **10.54 ms** | **11.48 ms** | **0.63 ms** | ⚡ **Zero-Jitter Ultra-Stable** ($\sigma \downarrow 7.3\times$) |
-| **BCRS Top-32 Budget ($K=32$, E2.9)** | **32 (fixed)** | **0.00** | **162.6 G** | **13.62 ms** | **14.71 ms** | **0.57 ms** | ⚡ **Deterministic Real-Time Stream** (73.4 FPS) |
-| **BCRS Top-48 Budget ($K=48$, E2.9)** | **48 (fixed)** | **0.00** | **211.1 G** | **16.51 ms** | **17.65 ms** | **0.61 ms** | ⚡ **Deterministic High-Accuracy** (60.6 FPS) |
-| **BCRS Top-64 Budget ($K=64$, E2.9)** | **64 (fixed)** | **0.00** | **259.6 G** | **19.46 ms** | **20.97 ms** | **0.65 ms** | ⚡ **Full Precision SOTA Operating Point** |
-
-> **Key Discovery for E1.3 Hypothesis**:
-> 1. **Dynamic Threshold Flaw**: Threshold-based routing causes patch budget drift ($\sigma_K^2 = 112.50$) and high latency jitter ($\sigma = 4.62\text{ms}$, P95/P50 ratio $1.73\times$), risking frame drops in real-time streams during complex drone scenes.
-> 2. **Fixed Top-K Guarantee**: BCRS fixed Top-$K$ budget routing eliminates budget drift ($\sigma_K^2 = 0.00$) and reduces latency variance by **$7.3\times$** ($\sigma \le 0.65\text{ms}$ across all budgets $K \in \{16, 32, 48, 64\}$), delivering deterministic, steady-state industrial deployment.
->
-> **Profiling Status**: Full 28-run sweep executed with `test.task=measure` using `fvcore.nn.FlopCountAnalysis`. Per-image latency percentile distributions (P50, P95, StdDev) and real fvcore GFLOPs are fully populated in `results/sweep_results.json`.
-
-##### Key Insights & Takeaways from Top-16 Enhanced Experiment (`bcrs_dual_evidence_visdrone_yolov5m_test_top16`)
-1. **Significant Target Recovery (+1,170 GT Targets)**: Introducing Size-Weighted Coverage Loss ($\mathcal{L}_{\text{cov}}$) recovered **+1,170 additional ground truth targets** (+3.02% overall recall, **+335 Very Tiny targets**) under the exact same 25% compute budget constraint ($K=16$).
-2. **Efficiency Parity / Speedup**: Inference latency improved from **13.0 ms** to **12.5 ms / img**, demonstrating that coverage supervision improves selection quality without adding any runtime latency overhead.
-3. **Class-Bin Gains**: Non-rigid and low-contrast classes achieved substantial gains: `awning-tricycle` (+5.83% recall, 114 vs 83), `bus` (+9.17% recall, 71 vs 48), `car` (+608 targets, 3,894 vs 3,286), `pedestrian` (+172 targets, 1,959 vs 1,787).
-4. **Remaining Oracle Headroom Gap (+61.20%)**: Despite the +3.02% recall enhancement, the gap to GT Oracle (85.49%) remains wide at $K=16$. This further highlights the necessity of **Phase 2 Dual-Evidence Spectral Fusion (E2.1-E2.5)** and dynamic budget routing ($K=24, 32$) to capture low-objectness texture features.
-
-> **Note on Evaluation Metric Sources**: All models in the budget curve and evaluation tables are evaluated using both ESOD-native `mAP@0.5` (Main Paper Table) and PyCOCOtools `AP50` (Appendix). Source of truth: `results/sweep_results.json`.
-
-#### E0.3 Target Failure Audit Breakdown for E2.9 (VisDrone Val @ K=64)
-
-##### 1. Size-Bin Recall Breakdown (Baseline ESOD vs BCRS Channel-Pooled Concat E2.9)
-| Size Category | Area Range | GT Count | ESOD Baseline Recalled (K=64) | BCRS E2.9 Recalled (K=64) | Recall Rate (%) | Delta vs Baseline |
-|---|---|---|---|---|---|---|
-| **Very Tiny** | $< 16 \times 16\text{ px}$ | 11,955 | 5,892 (49.28%) | 8,392 | **70.20%** | **+2,500 objects (+20.92%)** |
-| **Tiny** | $16 \times 16 \sim 32 \times 32\text{ px}$ | 14,631 | 9,114 (62.29%) | 12,031 | **82.23%** | **+2,917 objects (+19.94%)** |
-| **Small** | $32 \times 32 \sim 96 \times 96\text{ px}$ | 11,105 | 7,720 (69.52%) | 9,992 | **89.98%** | **+2,272 objects (+20.46%)** |
-| **Medium / Large** | $> 96 \times 96\text{ px}$ | 1,068 | 1,014 (94.94%) | 1,008 | **94.38%** | -6 objects (-0.56%) |
-| **TOTAL** | — | **38,759** | **23,740 (61.25%)** | **31,423** | **81.07%** | **+7,683 objects (+19.82%)** |
-
-##### 2. Class-Bin Recall Breakdown (BCRS Channel-Pooled Concat E2.9 @ K=64)
-| Class Name | GT Count | BCRS E2.9 Recalled | BCRS E2.9 Recall Rate (%) | Primary Audit Observation |
-|---|---|---|---|---|
-| `pedestrian` | 8,844 | 6,749 | **76.31%** | Substantial recovery of small pedestrian instances |
-| `people` | 5,125 | 3,707 | **72.33%** | Significant improvement in dense non-rigid crowd groups |
-| `bicycle` | 1,287 | 908 | **70.55%** | Thin wireframe structures captured by spectral filter |
-| `car` | 14,064 | 12,518 | **89.01%** | Very high recall across all distances |
-| `van` | 1,975 | 1,646 | **83.34%** | Reliable detection of medium vehicles |
-| `truck` | 750 | 599 | **79.87%** | Good coverage under background clutter |
-| `tricycle` | 1,045 | 765 | **73.21%** | Improved recall on complex overlapping forms |
-| `awning-tricycle` | 532 | 353 | **66.35%** | Enhanced canopy and low-contrast feature extraction |
-| `bus` | 251 | 202 | **80.48%** | Robust detection despite occasional occlusions |
-| `motor` | 4,886 | 3,976 | **81.38%** | High recall on dynamic small two-wheelers |
-
----
-
-### Phase 2 — Dual-evidence mechanism
-
-Use a two-stage funnel to avoid an uncontrolled Cartesian product.
-
-| ID | Decisive comparison | Control rule | Pass evidence | Status |
-|---|---|---|---|---|
-| E2.1 | Semantic + spectral vs semantic-only | Match selector params/FLOPs | Low-objectness tiny recall gain | **COMPLETED** — Semantic-only (coverage-supervised baseline) |
-| E2.2 | Fused vs spectral-only/objectness/random | Exact same top-k | Better selector-recall and APt frontier | **COMPLETED** |
-| E2.3 | Concat vs Gated Fusion | Match width/params/training | Concat fusion superiority over gated | **COMPLETED** |
-| E2.4 | Fusion variants | Match output action and budget | Gain justifies added measured latency | **COMPLETED** — Gated dual-evidence arm |
-| E2.5 | Spectral-Only (no spatial evidence) | Spectral filter alone without dual evidence | Ablation: confirm spatial evidence is necessary | **COMPLETED** — Confirmed spectral-only (44.4% VTiny recall @ K=64) is inferior to baseline (49.3%), proving spatial semantic evidence is essential |
-| E2.6 | Channel-Pooled Spectral vs Standard Spectral | Channel Max/Avg Pooling + 1-ch Laplacian | Equal/better recall at reduced spectral params | **COMPLETED** — Accuracy win over standard gated (0.409 mAP@0.5 vs 0.399) via spectral signal denoising |
-| E2.7 | Multi-Scale P2/4 Saliency vs Spectral Evidence | P2/4 high-res shallow feature fusion vs spectral filters | Higher Very Tiny recall with zero texture noise | **PROPOSED, deprioritized** — E2.6/E2.9 already handle texture noise cleanly |
-| E2.8 | Two-Stage Cascaded Routing | 50% coarse semantic pruning + fine Top-K evidence selection | 50% selector FLOPs reduction with zero recall drop | **PROPOSED** |
-| E2.9 | Channel-Pooled Concat | Concat fusion (union) + denoised channel-pooled spectral branch | Best overall performance across all budgets | **COMPLETED (SOTA WINNER)** — Dominates all metrics: **0.507 mAP@0.5, 70.2% VTiny recall, 81.1% Total GT recall @ K=64**, +0.38% real GFLOPs overhead |
-
-#### Budget Curve — VisDrone Val, K ∈ {16, 32, 48, 64} (`tools/inference_sweep.sh`, 2026-08-07)
-
-> Full 7-model × 4-budget sweep (28 runs). Source of truth: `work_dirs/sweep_results.json`, built from run logs.
->
-> **Complete Design Space Sweep (2026-08-07):** E2.5 (Spectral-Only) and E2.9 (Channel-Pooled Concat) sweeps are complete. E2.9 establishes a dramatic SOTA performance across all budgets, while E2.5 confirms spectral evidence alone (without spatial semantic priors) is insufficient.
-
-**Very Tiny Recall (<16×16 px)**
-
-| Exp | Model | K=16 | K=32 | K=48 | K=64 |
-|---|---|---|---|---|---|
-| E1.0 | ESOD Baseline | 10.9% | 23.1% | 35.7% | 49.3% |
-| E2.1 | BCRS Semantic-Only (Coverage-Supervised) | 20.4% | 34.4% | 46.2% | 56.7% |
-| E2.3 | BCRS Dual Evidence Concat | 27.2% | 39.7% | 48.9% | 57.6% |
-| E2.4 | BCRS Dual Evidence Gated | 18.9% | 31.7% | 42.5% | 55.3% |
-| E2.5 | BCRS Spectral-Only | 12.6% | 22.6% | 32.0% | 44.4% |
-| E2.6 | BCRS Channel-Pooled Spectral (Gated) | 19.0% | 32.6% | 43.6% | 57.7% |
-| **E2.9** | **BCRS Channel-Pooled Concat** | **40.2%** | **54.3%** | **62.8%** | **70.2%** |
-
-**Total GT Recall**
-
-| Exp | Model | K=16 | K=32 | K=48 | K=64 |
-|---|---|---|---|---|---|
-| E1.0 | ESOD Baseline | 13.2% | 28.2% | 43.3% | 61.2% |
-| E2.1 | BCRS Semantic-Only (Coverage-Supervised) | 24.3% | 40.9% | 54.7% | 67.5% |
-| E2.3 | BCRS Dual Evidence Concat | 29.4% | 45.3% | 56.3% | 67.2% |
-| E2.4 | BCRS Dual Evidence Gated | 22.4% | 37.9% | 51.2% | 65.9% |
-| E2.5 | BCRS Spectral-Only | 18.0% | 31.0% | 42.1% | 58.5% |
-| E2.6 | BCRS Channel-Pooled Spectral (Gated) | 21.9% | 38.2% | 52.1% | 66.6% |
-| **E2.9** | **BCRS Channel-Pooled Concat** | **43.9%** | **61.5%** | **72.7%** | **81.1%** |
-
-> **Reading the curve:**
-> - **E2.9 Channel-Pooled Concat** completely dominates the trade-off curve at every budget $K \in \{16, 32, 48, 64\}$. At $K=16$ (25% compute budget), E2.9 achieves **40.2% VTiny recall** (nearly 4x baseline E1.0's 10.9%). At $K=64$, E2.9 reaches **70.2% VTiny recall** and **81.1% Total GT recall**.
-> - **E2.5 Spectral-Only** proves that high-pass frequency filtering alone without semantic spatial guidance underperforms the ESOD baseline (44.4% vs 49.3% VTiny recall at K=64), confirming that spectral evidence serves as a high-frequency complement, not a replacement for spatial semantic saliency.
-
-#### K=64 Sparse Inference Results — VisDrone Val (Primary Claim Benchmark)
-
-| Model | Exp | mAP@0.5 | BPR@K64 | PyCOCO AP50 | PyCOCO AP[.5:.95] | AR@500 | Very Tiny Recall (<16px) | Tiny Recall | Total Recall |
-|---|---|---|---|---|---|---|---|---|---|
-| ESOD Baseline | E1.0 | 0.367 | 0.607 | 0.084 | 0.044 | 0.164 | 49.3% | 62.3% | 61.2% |
-| BCRS Semantic-Only | E2.1 | 0.403 | 0.682 | 0.094 | 0.050 | 0.178 | 56.7% | 68.3% | 67.5% |
-| BCRS Dual Evidence Concat | E2.3 | 0.403 | 0.665 | 0.093 | 0.049 | 0.177 | 57.6% | 68.4% | 67.2% |
-| BCRS Dual Evidence Gated | E2.4 | 0.399 | 0.662 | 0.091 | 0.048 | 0.176 | 55.3% | 65.8% | 65.9% |
-| BCRS Spectral-Only | E2.5 | 0.353 | 0.566 | 0.084 | 0.044 | 0.164 | 44.4% | 60.0% | 58.5% |
-| BCRS Channel-Pooled Spectral (Gated) | E2.6 | 0.409 | 0.667 | 0.093 | 0.049 | 0.176 | 57.7% | 66.3% | 66.6% |
-| **BCRS Channel-Pooled Concat** | **E2.9** | **0.507** | **0.854** | **0.114** | **0.060** | **0.204** | **70.2%** | **82.2%** | **81.1%** |
-
-> **Key Findings & Primary Claim Confirmation (2026-08-07):**
-> 1. **E2.9 (Channel-Pooled Concat) is the overall champion**:
->    - **mAP@0.5**: **0.507** (+38.1% relative gain over ESOD baseline 0.367; +24.0% gain over previous best E2.6 0.409).
->    - **BPR@K64**: **0.854** (+40.7% relative gain over baseline 0.607; +25.2% over E2.1 0.682).
->    - **Very Tiny Recall (<16px)**: **70.2%** (+20.9pp gain over baseline 49.3%).
->    - **Total GT Recall**: **81.1%** (+19.9pp gain over baseline 61.2%).
-> 2. **Synergy of Denoised Spectral + Concat Fusion**: Combining channel pooling (which denoises the high-pass spectral filter) with concat fusion (which avoids the zero-sum trade-off of sigmoid gating) unlocks massive performance gains across all metrics.
-> 3. **Role of Spectral-Only (E2.5)**: Disabling semantic saliency drops mAP@0.5 to 0.353 and VTiny recall to 44.4% (worse than baseline), proving spectral evidence is an auxiliary signal that MUST be grounded by spatial semantic priors.
-
-#### Real Measured Efficiency (task=measure, fvcore, actual 1536×1536 eval resolution) — K=64
-
-> Measured using `test.py --task measure` with `fvcore.nn.FlopCountAnalysis` on real 1536×1536 VisDrone images (548 val images, BS=1).
-
-| Exp | Model | Real GFLOPs | FPS | Lat P50 (ms) | Lat P95 (ms) | Lat StdDev (ms) | Δ GFLOPs vs E1.0 |
-|---|---|---|---|---|---|---|---|
-| E1.0 | ESOD Baseline | 258.6 | 52.2 | 19.1 | 19.9 | 0.45 | — |
-| E2.1 | BCRS Semantic-Only | 258.8 | 51.5 | 19.3 | 20.2 | 0.57 | +0.08% |
-| E2.3 | BCRS Dual Evidence Concat | 266.1 | 50.2 | 19.8 | 21.3 | 0.59 | +2.90% |
-| E2.4 | BCRS Dual Evidence Gated | 269.2 | 50.0 | 19.9 | 21.2 | 0.64 | +4.10% |
-| E2.5 | BCRS Spectral-Only | 266.1 | 48.9 | 20.3 | 21.5 | 0.73 | +2.90% |
-| E2.6 | BCRS Channel-Pooled Spectral (Gated) | 262.6 | 50.8 | 19.6 | 20.7 | 0.59 | +1.55% |
-| **E2.9** | **BCRS Channel-Pooled Concat** | **259.6** | **51.0** | **19.5** | **21.0** | **0.65** | **+0.38%** |
-
-> **Efficiency Takeaway**: E2.9 delivers a +14.0pp mAP@0.5 jump and +20.9pp Very Tiny Recall boost for only **+1.0 GFLOP (+0.38% overhead)** and **0.4ms latency overhead (19.5ms P50 vs 19.1ms)** at 51.0 FPS.
-
-#### Hardware & Computational Efficiency Analysis: Why E2.9 Beats E2.4 / E2.5 / E2.6 in Latency & FLOPs
-
-##### 1. 频域降维机制 (Channel Pooling 95%+ 算力压缩)
-- **E2.4 / E2.5 (未池化全通道滤波 `MultiKernelSpectralFilter`)**：在 P3/8 阶段高分辨率 ($192 \times 192$) 特征图上，全通道 $C=256$ 深度卷积需在 256 个通道上做 $3\times 3$ 和 $5\times 5$ 卷积，输出 1024 通道中间特征再升降维，为整个网络额外增加了 **+7.5 ~ +10.6 GFLOPs**。
-- **E2.6 / E2.9 (通道池化 `ChannelPooledSpectralFilter`)**：利用 Max 与 Avg Pooling 将 $256 \times 192 \times 192$ 压缩为 **$2 \times 192 \times 192$** 的空间显著性图，仅对 2 通道做物理 Laplacian 滤波（6 输出通道）。频域子模块本身的计算量被**物理压缩掉 95% 以上**，因此总 GFLOPs 从 E2.3 (266.1G) 剧降至 E2.9 (259.6G)。
-
-##### 2. 融合机制降维 (Logits Concat 1×1 vs. Feature Gated 门控子网络)
-- **E2.4 / E2.6 (Gated 门控融合 `GatedEvidenceFusion`)**：需拼接 $256+256=512$ 通道特征图，通过两层 Conv2d + BN + SiLU 的门控决策子网络（$512 \to 256 \to 1$）计算动态 Sigmoid 门控 $g$，再做逐元素乘加。引入额外 **+3.1 GFLOPs** 算力，且 Sigmoid 乘法在 GPU 上属于 Memory-bound 访存瓶颈。
-- **E2.3 / E2.9 (Concat 联合融合 `ConcatEvidenceSegmenter`)**：直接在类别 Logits 层面（各自仅 $nc=10$ 通道，共 $10+10=20$ 通道）拼接，通过极轻量的 **$1\times 1$ Conv2d ($20 \to 10$)** 融合。融合算子 FLOPs 几乎为 0 且访存极佳，大幅降低推理延迟。
-
-##### 3. 双分支 E2.9 比单频域分支 E2.5 更快更轻的原因
-- E2.5 (Spectral-Only) 虽然是单分支，但使用的是未池化的重型 256 通道频域滤波 (266.1G / 20.3ms)。
-- E2.9 (Channel-Pooled Concat) 虽然是双分支，但频域分支经过了通道池化降维 ($256 \to 2$)，融合仅为 20 通道 1×1 Conv。因此**轻量化双分支 E2.9 (259.6G / 19.5ms) 总体算力与延迟远低于未池化的单频域分支 E2.5 (266.1G / 20.3ms)**，相比单语义基线 E2.1 (258.8G / 19.3ms) 仅增加 **+0.8 GFLOPs** 和 **+0.2ms 延迟**。
-
----
-
-#### Fusion Mechanism Analysis: why Gated underperforms Concat (2026-08-06)
-
-`GatedEvidenceFusion` (used by E2.4, E2.6) computes:
-```
-gate = Sigmoid(Conv([F_semantic, F_spectral]))
-fused = gate * P_semantic + (1 - gate) * P_spectral
-```
-This is a **zero-sum convex combination** — `gate + (1-gate) = 1` always, so any weight the network assigns to the spectral signal is necessarily taken away from the semantic signal at that same pixel, even where semantic was the more reliable source. `ConcatEvidenceSegmenter` (E2.3, E2.9) instead computes:
-```
-fused = Conv(cat([P_semantic, P_spectral]))
-```
-with no sum-to-one constraint — the learned 1×1 conv can weight both signals independently (including near-zero weight on a noisy spectral channel without penalizing semantic), making concat a strict superset of what gated fusion can express for a 2-source linear combination.
-
-This directly explains the E2.4/E2.1 result: when the spectral input is the standard, non-denoised branch (noisier — see E2.6 motivation), a gate that leans toward it is trading a reliable signal for an unreliable one, which can net out **below** the zero-cost semantic-only baseline (E2.1). Concat doesn't have this failure mode because it isn't forced to choose. This is also consistent with why **E2.6 (pooled spectral + gated) recovers most of the gap** — cleaner spectral input makes the gate's zero-sum trade-offs less costly, without changing the fusion mechanism itself. E2.9 (pooled spectral + concat, proposed above) is expected to combine both fixes and is the most promising untested cell in the 2×2.
-
-#### Open Design Space: further fusion mechanisms and evidence signals (2026-08-06)
-
-Two axes remain underexplored beyond what E2.1–E2.9 cover:
-
-**1. Fusion mechanism, beyond gate/concat.** The zero-sum-vs-union analysis above suggests the failure mode is specifically the *forced trade-off*, not "gating" as a concept — mechanisms that keep gating's adaptivity without the zero-sum constraint are worth screening ahead of any new evidence branch:
-- **Additive/residual fusion**: `fused = P_semantic + λ·P_spectral` (spectral as a learned residual correction, not a competing vote) — cheaper than concat's extra conv, avoids the zero-sum trap by construction.
-- **Independent (non-sum-to-one) gate per source**: `fused = g_sem·P_semantic + g_spec·P_spectral` with two independent sigmoids instead of one shared gate — keeps gating's spatial adaptivity but removes the `g_spec = 1 - g_sem` constraint; strictly more expressive than the current `GatedEvidenceFusion`, cheap to implement as a drop-in variant.
-- **Cross-attention fusion**: let spectral evidence attend to semantic evidence (or vice versa) before the final conv — more expressive than concat, but adds real parameters/FLOPs and reintroduces the efficiency questions raised in the Efficiency section; only worth it if concat's ceiling is clearly reached.
-- **Uncertainty-weighted fusion**: weight each branch by a learned confidence/variance estimate rather than a single joint gate — closer to classical sensor fusion, but adds a second output head per branch.
-- Priority for screening: additive/residual and independent-gate first (both are near-zero-cost drop-in replacements for `GatedEvidenceFusion`, directly testable once E2.5/E2.9 close out the current matrix); cross-attention and uncertainty-weighted only if those don't beat concat.
-
-**2. Evidence signal, beyond semantic/spectral.** The Proposal (§5.3.B) already lists several spectral-branch proxies that were never screened against each other — the current `SpectralBranch`/`ChannelPooledSpectralBranch` is one specific choice (depthwise Laplacian-style), not validated against the alternatives the Proposal names: DCT/wavelet low-mid-high band energy, local contrast, HBS-style pre/post response difference, local entropy. Beyond the Proposal's original list:
-- **P2/4 shallow saliency (E2.7)**: already proposed, now lower-priority per the Efficiency findings above, but still a genuinely different *signal source* (learned spatial feature) rather than a hand-crafted filter — worth keeping on the list even if deprioritized for near-term compute.
-- **Temporal/motion evidence** (if UAVDT or video-style sequences are in scope): frame-to-frame residual as a fourth evidence source — orthogonal to both semantic and spectral, untested anywhere in this plan.
-- **Density/context evidence**: a cheap non-learned prior from neighboring-patch objectness (spatial clustering) — motivated by the Occupy≥1.0-at-K=64-yet-BPR-only-0.6 finding (§ Very Tiny oracle headroom discussion), which suggests the current selector may be redundantly covering the same high-priority regions rather than spreading budget — a diversity/NMS-style penalty on redundant patch selection could be a cheap addition to any of the above fusion mechanisms, not a competing evidence branch.
-- Priority: before adding a fourth evidence source, first confirm (via E2.5) that the *second* one (spectral) reliably helps at all in some fusion mechanism — piling on more evidence branches without first resolving H2's conditional-falsification status (see Proposal cross-check below) would compound the same confound.
-
-#### Phase 2.5 — Lightweight Evidence & Selector Routing Optimization Proposals
-
-##### 1. E2.6 Channel-Pooled Spectral Filter (通道池化轻量化频域)
-- **Motivation**: Standard 256-channel multi-kernel spectral convolution is heavy ($192\times 192$ feature map) and introduces channel-wise texture noise.
-- **Design**: Apply Channel Max/Avg Pooling to compress $C \times H \times W \to 1 \times H \times W$ before 3x3 Laplacian filtering.
-- **Target Outcome**: Reduces spectral FLOPs by 95% while eliminating channel-level high-frequency background noise. *(Original design estimate for the spectral submodule in isolation. Measured whole-model delta is +1.2 GFLOPs vs E2.4's +3.2 GFLOPs — a ~62.5% cut in the added cost; see "Efficiency" table above.)*
-
-##### 2. E2.7 Multi-Scale Shallow Feature Saliency (P2/4 浅层高分辨率显著性)
-- **Motivation**: Shallow backbone features (P2/4, stride 4) naturally preserve high-resolution spatial details for tiny objects without explicit high-pass filtering.
-- **Design**: Fuse P2/4 shallow feature saliency with P3/8 via 1x1 conv to drive patch priority.
-- **Target Outcome**: Higher Very Tiny recall ($<16\times 16\text{ px}$) without false spectral triggers on textured background (trees/roads).
-
-##### 3. E2.8 Two-Stage Cascaded Selector Routing (两阶段级联剪枝)
-- **Motivation**: Computing evidence refinement across all 64 candidate patches is redundant.
-- **Design**: Stage 1 uses 1x1 Semantic Objectness to eliminate 50% background patches ($K=32$) with 0 overhead; Stage 2 computes evidence refinement only on remaining 32 candidate patches to pick Top-16.
-- **Target Outcome**: Cuts selector feature computation in half with zero loss in target coverage.
-
-**Go:** Equal-budget gain is reproducible and a deployable spectral/fusion implementation reaches break-even.  
-**No-Go:** If a matched ordinary convolution performs equally, retain the engineering improvement if useful but drop the spectral-mechanism claim. If only FFT works but no lightweight proxy breaks even, report an oracle result and stop the efficiency path.
-
-### Phase 3 — Single-model multi-budget routing — **DESCOPED from conference plan (2026-08-06)**
-
-> **Why descoped:** the selling point has shifted. Early phases framed BCRS as a *budget-constrained routing framework* — one model, many operating points, chosen via `e_B` conditioning (Proposal §5.5). The evidence built in Phase 2 tells a simpler, stronger story instead: **at ESOD's own fixed operating point (K=64), matching or nearly matching its compute (E2.1 is +0.0% GFLOPs, E2.9/E2.3/E2.6 are +1.0–3.0%), BCRS gets a large accuracy/recall gain** (§ K=64 table: +6.3pp Total Recall, +8.5pp Very Tiny Recall, +11.4% mAP@0.5 at the best variant). That claim doesn't need a unified multi-budget model, budget sampling curricula, or unseen-budget interpolation (E3.1–E3.4) to land — it needs one well-chosen fixed-budget design, which is what E2.1–E2.9 already screen for. The Budget Curve tables (§ Phase 2) already show that a *single fixed-training checkpoint*, evaluated post-hoc at K=16/32/48/64 via top-k truncation, produces a smooth, monotonic recall-vs-budget curve **without** any budget conditioning — so the core question E3.1 was designed to answer (does a conditioned model match independent per-budget models) is lower-value than it looked in the original proposal: naive post-hoc truncation of one checkpoint already behaves reasonably across budgets.
->
-> E3.1–E3.4 (budget embedding, sampling, unseen-budget interpolation, calibration) are removed from the near-term plan. Revive them only if a reviewer specifically asks for multi-budget deployment as a selling point, or for the journal extension if space allows — they are not required to support the current primary claim. E3.5 (backbone generalization) is unaffected by this cut and is tracked under the Journal Version Extension below, since it was never budget-conditioning-dependent.
->
-> Correspondingly, the Phase 3 row of the RQ/hypothesis tracker (Proposal §11.1, RQ4/H5) and the "multi-budget model" claim threshold (§7 below) should be read as **not required for the conference submission** — see §7 for the specific threshold marked deferred.
-
-> **Publication Scope Strategy & SOTA Benchmark Comparison (Updated 2026-08-07)**:
-> - **Conference Version (CVPR / ECCV 8-Page)**:
->   1. **Primary Claim**: At ESOD's own fixed inference operating point ($K=64$) and near-identical compute (+0.38% GFLOPs overhead), the BCRS Channel-Pooled Concat (E2.9) selector substantially improves detection and tiny-object recall over the ESOD baseline → **+14.0% mAP@0.5 (0.507 vs 0.367), +20.9pp Very Tiny Recall (70.2% vs 49.3%), +19.8pp Total GT Recall (81.1% vs 61.2%)**, with P50 latency of 19.5ms vs 19.1ms (+0.4ms overhead).
->   2. **Baseline Reproduction & Citation Policy**:
->      - **Direct Base Models (ESOD, YOLOv5 Baseline)**: Reproduced locally and verified against paper specifications.
->      - **External Selective Compute & Small-Object SOTA Competitors (QueryDet, CEASC, DM-EFS, HPS-DETR)**: Benchmark metrics are cited directly from their published peer-reviewed papers (CVPR, ECCV, ICCV, IEEE TIP) under standard benchmark protocols — **no local re-running required** as published papers provide official baseline results.
->
-> ##### SOTA Competitive Benchmark Comparison (VisDrone Benchmark)
->
-> | Method / Paper | Venue | Core Mechanism | Compute / Params | VisDrone mAP@0.5 | VTiny Recall (<16px) | BCRS Superiority |
-> |---|---|---|---|---|---|---|
-> | **ESOD Baseline** | IEEE TIP'24 | 1x1 Semantic + AdaSlicer | 258.6 GFLOPs | 36.4% (Paper) / **36.7%** (Local) | 49.3% | **BCRS Beats (+14.0% mAP)** |
-> | **QueryDet** | CVPR'22 | Cascaded Sparse Query Head | FPN-level sparse | ~26.6% (AP50) | Low (Dense Backbone) | **BCRS Beats (Prunes Stem)** |
-> | **CEASC** | ECCV'22 | Layer-wise Masking (AMM) | Head-level sparse | ~30.1% (AP50) | High Miss Risk | **BCRS Beats (Recall Safe)** |
-> | **DM-EFS** | ICCV'25 | Dynamic Feature Multiplexing | 640p resolution | 51.8% (AP50@640p) | 640p constrained | **BCRS Beats (1536p High-Res)** |
-> | **HPS-DETR** | TechRxiv'25 | RT-DETR + Faster-CGSU + CDFF | 15.5M (Transformer) | 49.7% (mAP@0.5) | Dense DETR Attention | **BCRS Beats (+1.0% mAP, 51 FPS)** |
-> | **BCRS E2.9 (Ours)** | **CVPR/ECCV Target** | **Channel-Pooled Concat + $\mathcal{L}_{\text{cov}}$** | **259.6 GFLOPs (19.5ms P50)** | **50.7% (mAP@0.5)** | **70.2% (VTiny)** | **SOTA Winner 👑** |
->
->   3. **Ablation Table**: Two orthogonal axes fully completed —
->      - **Evidence-source axis**: E1.0 ESOD (no coverage loss) → E2.1 Semantic-Only/Coverage-Supervised (no spectral, free) → E2.5 Spectral-Only (no semantic; **COMPLETED: 44.4% VTiny recall vs 49.3% baseline, confirming high-pass frequency filtering alone is insufficient**) — isolates what each evidence source contributes alone.
->      - **Fusion-mechanism axis**: 2×2 (standard vs channel-pooled spectral branch) × (gated vs concat fusion): E2.4 (standard+gated: 0.399 mAP) → E2.6 (pooled+gated: 0.409 mAP) → E2.3 (standard+concat: 0.403 mAP) → E2.9 (pooled+concat; **COMPLETED SOTA WINNER: 0.507 mAP@0.5, 70.2% VTiny recall**) — isolates which fusion mechanism combines the two best. Concat fusion avoids gated fusion's zero-sum trade-off and pairs synergistically with channel-pooled spectral denoising.
->   4. **Multi-Dataset Validation**: VisDrone (main 10-class dense) + **AI-TOD (in progress / required for final submission)** + UAVDT (vehicle/traffic aerial, Block B baseline training in progress), TinyPerson (in progress).
->   5. **Dropped from Conference Scope**: Sparse K=16 efficiency angle (at low K, tiny-object information is too sparse to recover regardless of selector quality) *and* single-model multi-budget routing (Phase 3, see above) — both were framed around a "budget dial" pitch this plan no longer leads with.
-> - **Journal Version Extension (IEEE TPAMI / TIP Extended 30%+)**:
->   1. **Detector Backbone Generalization (E3.5)**: Swap YOLOv5 for **YOLOv8 / YOLOv11 / RT-DETR** predictor heads.
->   2. **Structural Paradigm Migration (Phase 5 & 6)**: Migrate Dual-Evidence Recall-Safe priority to **QueryDet (Query-Adapter E5.2)** and **CEASC (Mask-Adapter Phase 6)** to prove foundational universality.
->   3. **Zero-Shot Cross-Dataset Transfer (E5.4)**: Rank correlation and zero-shot budget transfer on unseen datasets without fine-tuning.
->   4. **Single-model multi-budget routing (former Phase 3, E3.1–E3.4)**: revive here if reviewers want a budget-dial story in addition to the fixed-operating-point efficiency claim.
-
-### Phase 4 — Equal-budget end-to-end efficiency
-
-| ID | Experiment | Alignment | Required output |
+| Name used in this plan | Definition | Current source | Current validity |
 |---|---|---|---|
-| E4.1 | Accuracy frontier | Fixed patch count and FLOPs | AP/APt/APvt, selector recall, non-dominated points |
-| E4.2 | Deployment frontier | Fixed measured latency | AP-latency curves with confidence bands |
-| E4.3 | Equal-accuracy speed | Match APt and total AP | Median/P95 speedup and memory |
-| E4.4 | Resolution/density scaling | Input resolution × density bin × batch size | Break-even surface and failure regions |
-| E4.5 | Overhead decomposition | All pipeline modules | Selector overhead, downstream saving, net saving |
+| Native AP | mean class AP over IoU thresholds 0.50:0.05:0.95 | native `all` row, `mAP@.5:.95` | Valid for within-sweep comparison |
+| Native AP50 | mean class AP at IoU 0.50 | diagnostic `mAP@0.5` / native `mAP@.5` | Valid for within-sweep comparison |
+| Native P/R | per-class P/R sampled at the confidence index maximizing mean F1 | `ap_per_class()` | Valid, but not threshold-free recall |
+| Patch BPRbox | fraction of GT boxes with intersection-over-smaller-area ≥ 0.5 against at least one selected patch | `cluster_recall(..., mode="bbox")` | Valid for the executed routing output |
+| Effective patches | number of patches emitted by `HeatMapParser` | `buckets.json: nums` | Threshold route: dynamic 0–64. Repaired Top-K route: exactly K. Saved 28-run artifacts used the legacy non-exact router. |
+| Forward latency | model forward only | `buckets.json: latency` | Valid for same-machine relative comparison; excludes NMS/data pipeline |
+| Mean inference+NMS | accumulated model forward plus NMS | `run.log: Speed` | Valid aggregate mean; not end-to-end and not P50/P95 |
+| PyCOCO AP/AP50/AR | COCOeval on aligned predictions | `run.log: Average Precision/Recall` | **Invalid: category mapping bug** |
+| Size/class GT hit rate | fraction of YOLO-label GT boxes with any same-class IoU≥0.5 saved detection | `audit_failure_cases.py` output | **Invalid/provisional: wrong image-size fallback; also not one-to-one detection recall or selector recall** |
 
-A FLOP reduction without lower wall-clock latency falsifies the real-speedup claim. Keep it as a compute result only.
+Publication tables must always label both axes explicitly:
 
-### Phase 5 — QueryDet cross-backend validation and transfer
+- `AP@[.5:.95]` for the 10-IoU mean;
+- `AP50` for IoU 0.50;
+- never use bare `mAP` when the IoU range is not in the header.
 
-First adapt BCRS priority to QueryDet's query candidates while preserving its CSQ context size and sparse implementation. Compare at exact query count and measured latency.
+The paper and local native implementations share the nominal IoU definitions, but paper parity still requires the same split, preprocessing, max detections, checkpoint/training protocol, and evaluator behavior.
 
-| ID | Experiment | Dataset | Primary metrics |
+---
+
+## 2. Source-code metric audit
+
+### 2.1 Critical findings
+
+| Severity | Location | Finding | Impact | Required repair |
+|---|---|---|---|---|
+| P0 | `BCRS/vendor/esod/test.py`, JSON alignment | Raw non-COCO predictions use classes 0–9. The alignment code increments a class only when it is absent from GT ids 1–10; consequently only class 0 is shifted, classes 1–9 stay off by one, and class 10 is never predicted. | All logged PyCOCO metrics are invalid; observed PyCOCO AP50 is only 22.5–27.3% of native AP50 across the 28 runs. | Use an explicit dataset mapping (`0→1, …, 9→10`) or a class-name-to-category-id map; assert mapped ids are a subset of GT ids. |
+| P0 | `BCRS/tools/audit_failure_cases.py` + `inference_sweep.sh` | The sweep passes only `labels/val`. Auto-discovery checks `labels/images[/val]` instead of the dataset sibling `images/val`, then silently falls back to 1920×1080. VisDrone images are not guaranteed to share that size. | Existing size bins, class hit rates, VTiny/Tiny/Total hit rates, and their counts cannot be used. | Require `--images-dir`; fail closed if an image is missing; alternatively read width/height and GT boxes directly from COCO JSON. |
+| P0 | `HeatMapParser.ada_slicer_fast()` | Legacy “Top-K” took the K-th score, applied `>=`, then local-max/grid filtering. Ties emitted more than K and filtering emitted fewer. At requested K=64 the old rectangular-grid path emitted only 54–56 patches. | **SOURCE REPAIRED; RESULTS STALE.** Stable explicit cell indices now emit exact K and tests cover ties/K={1,16,32,64}. The 28 saved runs still contain the old behavior and cannot support fixed-budget claims. | Rerun the six BCRS variants; do not include threshold-based E1.0 in the Top-K sweep. |
+| P1 | `BCRS/vendor/esod/test.py`, diagnostic counter | `num_correct_hits = stats[0].sum()` sums correctness over all 10 IoU thresholds but is printed as “Correct IoU>0.5 Hits.” | Diagnostic count can exceed GT count and is mislabeled. | Use `stats[0][:, 0].sum()` for IoU 0.50 or relabel it as the sum over IoU thresholds. |
+| P1 | `BCRS/tools/inference_sweep.sh` summary parser | The generated summary records `map50` but omits native AP; it records the already-invalid PyCOCO fields. | This omission enabled AP/AP50 drift in the plan. | Parse and store both `native_ap` and `native_ap50`; quarantine COCO fields until mapping parity passes. |
+| P1 | Timing labels | `buckets.json` times only model forward; log “total” is inference+NMS and still excludes data loading/preprocessing. | Previous “end-to-end” and deployment wording was too strong. | Add synchronized per-image preprocess, forward, NMS/merge, and true end-to-end distributions with warm-up metadata. |
+| P1 | Result provenance | `results/` is gitignored. Runs have no manifest, git SHA, resolved config, seed, environment, or evaluator version. Current `test.py` caches first-image fvcore after the first iteration, while saved buckets contain varying per-image GFLOPs, proving source/results revision drift. | Exact reproduction of the saved artifacts is not guaranteed. | Persist a manifest and code/config hashes with every run; preserve the exact evaluator source revision. |
+
+### 2.2 Components that are logically sound
+
+- Native AP/AP50 routing is internally consistent: IoUs 0.50:0.05:0.95 are computed, `ap[:,0]` is AP50, and the mean over 10 IoUs is AP@[.5:.95].
+- Native class matching uses the same 0–9 ids for labels and predictions.
+- AP50 is greater than or equal to AP for every one of the 28 VisDrone runs.
+- All 28 VisDrone logs completed without traceback or evaluator exception.
+- All 28 VisDrone prediction JSON files are parseable; categories cover 0–9, scores are in [0,1], boxes have non-negative widths/heights, and JSON record counts match the logs.
+- Each VisDrone `buckets.json` contains 548 latency/patch/GFLOPs samples.
+
+### 2.3 Meaning of the post-hoc “recall” audit
+
+Even after image-size repair, `audit_failure_cases.py` measures a **GT detection hit rate at IoU≥0.5 and saved-prediction confidence floor 0.001**. It does not enforce one-to-one matching, and it operates on post-NMS detections rather than selected patches. It must not be called selector recall, standard detector recall, or BPR. If retained, rename it `GT-hit@0.5` and report the confidence floor and matching rule.
+
+---
+
+## 3. Result inventory and trust boundary
+
+### 3.1 Complete artifacts
+
+- 28 VisDrone runs: 7 variants × requested K ∈ {16,32,48,64}.
+- Every run has `run.log`, `best_predictions.json`, `buckets.json`, plots, and qualitative batches.
+- There is no `results/sweep_results.json`; the script writes `work_dirs/sweep_results.json`, which was not copied into the audited result bundle.
+
+### 3.2 Incomplete artifact
+
+`results/esod_uavdt_yolov5m_test/` contains predictions and plots but no `run.log`, no `buckets.json`, and no metrics/manifest. It is not an auditable UAVDT result and does not establish cross-dataset validation.
+
+### 3.3 Trust tiers
+
+- **Tier A — usable now:** native AP, native AP50, BPRbox, effective patch count, saved forward latency, saved GFLOPs for local relative comparisons.
+- **Tier B — usable after relabeling:** native P/R and mean inference+NMS timing.
+- **Tier C — quarantined until re-evaluation:** all PyCOCO numbers and all size/class/VTiny/Tiny/Total post-hoc hit rates.
+- **Not present:** official AI-TOD metrics, complete UAVDT metrics, TinyPerson metrics, repeated seeds/confidence intervals, true end-to-end timing, parameter-matched ordinary-conv control, low-objectness/density/texture/light audits, priority/GT-coverage correlation, and auditable oracle outputs.
+
+---
+
+## 4. Complete audited VisDrone sweep
+
+Values below are read directly from the 28 `run.log` and `buckets.json` artifacts. “K request” is the requested setting, not an exact executed patch count. Latency is model-forward only. Invalid PyCOCO and post-hoc size/class hit-rate fields are intentionally excluded.
+
+| Exp | Variant | K request | Native AP | Native AP50 | BPRbox | Patches mean [min,max] | GFLOPs mean | Forward P50/P95 ms |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| E1.0 | ESOD baseline | 16 | 0.041 | 0.071 | 0.123 | 15.95 [15,16] | 113.2 | 10.57/12.16 |
+| E1.0 | ESOD baseline | 32 | 0.089 | 0.154 | 0.262 | 31.93 [30,32] | 171.4 | 13.97/15.43 |
+| E1.0 | ESOD baseline | 48 | 0.143 | 0.248 | 0.412 | 47.90 [46,48] | 229.4 | 19.21/20.47 |
+| E1.0 | ESOD baseline | 64 | 0.215 | 0.367 | 0.607 | 55.94 [54,56] | 258.6 | 19.07/19.86 |
+| E2.1 | Semantic-only + coverage | 16 | 0.081 | 0.142 | 0.222 | 15.97 [15,16] | 113.3 | 10.93/12.40 |
+| E2.1 | Semantic-only + coverage | 32 | 0.142 | 0.245 | 0.386 | 31.94 [30,32] | 171.4 | 13.73/14.80 |
+| E2.1 | Semantic-only + coverage | 48 | 0.189 | 0.325 | 0.534 | 47.93 [46,49] | 229.5 | 18.46/19.76 |
+| E2.1 | Semantic-only + coverage | 64 | 0.236 | 0.403 | 0.682 | 55.97 [55,56] | 258.8 | 19.30/20.24 |
+| E2.3 | Standard spectral + concat | 16 | 0.098 | 0.170 | 0.272 | 15.96 [15,16] | 120.1 | 10.78/12.11 |
+| E2.3 | Standard spectral + concat | 32 | 0.158 | 0.271 | 0.430 | 31.91 [30,32] | 178.3 | 14.13/15.16 |
+| E2.3 | Standard spectral + concat | 48 | 0.198 | 0.338 | 0.544 | 47.89 [46,50] | 236.7 | 19.64/21.07 |
+| E2.3 | Standard spectral + concat | 64 | 0.236 | 0.403 | 0.665 | 55.94 [54,56] | 266.1 | 19.81/21.23 |
+| E2.4 | Standard spectral + gated | 16 | 0.074 | 0.129 | 0.206 | 15.95 [15,16] | 123.2 | 10.83/11.79 |
+| E2.4 | Standard spectral + gated | 32 | 0.132 | 0.228 | 0.355 | 31.93 [31,32] | 181.5 | 14.51/15.22 |
+| E2.4 | Standard spectral + gated | 48 | 0.179 | 0.308 | 0.490 | 47.91 [46,48] | 239.8 | 19.66/20.91 |
+| E2.4 | Standard spectral + gated | 64 | 0.232 | 0.399 | 0.662 | 55.96 [55,56] | 269.2 | 19.87/21.16 |
+| E2.5 | Spectral-only | 16 | 0.058 | 0.100 | 0.155 | 15.99 [15,16] | 120.2 | 11.61/12.87 |
+| E2.5 | Spectral-only | 32 | 0.100 | 0.172 | 0.274 | 31.94 [30,32] | 178.4 | 14.96/16.67 |
+| E2.5 | Spectral-only | 48 | 0.139 | 0.241 | 0.384 | 47.95 [46,49] | 236.9 | 19.62/21.65 |
+| E2.5 | Spectral-only | 64 | 0.208 | 0.353 | 0.566 | 55.95 [55,56] | 266.1 | 20.29/21.52 |
+| E2.6 | Channel-pooled spectral + gated | 16 | 0.073 | 0.129 | 0.200 | 15.96 [15,16] | 116.7 | 11.43/12.99 |
+| E2.6 | Channel-pooled spectral + gated | 32 | 0.129 | 0.222 | 0.358 | 31.93 [30,32] | 175.0 | 14.14/14.71 |
+| E2.6 | Channel-pooled spectral + gated | 48 | 0.186 | 0.318 | 0.503 | 47.89 [45,48] | 233.2 | 18.76/20.00 |
+| E2.6 | Channel-pooled spectral + gated | 64 | 0.239 | 0.409 | 0.667 | 55.94 [55,56] | 262.6 | 19.58/20.66 |
+| E2.9 | Channel-pooled spectral + concat | 16 | 0.151 | 0.258 | 0.421 | 15.96 [15,16] | 113.6 | 10.54/11.47 |
+| E2.9 | Channel-pooled spectral + concat | 32 | 0.216 | 0.368 | 0.613 | 31.92 [31,32] | 171.8 | 14.11/15.72 |
+| E2.9 | Channel-pooled spectral + concat | 48 | 0.260 | 0.442 | 0.750 | 47.89 [45,48] | 230.1 | 18.52/19.40 |
+| E2.9 | Channel-pooled spectral + concat | 64 | 0.299 | 0.507 | 0.854 | 55.95 [54,56] | 259.6 | 19.50/20.92 |
+
+### 4.1 Conclusions supported by these artifacts
+
+1. E2.9 is the local winner for native AP, AP50, and BPR at every requested K.
+2. E2.9's K=64 improvement over E1.0 is large within the local evaluator, while compute and forward-latency increases are small but non-zero.
+3. E2.5 spectral-only is worse than E1.0 at K=64 (`AP 0.208 vs 0.215`, `AP50 0.353 vs 0.367`, `BPR 0.566 vs 0.607`), so spectral evidence alone is not sufficient in this implementation.
+4. E2.9 strongly suggests value from channel-pooled spectral + concat, but it does not by itself prove the Proposal's H2: H2 requires matched parameters/compute and low-objectness-tiny analysis, neither of which is complete.
+5. The prior statement that E2.6 triggered falsification condition #5 is retracted. Audited K=64 forward P50 is 19.58 ms for E2.6 versus 19.81 ms for E2.3, and K=48 is 18.76 versus 19.64 ms. The old 22.2/22.0 ms comparison is not present in the audited artifacts.
+6. E2.9 is not a demonstrated speedup over E1.0: forward P50 and mean inference+NMS are both higher.
+
+---
+
+## 5. Proposal-to-execution drift matrix
+
+| Proposal/previous-plan requirement | Audited state | Correct status |
+|---|---|---|
+| Source document | Previous plan named a nonexistent `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md` | Fixed to `BCRS-Proposal.md` |
+| E0.1 data and official metric parity | COCO mapping is wrong; paper mapping was wrong in the plan | **REOPENED / BLOCKER** |
+| E0.2 ESOD reproduction | The saved E1.0 rows forced the legacy Top-K router and are not ESOD reproduction runs. Fixed-threshold source/config is repaired; repaired metric run is pending. | **SOURCE/CONFIG REPAIRED; RERUN REQUIRED** |
+| E0.3 selector failure audit | Only size/class post-NMS GT-hit tables exist, and they used an unsafe size fallback; required objectness/density/texture/light analyses are absent | **INVALID + INCOMPLETE** |
+| E0.4 random/objectness/oracle headroom | No auditable oracle artifact exists in `results/` | **NOT EVIDENCED** |
+| E1.1/E1.2 local model comparison | Native AP/AP50/BPR deltas are present | **POINT-ESTIMATE EVIDENCE ONLY** |
+| E1.3 exact Top-K vs threshold | Exact Top-K source/tests are repaired and E1.0 is separated as the fixed-threshold control; no post-repair artifacts exist yet. | **IMPLEMENTED / RERUN REQUIRED** |
+| E1.4 pseudo-label audit | Required Gaussian/SAM/hybrid bias artifacts are absent | **NOT EVIDENCED** |
+| Phase 2 VisDrone inference sweep | 28 legacy runs are present, but they used the non-exact router and incorrectly included E1.0 at K. The repaired sweep is six BCRS models × four budgets; E1.0 runs once as a threshold control. | **LEGACY COMPLETE / REPAIRED RERUN REQUIRED** |
+| H2 dual-evidence complementarity | E2.9 is better, but matched-param control and valid low-objectness tiny audit are absent | **PROMISING, NOT CONFIRMED** |
+| Falsification #1 ordinary-conv control | Not run | **OPEN** |
+| AI-TOD minimum-success dataset | Config exists; no result | **BLOCKER** |
+| UAVDT | Predictions/plots only; no log or metrics | **INCOMPLETE** |
+| TinyPerson | No result | **NOT STARTED / OPTIONAL** |
+| Phase 3 budget-conditioned single model | No budget embedding/training | **DESCOPED; explicit Proposal deviation** |
+| Phase 4 equal-budget/end-to-end efficiency | No true end-to-end percentile timing or paired CI | **NOT STARTED** |
+| QueryDet/CEASC transfer | No result | **NOT STARTED** |
+| Repeated seeds and confidence intervals | No seed metadata or repeats | **NOT STARTED** |
+
+---
+
+## 6. Repaired execution plan
+
+### Gate A — Metric and artifact repair (must complete before any paper table)
+
+| ID | Action | Acceptance test | Status |
 |---|---|---|---|
-| E5.1 | QueryDet reproduction | VisDrone | APt, query count, query-center coverage, latency |
-| E5.2 | Query Adapter | VisDrone | Equal-query/equal-latency delta vs original Query Head |
-| E5.3 | Context sensitivity | Locked context radii, including the reproduced default | Coverage, APt, latency |
-| E5.4 | Unseen-data ranking transfer | Train/calibrate on AI-TOD or VisDrone; evaluate UAVDT without fine-tuning | Rank correlation, coverage, budget violation, APt |
-| E5.5 | Recalibration-only transfer | Temperature/threshold/cost recalibration, no weight update | Recovery relative to zero-shot transfer |
+| A1 | Replace heuristic COCO category alignment with explicit dataset mapping | Synthetic classes 0–9 map exactly to GT ids 1–10; no unmapped id | TODO |
+| A2 | Add native-vs-COCO parity test on a synthetic fixture | Same predictions/GT produce consistent AP/AP50 within a documented tolerance | TODO |
+| A3 | Log native AP and AP50 as named JSON fields | No parsing of positional console columns; schema test passes | TODO |
+| A4 | Repair failure audit to require COCO GT or real images | Missing dimensions hard-fail; 548 images all resolve to exact width/height | TODO |
+| A5 | Rename post-hoc metric to `GT-hit@0.5` and implement one-to-one option | Metric metadata includes confidence, IoU, class rule, and matching rule | TODO |
+| A6 | Implement exact emitted-patch Top-K with deterministic tie-breaking | For every image and feasible K, emitted count equals K; adapter rejects explicit budgets outside `[1,64]` | **DONE IN SOURCE; 22 TARGETED TESTS PASS** |
+| A7 | Record git SHA, dirty diff hash, resolved configs, checkpoint hash, seed, dataset hash, environment, evaluator version | Every run has a complete manifest | TODO |
+| A8 | Generate `results/sweep_results.json` from artifacts and copy it with the run bundle | Aggregate contains native AP/AP50, validation flags, and provenance | TODO |
 
-**Strong success:** ESOD and QueryDet show same-direction gains under their own matched budgets.  
-**Boundary:** Recalibration-only success supports interface transfer, not zero-shot weight transfer.
+Most corrections do not require re-running inference: saved predictions can be re-evaluated with the correct COCO mapping and exact GT metadata. Exact-Top-K results do require new inference after the router is repaired.
 
-### Phase 6 — Optional structured actions and CEASC
+### Gate B — Baseline parity and repeatability
 
-Only run after the core ESOD and QueryDet claims are secure.
+1. Re-evaluate E1.0 saved predictions after Gate A.
+2. Resolve the gap to paper AP/AP50 by checking checkpoint, split, preprocessing, max detections, NMS, input scaling, and training schedule.
+3. Run at least three seeds for E1.0, E2.1, and E2.9 at the claim-bearing budget.
+4. Report paired bootstrap confidence intervals for AP, AP50, BPR, and latency.
+5. Do not call E1.0 “reproduced” until both metric identity and protocol parity are documented.
 
-- Joint patch/FPN/context actions vs fixed-cost patches;
-- lookup-based latency cost vs FLOP cost;
-- CEASC Mask Adapter at equal layer-wise activation budget;
-- optional TinyPerson external validation.
+### Gate C — Proposal-critical evidence
 
-Report CEASC GT-positive activation coverage, per-layer mask ratio, CE-GN global-path cost, APt, and measured latency. Do not let this phase alter the core success thresholds.
+| Priority | Experiment | Required outputs |
+|---|---|---|
+| P0 | AI-TOD E1.0/E2.1/E2.9 | AP/AP50/APvt/APt, BPR, exact actions, true end-to-end latency, repeated seeds |
+| P0 | Valid VisDrone subgroup audit | low-objectness, density, texture, illumination, size, class; paired confidence intervals |
+| P0 | Matched ordinary-conv control | same params/training/compute as the spectral branch |
+| P0 | Exact Top-K vs threshold control | requested/executed actions, violation rate, P50/P95, AP/BPR frontier |
+| P1 | Oracle headroom | random, objectness top-k, GT coverage oracle, semantic+spectral oracle with saved per-image outputs |
+| P1 | True end-to-end profiling | preprocess + selector + slicing/gather/scatter + head + merge/NMS, warm-up and raw samples |
+| P1 | UAVDT completion | complete log, buckets, GT evaluator, manifest, and metrics |
+| P2 | QueryDet adapter | equal-query/equal-latency AP and coverage |
+| P2 | CEASC/TinyPerson | extension evidence only after core gates pass |
 
-## 6. Cross-Check Against BCRS-Proposal.md (2026-08-07)
+### Phase status after audit
 
-Full read-through of `BCRS-Proposal.md` against everything executed and found while producing this plan. Four real drifts found — three are coverage gaps, one is a live falsification event that the Proposal's own reporting rules require to be stated, not softened.
+| Phase | Status | Exit condition |
+|---|---|---|
+| Phase 0 — validation/reproduction | **REOPENED** | Gate A+B complete |
+| Phase 1 — semantic/coverage MVP | **PARTIAL** | valid subgroup audit, exact-budget control, repeatability |
+| Phase 2 — dual-evidence sweep | **INFERENCE COMPLETE; CLAIMS PARTIAL** | matched controls and valid subgroup evidence |
+| Phase 3 — budget-conditioned model | **DESCOPED** | revive only with an explicit scope decision |
+| Phase 4 — end-to-end efficiency | **NOT STARTED** | paired end-to-end latency frontier |
+| Phase 5 — QueryDet transfer | **NOT STARTED** | equal-budget cross-backend result |
+| Phase 6 — CEASC/optional external | **NOT STARTED** | only after core claims are secure |
 
-### 6.1 Dataset coverage gap: AI-TOD never run — blocks the Proposal's own minimum success bar
+---
 
-Proposal §7.1 names AI-TOD the "机制主数据集" (primary mechanism dataset), specifically because it has the smallest average object size, and Proposal §9.1's minimum success standard requires the tiny-recall gain to hold "至少在 AI-TOD 与 VisDrone 两个数据集" (at least on both AI-TOD *and* VisDrone) — not VisDrone alone.
+## 7. Claim policy
 
-Every experiment executed so far (Phase 0–2, E1.0–E2.9) is VisDrone-only. `configs/datasets/aitod.yaml` exists but is referenced by zero experiment configs, and no training/sweep has touched it. **As currently executed, this plan cannot yet claim the Proposal's own minimum-success bar is met** — VisDrone-only results, however strong, satisfy at most half of §9.1's stated dataset requirement. TinyPerson (Proposal's *optional* external validation) correctly has no dataset config yet — that one is not a gap.
+### May be stated now
 
-**Action**: track AI-TOD as a blocker for any "minimum success" claim, at the same priority as UAVDT (Block B), not as a lower-tier "nice to have."
+- Within the audited local VisDrone native evaluator, E2.9 is best among the seven tested variants at every requested K for AP, AP50, and BPR.
+- At requested K=64, E2.9 changes native AP from 0.215 to 0.299 and AP50 from 0.3669 to 0.5071, with +0.93 artifact GFLOPs and +0.43 ms forward P50.
+- Spectral-only E2.5 underperforms E1.0 at K=64.
 
-### 6.2 Falsification condition #5 has fired: E2.6's FLOPs win did not produce a latency win
+### Must not be stated yet
 
-Proposal §9.3, falsification condition 5: *"FLOPs 下降但端到端 latency 不降或更慢"* — and explicitly: *"以下任一结果都应被视为重要否证，而不是通过更换指标掩盖"* (must be reported as falsification, not hidden by switching metrics).
+- local `0.3669` matches paper `AP=0.360`;
+- E2.9 has `50.7 AP` or is VisDrone SOTA;
+- any logged PyCOCO AP/AP50/AR value is official;
+- 70.2% VTiny or 81.1% total selector/detection recall is validated;
+- the legacy 28-run artifacts have exact K, zero budget variance, or zero violation (the repaired source does, but must be rerun);
+- E2.9 accelerates E1.0 end to end;
+- the Proposal's minimum success standard is met;
+- H2 is fully confirmed or the Laplacian mechanism is isolated;
+- results transfer to AI-TOD, UAVDT, TinyPerson, QueryDet, or CEASC.
 
-The measured wall-clock latency table above shows exactly this for E2.6 vs E2.3: E2.6 has fewer GFLOPs (+1.54% vs +2.96%) but is *slower* in measured latency at K=64 (22.2ms vs 22.0ms) and is the single slowest model in the whole sweep at K=48. This isn't new data, but it had not been explicitly tied to the Proposal's own numbered falsification condition — doing so here makes the "drop the lightweight framing for E2.6" conclusion citable as Proposal-mandated reporting, not just a stylistic call, and it should not be softened in the paper.
+External competitor tables must remain out of the claim-bearing section until metric, split, resolution, detector, and compute protocol are aligned. Paper-reported FPS from other hardware must not be ranked against local RTX 5090 timing.
 
-### 6.3 H2 (dual-evidence complementarity) status: Fully Confirmed by E2.9
+---
 
-Proposal §6, H2: *"在相同 selector 参数量与计算量下，语义 + 频谱/显著性证据比语义单分支具有更高的 low-objectness tiny recall"* (dual evidence beats semantic-only at matched params/compute).
+## 8. Artifact contract going forward
 
-**Verification Resolution (2026-08-07):**
-1. **E2.5 (Spectral-Only)** proves that spectral evidence alone is insufficient (44.4% VTiny recall @ K=64 vs 49.3% baseline), confirming that high-pass frequency features must be grounded in spatial semantic priors.
-2. **E2.4 (Standard Spectral + Sigmoid Gated)** underperformed semantic-only E2.1 due to the zero-sum trade-off inherent in sigmoid gating (`gate + (1-gate) = 1`).
-3. **E2.9 (Channel-Pooled Spectral + Concat Fusion)** resolves all gating limitations and achieves **0.507 mAP@0.5, 70.2% VTiny Recall, and 81.1% Total GT Recall** (vs E2.1 Semantic-Only's 0.403 mAP / 56.7% VTiny / 67.5% Total Recall). This **decisively confirms H2** when using union/concat fusion and denoised spectral features.
+Each run must write to `results/<experiment_id>/<run_id>/`:
 
-### 6.4 Falsification condition #1 control (param-matched ordinary-conv spectral branch) status
-
-Proposal §9.3, condition 1: *"控制参数量和训练量后，频谱分支不优于普通卷积分支"* (after controlling params/training, the spectral branch does not outperform an ordinary conv branch).
-
-E2.9's massive performance gain (+14.0% mAP@0.5 over baseline/semantic-only) at +0.38% GFLOPs overhead demonstrates that the physical Laplacian high-pass filter captures structural high-frequency information that plain 1x1 convs miss. A param-matched conv control can be run as an additional sanity check during journal extension.
-
-### 6.5 "Semantic + spectral GT-coverage oracle" (Proposal §7.3 item 11) not separately reported
-
-Proposal §7.3 requires two oracle baselines: a pure GT-coverage oracle (item 10) and a *semantic + spectral* GT-coverage oracle (item 11) — two different upper bounds. The Plan's only oracle table (§ E0.4, "8×8 Patch Grid") reports one "GT Oracle Recall" curve; which of the two definitions it corresponds to is not documented. Given §6.3's findings, knowing whether the dual-evidence oracle ceiling is meaningfully higher than the pure-coverage ceiling would directly show whether there's any headroom left for spectral evidence to capture at all, independent of fusion mechanism — likely the single most informative missing number for deciding how much further effort the "Open Design Space" section above deserves.
-
-### 6.6 No drift: budget conditioning correctly unimplemented, Phase 3 not started
-
-Proposal §5.5 describes a budget-conditioned model (`e_B` injected via FiLM/MLP, `B ~ U(B_min, B_max)`). Confirmed by code search: no `budget_embed`/`FiLM`/`e_B` anywhere in `vendor/esod/`. This is expected, not a drift — every Phase 2 checkpoint is trained at one fixed setting and evaluated post-hoc at K=16/32/48/64 via top-k truncation at test time, which is exactly where the Plan's own (not-yet-started) Phase 3 is supposed to pick up. Noted here only so the distinction stays explicit in the paper: the Budget Curve tables above show a *test-time* top-k sweep on fixed-training checkpoints, not yet the H5 unified-multi-budget-model claim itself.
-
-## 7. Claim thresholds
-
-Lock numeric thresholds after Phase 0 baseline-variance measurement. Use these proposal-derived defaults unless Phase 0 demonstrates they are below ordinary noise. **Reviewed 2026-08-06 against the reframed primary claim (§ Phase 3 descoping, "efficiency-parity" not "budget-routing"); two thresholds no longer fit the claim as stated and are annotated below rather than silently dropped.**
-
-- tiny selector recall: at least **+1.0 percentage point**, or relative miss-rate reduction of at least **15%** — **active**, already met (E2.9 achieves **+20.92pp Very Tiny Recall** at K=64).
-- APt/APvt: positive paired 95% CI on AI-TOD and VisDrone at claim-bearing budgets — **active, blocked on AI-TOD** (§6.1 — not yet run, this threshold cannot be evaluated until it is).
-- total AP non-inferiority: lower 95% CI above `-max(0.2 AP, baseline repeatability margin)` — **active**; no repeated-seed variance has been measured anywhere in this plan yet, so the CI itself is still open even though point estimates are non-inferior.
-- budget: zero violation for exact top-k; for latency budgets, P95 realized latency no more than 5% above request — **active**, satisfied by construction (hard top-k, no threshold-based drift — see E1.3).
-- generality: gain under at least two of fixed action count, fixed FLOPs, and fixed measured latency — **active, and now effectively the primary claim itself**: E2.1 shows the gain at fixed action count *and* fixed FLOPs *and* fixed measured latency simultaneously (zero deltas on all three vs baseline); E2.3/E2.6/E2.9 show it at fixed action count with small (+1–3%) FLOPs/latency deltas.
-- overhead: added selector latency at most 5% of total and at most 10% of downstream latency saved — **reinterpret**: the "10% of downstream latency saved" denominator assumes BCRS reduces compute below some larger baseline. Under the reframed claim (same K=64 as ESOD's own operating point, not a reduced budget), there is no downstream saving being claimed at the primary operating point, so this clause is vacuous there. Keep only the "≤5% of total latency" half as active for the primary claim (satisfied: worst case E2.4 at +3.7%); the full savings-based clause remains meaningful only if/when a genuinely reduced-budget comparison (e.g., BCRS at K=48 vs baseline at K=64) is reported as a secondary result.
-- multi-budget model: APt within `max(0.3 AP, baseline repeatability margin)` of the per-budget oracle at at least three budgets — **DEFERRED**, tied to Phase 3 (descoped from the conference plan, see above). Not evaluated unless Phase 3 is revived.
-- real acceleration: positive net median-latency saving with positive paired 95% CI, with P95 not materially worse — **reinterpret**: this threshold assumed the claim was speed-first. Measured latency data (§ Efficiency) shows only E2.1 is latency-neutral (+0.0%); E2.3/E2.4/E2.6/E2.9 are all slightly *slower* (+1.4% to +3.7%) in exchange for accuracy — i.e., the opposite of "net saving" for those variants. This is expected and acceptable under the reframed claim (accuracy-for-near-zero-added-cost, not speedup), but the paper must not claim "real acceleration" for any variant except E2.1 — doing so for E2.3/E2.4/E2.6/E2.9 would contradict this plan's own measured numbers.
-- robustness: primary result holds on both AI-TOD and VisDrone and is not driven by one density bin or class — **active, blocked on AI-TOD** (§6.1), same as the APt/APvt bullet above.
-
-Thresholds may become stricter after Phase 0, but must never be weakened after treatment results are inspected.
-
-## 8. Metrics and required plots
-
-### Detection
-
-- AP, AP50, AP75, APvt/APt/APs as supported by the dataset;
-- AR and class-wise AP;
-- total-AP non-inferiority relative to the matched detector.
-
-### Selector
-
-- object-level selector recall;
-- BPRbox and BPRcenter;
-- low-objectness tiny recall;
-- retained background and foreground ratios;
-- coverage per GFLOP and per millisecond;
-- Spearman rank correlation between learned priority and GT coverage target;
-- per-image P10 coverage and catastrophic-miss rate.
-
-Backend-specific metrics:
-
-- ESOD: box coverage, target truncation rate, patch count;
-- QueryDet: query-center coverage, context-radius coverage, per-FPN-level query count;
-- CEASC: GT-positive activation coverage, per-level mask ratio, CE-GN global cost.
-
-### Efficiency and safety
-
-- predicted FLOPs, measured median/P95 latency, peak memory, parameter count, kernel count;
-- selector overhead ratio and net latency saving;
-- budget violation frequency and magnitude;
-- Pareto hypervolume and the number of non-dominated operating points.
-
-Required figures:
-
-1. objectness quantile vs tiny miss/coverage;
-2. selector recall and APt vs action count/FLOPs/latency;
-3. retained ratio vs selector overhead, downstream saving, and net latency;
-4. coverage CDF with emphasis on the lower tail;
-5. difficult-subgroup forest plot with confidence intervals;
-6. predicted vs measured latency calibration;
-7. AI-TOD-to-VisDrone/UAVDT ranking-transfer plot;
-8. qualitative true recoveries, false spectral triggers, truncations, and catastrophic misses.
-
-## 9. Artifact and run contract
-
-Every run writes to `artifacts/<experiment_id>/<run_id>/`:
-
-| Artifact | Minimum contents |
+| Artifact | Required contents |
 |---|---|
-| `manifest.yaml` | experiment ID, git commit, config hashes, seed, dataset checksum, host/device, start/end status |
-| `config.yaml` | fully resolved training, data, model, selector, budget, and loss configuration |
-| `environment.txt` | OS, Python, framework, CUDA/cuDNN, compiler, sparse kernels, package lock hash |
-| `metrics.json` | dataset-level detection, selector, budget, and efficiency metrics |
-| `objects.parquet` | one row per GT object with bins, priority, selected/covered flags, and matched detection |
-| `images.parquet` | per-image action count, cost, latency components, coverage, density, fallback state |
-| `latency.json` | protocol, warm-up, session repetitions, median/P95/IQR, raw sample location |
-| `checkpoint.*` | model state plus the exact resolved config |
-| `stdout.log` | complete run log and failure reason |
+| `manifest.yaml` | git SHA, dirty-diff hash, run/config/checkpoint/dataset hashes, seed, host/device, timestamps, completion status |
+| `config.yaml` | fully resolved data/model/training/evaluation/routing configuration |
+| `environment.txt` | OS, Python, PyTorch, CUDA/cuDNN, fvcore, pycocotools, compiler/package-lock hashes |
+| `metrics.json` | named native AP/AP50, official evaluator metrics, BPR, executed actions, latency scope and validation flags |
+| `predictions.raw.json` | internal class ids with explicit schema |
+| `predictions.coco.json` | explicitly mapped COCO ids, retained for audit |
+| `objects.parquet` | per-GT size/class/objectness/subgroup, selected/covered/matched flags |
+| `images.parquet` | per-image requested/executed actions, violations, cost and latency components |
+| `latency.json` | warm-up, repetitions, synchronization, P50/P95/IQR, raw samples, included pipeline stages |
+| `run.log` | complete stdout/stderr and evaluator summaries |
 
-Maintain a central `results/registry.parquet` keyed by experiment ID, run ID, seed, dataset, backend, selector, budget, and commit. Analysis scripts must read this registry rather than hand-copied table values.
+Maintain `results/sweep_results.json` or `results/registry.parquet` as the only table-generation input. Hand-copied values are not a source of truth.
 
-Suggested experiment ID format:
+---
 
-`E<phase>.<number>_<backend>_<dataset>_<selector>_b<budget>_s<seed>`
+## 9. Minimum success standard (unchanged from the Proposal)
 
-## 10. Execution schedule and resource control
+The project reaches minimum success only when, on both AI-TOD and VisDrone and under at least two aligned budget definitions:
 
-| Milestone | Indicative duration | Exit artifact |
-|---|---:|---|
-| M0: harness, data, metric and timing validation | 1–2 weeks | Reproducible dense/ESOD baseline |
-| M1: H1 audit, oracles, microbenchmarks | 1 week | Phase 0 gate report and locked thresholds |
-| M2: semantic MVP and coverage constraint | 1–2 weeks | Phase 1 decision memo |
-| M3: spectral/fusion screen and confirmation | 2–3 weeks | H2/H3 evidence package |
-| M4: multi-budget and end-to-end profiling | 1–2 weeks | H5–H7 evidence package |
-| M5: QueryDet and UAVDT transfer | 2 weeks | H8 evidence package |
-| M6: optional CEASC/external validation | 1–2 weeks | Extension appendix |
+- tiny selector recall improves by at least 1 percentage point or relative miss rate drops by at least 15%;
+- APt/APvt improves stably;
+- total AP is non-inferior beyond measured repeatability noise;
+- added selector latency is within the stated overhead/break-even rule;
+- the result is reproducible with valid metrics, exact action accounting, and recorded provenance.
 
-Keep compute bounded with the screen/confirm funnel. Before launching any grid, estimate full-training equivalents and stop variants that are both accuracy-dominated and slower after the screening seed. Preserve controls and negative results even when stopping early.
-
-## 11. Decision record after each phase
-
-Each gate produces a short immutable memo containing:
-
-1. configs and run IDs included/excluded, with reasons;
-2. predefined criteria and observed confidence intervals;
-3. decision: Go, Repair, Narrow Claim, or Stop;
-4. falsified hypotheses and retained hypotheses;
-5. the next phase's locked variants and compute budget;
-6. any deviation from this plan, timestamped before the affected result is viewed.
-
-The project succeeds minimally only if the equal-budget selector improvement is reproducible on AI-TOD and VisDrone, total AP remains non-inferior, and added selector cost has a credible break-even point. It succeeds strongly if the improvement forms a better measured-latency frontier, transfers to QueryDet, and remains stable under dataset shift or recalibration. Negative results listed in the proposal—no matched spectral benefit, no priority/coverage correlation, gains caused only by retaining more background, no oracle headroom, no real speedup, unstable multi-budget behavior, or single-bin dependence—must be reported as falsification rather than hidden by metric selection.
+Until Gates A–C are complete, the current artifacts are strong local screening evidence for E2.9, not a completed paper-level validation.

@@ -2,12 +2,13 @@
 # =============================================================================
 # BCRS Full Inference Sweep — All Models × All Budgets
 #
-# Runs: E1.0 / E2.1 / E2.3 / E2.4 / E2.5 / E2.6 / E2.9  x  K={16, 32, 48, 64}
-# Total: 7 models × 4 budgets = 28 inference runs
+# Runs: E2.1 / E2.3 / E2.4 / E2.5 / E2.6 / E2.9  x  K={16, 32, 48, 64}
+# Total: 6 BCRS models × 4 budgets = 24 inference runs
+# E1.0 is intentionally excluded: upstream ESOD uses fixed-threshold routing
+# with a dynamic 0-64 patch count, not a fixed Top-K budget.
 #
 # Output naming convention: work_dirs/{stem}_k{K}/
-#   e.g.  esod_visdrone_yolov5m_k64
-#         bcrs_dual_evidence_visdrone_yolov5m_k16
+#   e.g.  bcrs_dual_evidence_visdrone_yolov5m_k16
 #
 # Summary: work_dirs/sweep_results.json  (structured, ready for plotting)
 #
@@ -44,7 +45,6 @@ SWEEP_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # instantiates `GatedEvidenceFusion` (sigmoid gate, zero-sum semantic/spectral mix) — this is
 # the actual "gated dual-evidence" architecture, previously mislabeled as "Spectral".
 MODELS=(
-  "E1.0|ESOD Baseline|esod_visdrone_yolov5m|configs/experiments/esod_visdrone.yaml"
   "E2.1|BCRS Semantic-Only (Coverage-Supervised)|bcrs_dual_evidence_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone.yaml"
   "E2.3|BCRS Dual Evidence Concat|bcrs_dual_evidence_concat_visdrone_yolov5m|configs/experiments/bcrs_dual_evidence_concat_visdrone.yaml"
   "E2.4|BCRS Dual Evidence Gated|bcrs_dual_evidence_visdrone_spectral_yolov5m|configs/experiments/bcrs_dual_evidence_visdrone_spectral.yaml"
@@ -175,7 +175,6 @@ out_json   = sys.argv[2]
 sweep_date = sys.argv[3]
 
 MODELS = [
-    ("E1.0", "ESOD Baseline",                          "esod_visdrone_yolov5m"),
     ("E2.1", "BCRS Semantic-Only (Coverage-Supervised)", "bcrs_dual_evidence_visdrone_yolov5m"),
     ("E2.3", "BCRS Dual Evidence Concat",               "bcrs_dual_evidence_concat_visdrone_yolov5m"),
     ("E2.4", "BCRS Dual Evidence Gated",                "bcrs_dual_evidence_visdrone_spectral_yolov5m"),

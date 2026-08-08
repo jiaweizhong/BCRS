@@ -93,21 +93,30 @@ class EsodAdapter(BackendAdapter):
                 output_dir.name + "_test",
                 "--exist-ok",
             ]
-            top_k = section.get("top_k") or section.get("patch_budget")
-            is_sparse = bool(section.get("sparse_head", False)) or (
-                top_k is not None and int(top_k) > 0
-            )
+            top_k = section.get("top_k")
+            if top_k is None:
+                top_k = section.get("patch_budget")
+            if top_k is not None:
+                try:
+                    top_k = int(top_k)
+                except (TypeError, ValueError) as exc:
+                    raise ConfigError("ESOD test patch budget must be an integer") from exc
+                if not 1 <= top_k <= 64:
+                    raise ConfigError(
+                        "ESOD test patch budget must be in [1, 64]; omit it for "
+                        "the upstream fixed-threshold router"
+                    )
             for flag, option in (
                 ("hm_metric", "--hm-metric"),
                 ("save_json", "--save-json"),
             ):
                 if bool(section.get(flag, False)):
                     argv.append(option)
-            if is_sparse:
+            if bool(section.get("sparse_head", False)):
                 argv.append("--sparse-head")
             if top_k is not None:
                 argv.extend(["--top-k", str(top_k)])
-            if section.get("hm_threshold"):
+            if section.get("hm_threshold") is not None:
                 argv.extend(["--hm-threshold", str(section["hm_threshold"])])
         argv.extend(self._extra_args(section))
         return CommandSpec(

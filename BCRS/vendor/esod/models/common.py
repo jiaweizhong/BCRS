@@ -30,6 +30,7 @@ from utils.general import (
 )
 from utils.plots import colors, plot_one_box
 from utils.torch_utils import time_synchronized
+from models.routing import fixed_threshold_centers, topk_cell_centers
 
 
 def autopad(k, p=None):  # kernel, padding
@@ -496,13 +497,7 @@ class HeatMapParser(nn.Module):
         outs = []
 
         # t1 = time_synchronized()
-        activated = mask_pred >= threshold
-        if not activated.any():
-            activated = mask_pred >= max(0.05, float(mask_pred.max().item()) * 0.5)
-        maxima = F.max_pool2d(mask_pred, 3, stride=1, padding=1) == mask_pred
-        obj_centers = activated & maxima
-        if not obj_centers.any():
-            obj_centers = maxima
+        activated, obj_centers = fixed_threshold_centers(mask_pred, threshold)
         padding = half_clus_w // 2
         obj_sizes = F.avg_pool2d(mask_pred, padding * 2 + 1, stride=1, padding=padding)
 
@@ -613,9 +608,11 @@ class HeatMapParser(nn.Module):
         half_clus_w, half_clus_h = cluster_w // 2, cluster_h // 2
         outs = []
 
+        grid_vtx_shape = (bs, ratio_y, ratio_x)
         if (
             getattr(self, "grid_vtx", None) is None
-            or self.grid_vtx.size(0) != ratio_x * ratio_y * bs
+            or getattr(self, "grid_vtx_shape", None) != grid_vtx_shape
+            or self.grid_vtx.device != device
         ):
             gy, gx = torch.meshgrid(torch.arange(ratio_y), torch.arange(ratio_x))
             gxy = (
@@ -628,11 +625,13 @@ class HeatMapParser(nn.Module):
                 torch.arange(bs).view(-1, 1).repeat(1, ratio_x * ratio_y).view(-1, 1)
             )  # shape(bs*8*8, 1)
             self.grid_vtx = torch.cat((gb, gxy), dim=1).to(device)  # shape(bs*8*8, 3)
+            self.grid_vtx_shape = grid_vtx_shape
         rb, ry, rx = self.grid_vtx.T
 
         if (
             getattr(self, "grid", None) is None
             or self.grid[0].shape[-1] != cluster_h * cluster_w
+            or self.grid[0].device != device
         ):
             gy, gx = torch.meshgrid(torch.arange(cluster_h), torch.arange(cluster_w))
             self.grid = (gy.reshape(1, -1).to(device), gx.reshape(1, -1).to(device))
@@ -640,31 +639,15 @@ class HeatMapParser(nn.Module):
 
         # t1 = time_synchronized()
         if topk is not None and topk > 0:
-            padded_mask = F.pad(
+            obj_centers = topk_cell_centers(
                 mask_pred,
-                (0, ratio_x * cluster_w - width, 0, ratio_y * cluster_h - height),
+                cluster_height=cluster_h,
+                cluster_width=cluster_w,
+                top_k=topk,
             )
-            patch_scores = F.max_pool2d(
-                padded_mask.unsqueeze(1),
-                (cluster_h, cluster_w),
-                stride=(cluster_h, cluster_w),
-            ).squeeze(1)
-            activated = torch.zeros_like(mask_pred, dtype=torch.bool)
-            for bi in range(bs):
-                flat_scores = patch_scores[bi].view(-1)
-                k = min(topk, flat_scores.numel())
-                topk_val = torch.topk(flat_scores, k).values[-1]
-                activated[bi] = mask_pred[bi] >= topk_val
+            activated = obj_centers
         else:
-            activated = mask_pred >= threshold
-            if not activated.any():
-                activated = mask_pred >= max(0.05, float(mask_pred.max().item()) * 0.5)
-        maxima: torch.Tensor = (
-            F.max_pool2d(mask_pred, 3, stride=1, padding=1) == mask_pred
-        )
-        obj_centers = activated & maxima
-        if not obj_centers.any():
-            obj_centers = maxima
+            activated, obj_centers = fixed_threshold_centers(mask_pred, threshold)
         if (~obj_centers).all():
             return [torch.zeros((0, 4), device=device) for _ in range(bs)]
         padding = max(half_clus_w, half_clus_h) // 2

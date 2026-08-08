@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -19,7 +20,9 @@ def create_files(root: Path, *relative_paths: str) -> None:
             path.mkdir(parents=True, exist_ok=True)
 
 
-def build_experiment(tmp_path: Path, backend: str) -> Path:
+def build_experiment(
+    tmp_path: Path, backend: str, *, test_overrides: dict | None = None
+) -> Path:
     (tmp_path / "pyproject.toml").write_text(
         "[project]\nname='test'\n", encoding="utf-8"
     )
@@ -94,6 +97,7 @@ def build_experiment(tmp_path: Path, backend: str) -> Path:
         "train": {"epochs": 2, "batch_size": 1, "image_size": 64, "seed": 17},
         "test": {"checkpoint": "checkpoint.pth"},
     }
+    payload["test"].update(test_overrides or {})
     return write_yaml(tmp_path / f"configs/experiments/{backend}.yaml", payload)
 
 
@@ -105,10 +109,10 @@ def test_esod_builds_generated_dataset_and_exact_top_level_command(
     assert command.cwd == tmp_path / "backend"
     assert "--cfg" in command.argv
     assert "--data" in command.argv
-    assert command.env == {
-        "SETUPTOOLS_USE_DISTUTILS": "stdlib",
-        "CUDA_VISIBLE_DEVICES": "0",
-    }
+    expected_env = {"CUDA_VISIBLE_DEVICES": "0"}
+    if sys.version_info < (3, 12):
+        expected_env["SETUPTOOLS_USE_DISTUTILS"] = "stdlib"
+    assert command.env == expected_env
     assert command.generated_files[0].is_file()
     generated = command.generated_files[0].read_text(encoding="utf-8")
     assert "nc: 2" in generated
@@ -117,6 +121,46 @@ def test_esod_builds_generated_dataset_and_exact_top_level_command(
     test_command = get_backend("esod").build("test", experiment)
     assert Path(test_command.argv[3]).name == "test.py"
     assert "--weights" in test_command.argv
+    assert "--top-k" not in test_command.argv
+    assert "--sparse-head" not in test_command.argv
+
+
+def test_esod_top_k_is_explicit_and_does_not_enable_sparse_head(
+    tmp_path: Path,
+) -> None:
+    experiment = load_experiment(
+        build_experiment(tmp_path, "esod", test_overrides={"patch_budget": 16})
+    )
+    command = get_backend("esod").build("test", experiment)
+
+    assert command.argv[command.argv.index("--top-k") + 1] == "16"
+    assert "--sparse-head" not in command.argv
+
+
+def test_esod_threshold_router_has_no_top_k_flag(tmp_path: Path) -> None:
+    experiment = load_experiment(
+        build_experiment(
+            tmp_path,
+            "esod",
+            test_overrides={"hm_threshold": 0.5, "sparse_head": True},
+        )
+    )
+    command = get_backend("esod").build("test", experiment)
+
+    assert command.argv[command.argv.index("--hm-threshold") + 1] == "0.5"
+    assert "--top-k" not in command.argv
+    assert "--sparse-head" in command.argv
+
+
+@pytest.mark.parametrize("budget", [0, -1, 65, "not-an-int"])
+def test_esod_rejects_invalid_explicit_patch_budget(
+    tmp_path: Path, budget: int | str
+) -> None:
+    experiment = load_experiment(
+        build_experiment(tmp_path, "esod", test_overrides={"patch_budget": budget})
+    )
+    with pytest.raises(ConfigError, match="patch budget"):
+        get_backend("esod").build("test", experiment)
 
 
 def test_querydet_builds_path_overrides_and_preserves_weight_uri(

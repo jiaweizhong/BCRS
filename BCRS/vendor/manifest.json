@@ -250,7 +250,7 @@
       "repository": "esod",
       "source": "models/common.py",
       "target": "vendor/esod/models/common.py",
-      "sha256": "9c43e9ffaa342ff5ed0dfb6d29fd53b530bce417ca7ed7bcf6927e0a9317e6a3"
+      "sha256": "75a5ab223a3438c5e3408c8b2adcdc4795ca017e1541eb517e9d00409672cb11"
     },
     {
       "repository": "esod",
@@ -266,6 +266,12 @@
     },
     {
       "repository": "esod",
+      "source": "models/routing.py",
+      "target": "vendor/esod/models/routing.py",
+      "sha256": "a29a19f5d4ad29d362c89771007b1ba0acdf3b66ecf8910760cdc219073491e2"
+    },
+    {
+      "repository": "esod",
       "source": "models/spconv.py",
       "target": "vendor/esod/models/spconv.py",
       "sha256": "e1f0153b6ae4f6836fba83a5bfd7c0b632eaa4b4566844a6776154c8ca5dcd95"
@@ -274,7 +280,7 @@
       "repository": "esod",
       "source": "models/yolo.py",
       "target": "vendor/esod/models/yolo.py",
-      "sha256": "57eb006c56abdfc8e09ce1b8ca3152318078b4bdebc347719f0bcd5ad872c966"
+      "sha256": "5ffdbe3384f0bb375248e4e1afda447fb983433a807b7ec259af967c87706621"
     },
     {
       "repository": "esod",
@@ -286,7 +292,7 @@
       "repository": "esod",
       "source": "test.py",
       "target": "vendor/esod/test.py",
-      "sha256": "949c36fae18e07084a59e7c6323551128641d00f5984ad693445d79a13652b06"
+      "sha256": "99dc34a895754894340fc091e904def8a130e984050eb548788dc3e354de9205"
     },
     {
       "repository": "esod",

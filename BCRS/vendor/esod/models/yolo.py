@@ -23,6 +23,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 from models.common import *
+from models.routing import expanded_threshold_centers
 from models.replknet import *
 
 try:
@@ -107,15 +108,7 @@ class Detect(nn.Module):
         ob1, ox1, oy1 = offsets[:, :3].unsqueeze(-1).chunk(3, dim=1)  # shape(n,1,1)
         ob, ox, oy = (ob1 + gb).view(-1), (ox1 + gx).view(-1), (oy1 + gy).view(-1)
 
-        maxima = F.max_pool2d(mask, 3, stride=1, padding=1) == mask
-        eff_thresh = (
-            thresh if (mask >= thresh).any() else max(0.05, float(mask.max()) * 0.5)
-        )
-        response = mask >= eff_thresh
-        indices = (maxima & response).to(dtype)
-        if not indices.any():
-            indices = torch.ones_like(mask, dtype=dtype)
-        indices = F.max_pool2d(indices, 3, stride=1, padding=1)  # expansion
+        indices = expanded_threshold_centers(mask, thresh)
 
         slices = indices[ob, 0, oy, ox].view(offsets.shape[0], 1, patch_h, patch_w)
 
