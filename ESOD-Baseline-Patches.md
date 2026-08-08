@@ -117,6 +117,26 @@ This document records every local change made to the `esod/` checkout at the rep
   os.makedirs(save_dir / 'scripts', exist_ok=True)
   ```
 
+## 5. `np.trapz` removed in NumPy 2.0+
+
+- **Location:** `esod/utils/metrics.py::compute_ap()`
+- **Symptom:** `AttributeError: module 'numpy' has no attribute 'trapz'` during AP computation — hit on essentially every `test()` call (end of each training epoch, plus standalone `test.py` runs), since NumPy 2.0 renamed `trapz` to `trapezoid` and this project's stack pins NumPy 2.2.x.
+- **Root cause:** `compute_ap()` called `np.trapz(...)` unconditionally. Same class of break already documented and fixed in `BCRS/docs/ESOD_VENDOR_BUGS_AND_FIXES.md` (#6) for the separate vendored fork; applied here to the pristine `esod/` copy too.
+- **Fix:** module-level fallback, used in place of the direct call:
+  ```python
+  _trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz", None)
+  ...
+  ap = _trapz(np.interp(x, mrec, mpre), x)
+  ```
+
+## 6. UAVDT class count (`nc`) mismatch — resolved as 3-class
+
+- **Location:** `esod/models/cfg/esod/uavdt_yolov5m.yaml`
+- **Symptom:** Shipped as `nc: 1`, which does not match this project's `/root/autodl-tmp/UAVDT_processed/uavdt.yaml` (`nc: 3`, `names: [car, truck, bus]`), nor the real label content (`labels/train/*.txt` contains class ids `0`, `1`, `2`, confirmed by direct inspection).
+- **Investigation:** `BCRS/docs/ESOD_VENDOR_BUGS_AND_FIXES.md` (#17) documents the same `nc` mismatch in the separate vendored fork and resolved it by forcing single-class (`nc: 1`, "vehicle") to match what that doc calls "the official UAVDT benchmark protocol." That characterization does not hold up against the ESOD paper itself, though: §4.B's dataset description states "the UAVDT dataset consists of 50 video sequences with **3 categories to detect**." The vendored fork's #17 fix was evidently based on an incorrect assumption about the benchmark protocol, not the paper's own text.
+- **Resolution:** Kept 3-class, matching both the paper's own dataset description and this project's actual label data. Changed `models/cfg/esod/uavdt_yolov5m.yaml` from `nc: 1` to `nc: 3` to align the model head with `uavdt.yaml` and the real labels, rather than changing the data side to fake single-class.
+- **Reporting caveat (not a code issue):** Table I's paper-reported UAVDT AP (22.5%, 23.6% at 1.25×) was not independently re-derived here as single-class vs. 3-class-averaged — when comparing against it, label paper-reported and locally-reproduced numbers separately rather than treating them as verified equivalent under an identical evaluation convention.
+
 ## Pre-flatten commit history (esod's own git history, discarded)
 
 Before `esod/.git` was removed, the clone carried 3 local commits on top of upstream `alibaba/esod`. Preserved here since that history is no longer retrievable locally:

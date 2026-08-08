@@ -1,5 +1,9 @@
 # parameters
-nc: 1  # number of classes
+# HESOD local patch: ESOD paper §4.B describes UAVDT as "3 categories to
+# detect"; aligned to 3 classes (car/truck/bus) to match the paper's own
+# dataset description and this project's actual 3-class label data. See
+# ESOD-Baseline-Patches.md for the prior nc:1 assumption this replaced.
+nc: 3  # number of classes
 depth_multiple: 0.67  # model depth multiple
 width_multiple: 0.75  # layer channel multiple
 
