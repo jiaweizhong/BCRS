@@ -60,11 +60,15 @@ try:
 except ImportError:
     # HESOD local patch: utils/wandb_logging/ was intentionally removed (unused
     # experiment-tracking integration). Stand-ins match the attributes/return
-    # value the rest of this file actually reads (wandb_logger.wandb,
-    # wandb_logger.data_dict, check_wandb_resume(opt)).
+    # value train.py and test.py actually read (wandb_logger.wandb,
+    # wandb_logger.wandb_run, wandb_logger.data_dict, check_wandb_resume(opt)).
+    # wandb_run must exist (not just be gated behind `.wandb`) because
+    # test.py's `wandb_logger and wandb_logger.wandb_run` check reads it
+    # directly, without checking `.wandb` first.
     class WandbLogger:
         def __init__(self, opt, name, run_id, data_dict):
             self.wandb = None
+            self.wandb_run = None
             self.data_dict = data_dict
 
     def check_wandb_resume(opt):
