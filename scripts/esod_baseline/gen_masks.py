@@ -56,6 +56,20 @@ def generate(esod_repo: Path, dataset_root: Path, splits: list[str], cls_ratio: 
     cwd = os.getcwd()
     os.chdir(esod_repo)  # data_prepare.py resolves `utils.general` relative to repo root
     try:
+        # HESOD local patch: same PyTorch 2.6+ weights_only=True default issue
+        # documented in ESOD-Baseline-Patches.md, hit here because data_prepare.py
+        # loads the SAM checkpoint via torch.load at import time (module-level
+        # code, not lazy) the moment `segment-anything` is importable.
+        import torch
+
+        _orig_torch_load = torch.load
+
+        def _compat_torch_load(*a, **kw):
+            kw.setdefault("weights_only", False)
+            return _orig_torch_load(*a, **kw)
+
+        torch.load = _compat_torch_load
+
         from scripts.data_prepare import gen_mask  # noqa: E402
     finally:
         os.chdir(cwd)
