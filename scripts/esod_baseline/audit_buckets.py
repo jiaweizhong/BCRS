@@ -72,6 +72,7 @@ class AuditResult:
     recalled_keys: frozenset[tuple[str, int]]
     size_stats: dict[str, dict[str, int]]
     class_stats: dict[str, dict[str, int]]
+    composition: dict[str, dict[str, dict[str, int]]]  # size bin -> class -> {total, recalled}
     prediction_count: int
     confidence_threshold: float
     iou_threshold: float
@@ -266,14 +267,19 @@ def audit_predictions(
 
     size_stats = {name: {"total": 0, "recalled": 0} for name, _, _ in SIZE_BINS}
     class_stats = {name: {"total": 0, "recalled": 0} for name in class_names}
+    composition = {
+        name: {cls: {"total": 0, "recalled": 0} for cls in class_names} for name, _, _ in SIZE_BINS
+    }
     for target in targets:
         is_recalled = target.key in recalled
+        class_name = class_names[target.class_id]
         for name, lower, upper in SIZE_BINS:
             if lower <= target.area < upper:
                 size_stats[name]["total"] += 1
                 size_stats[name]["recalled"] += int(is_recalled)
+                composition[name][class_name]["total"] += 1
+                composition[name][class_name]["recalled"] += int(is_recalled)
                 break
-        class_name = class_names[target.class_id]
         class_stats[class_name]["total"] += 1
         class_stats[class_name]["recalled"] += int(is_recalled)
 
@@ -282,6 +288,7 @@ def audit_predictions(
         recalled_keys=recalled,
         size_stats=size_stats,
         class_stats=class_stats,
+        composition=composition,
         prediction_count=len(predictions),
         confidence_threshold=confidence_threshold,
         iou_threshold=iou_threshold,
@@ -301,6 +308,27 @@ def _print_table(title: str, stats: dict[str, dict[str, int]]) -> None:
     print("=" * 70)
 
 
+def _print_composition(composition: dict[str, dict[str, dict[str, int]]]) -> None:
+    # Per size bin, class breakdown -- explains a non-monotonic size-bin recall
+    # pattern (e.g. a "larger" bin scoring worse than a "smaller" one) when it's
+    # actually driven by which classes dominate that bin, not by size itself.
+    for bin_name, class_counts in composition.items():
+        bin_total = sum(v["total"] for v in class_counts.values())
+        if bin_total == 0:
+            continue
+        print("\n" + "-" * 70)
+        print(f" Class composition within '{bin_name}' (bin total: {bin_total})")
+        print("-" * 70)
+        print(f"{'Class':<20} | {'Share of bin':<12} | {'GT Count':<10} | {'Recall Rate (%)':<15}")
+        for cls, values in sorted(class_counts.items(), key=lambda kv: kv[1]["total"], reverse=True):
+            total, recalled = values["total"], values["recalled"]
+            if total == 0:
+                continue
+            share = total / bin_total * 100.0
+            rate = recalled / total * 100.0
+            print(f"{cls:<20} | {share:<11.1f}% | {total:<10} | {rate:<14.2f}%")
+
+
 def print_audit(result: AuditResult) -> None:
     print(
         f"Evaluated {result.prediction_count} predictions at "
@@ -314,6 +342,10 @@ def print_audit(result: AuditResult) -> None:
         f"{result.recalled_gt:<10} | {overall_rate:<14.2f}%"
     )
     _print_table("CLASS RECALL", result.class_stats)
+    if len(result.class_stats) > 1:
+        # Only informative with >1 class -- with a single class every bin is
+        # trivially 100% that class.
+        _print_composition(result.composition)
 
 
 def main(argv: list[str] | None = None) -> int:
