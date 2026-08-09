@@ -59,7 +59,20 @@ def reorganize(raw_root: Path, out_root: Path, split: str) -> None:
             continue
         img_path = Path(line)
         if not img_path.is_file():
-            raise SystemExit(f"{split_file} references missing image: {img_path}")
+            # prepare_visdrone() writes split/*.txt paths relative to wherever
+            # data_prepare.py was invoked from (typically `ln -sf <raw> VisDrone`
+            # then run from the esod repo root), not relative to --raw-root or
+            # this script's cwd. Re-anchor by dropping the leading path
+            # component (the symlink name) and resolving the rest against
+            # --raw-root instead, since that's where prepare_visdrone() actually
+            # wrote the files.
+            reanchored = raw_root / Path(*img_path.parts[1:])
+            if not reanchored.is_file():
+                raise SystemExit(
+                    f"{split_file} references missing image: {img_path} "
+                    f"(also tried re-anchored path {reanchored})"
+                )
+            img_path = reanchored
 
         label_path = Path(str(img_path).replace("/images/", "/labels/").replace(".jpg", ".txt"))
         if not label_path.is_file():
