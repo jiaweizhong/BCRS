@@ -59,17 +59,35 @@ try:
     from utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
 except ImportError:
     # HESOD local patch: utils/wandb_logging/ was intentionally removed (unused
-    # experiment-tracking integration). Stand-ins match the attributes/return
-    # value train.py and test.py actually read (wandb_logger.wandb,
-    # wandb_logger.wandb_run, wandb_logger.data_dict, check_wandb_resume(opt)).
-    # wandb_run must exist (not just be gated behind `.wandb`) because
-    # test.py's `wandb_logger and wandb_logger.wandb_run` check reads it
-    # directly, without checking `.wandb` first.
+    # experiment-tracking integration). Stand-in matches every attribute/method
+    # train.py and test.py actually reference, audited across both files, not
+    # just the ones hit so far -- several calls (end_epoch, finish_run) run
+    # unconditionally every epoch, not gated behind `if wandb_logger.wandb:`
+    # like most of the rest, so they must be real no-ops, not just attributes
+    # that happen to be falsy.
     class WandbLogger:
         def __init__(self, opt, name, run_id, data_dict):
             self.wandb = None
             self.wandb_run = None
             self.data_dict = data_dict
+            self.current_epoch = 0
+            self.log_imgs = 0
+            self.bbox_interval = -1
+
+        def log(self, *args, **kwargs):
+            pass
+
+        def log_model(self, *args, **kwargs):
+            pass
+
+        def log_training_progress(self, *args, **kwargs):
+            pass
+
+        def end_epoch(self, *args, **kwargs):
+            pass
+
+        def finish_run(self):
+            pass
 
     def check_wandb_resume(opt):
         return None
