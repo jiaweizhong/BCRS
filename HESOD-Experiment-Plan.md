@@ -208,11 +208,10 @@ Size-bin recall was non-monotonic (Medium/Large=52.13%, *worse* than Very Tiny=6
 
 ## 6. Next steps
 
-1. **TinyPerson: retrain baseline + channel-pooled-concat with `hyp.tinyperson.scratch.yaml`** (§4.2's leading suspect) — `scripts/esod_baseline/run_tinyperson_scratch_hyp.sh`, not yet run.
-2. **Box-regression size-weighting ablation** (`--box-loss size_weighted` in `hesod/backends/hesod/utils/loss.py`, targets §1.6's #1 VisDrone gap item) — implemented, not yet run.
-3. **UAVDT official-source re-fetch** — try the Baidu Pan route that worked for TinyPerson; re-run `prepare_uavdt()` once raw data is in hand, and resolve the single-class-vs-3-class question at the same time.
-4. Once TinyPerson's hyp-file question is resolved, decide whether to also test the roster arms (dual-evidence, channel-pooled) there and on UAVDT — deprioritized behind item 1, since a moving baseline makes roster comparisons meaningless.
-5. Lower priority, not scheduled: repeat VisDrone baseline with an additional seed to size natural run-to-run variance against the remaining ~2.8%/1.7% gap; install SAM and regenerate hybrid masks for a controlled Gaussian-vs-hybrid comparison on `VisDrone_v2`.
+1. **TinyPerson: three single-variable arms, all on `hyp.tinyperson.scratch.yaml`** (§4.2's leading suspect) — `scripts/esod_baseline/run_tinyperson_scratch_hyp.sh`, not yet run: (a) baseline, (b) channel-pooled-concat (selector-side coverage loss only), (c) box-regression size-weighting (`--box-loss size_weighted`, head-side only, targets §1.6's #1 VisDrone gap item — kept in its own arm rather than bundled into (b) so a selector-side and head-side change are never confounded in the same run).
+2. **UAVDT official-source re-fetch** — try the Baidu Pan route that worked for TinyPerson; re-run `prepare_uavdt()` once raw data is in hand, and resolve the single-class-vs-3-class question at the same time.
+3. Once TinyPerson's hyp-file question is resolved, decide whether box-regression size-weighting and/or the roster arms are also worth testing on VisDrone (§1.6 already flagged the box-loss switch as VisDrone's most promising untested lever) and on UAVDT — deprioritized behind item 1, since a moving baseline makes cross-arm comparisons meaningless.
+4. Lower priority, not scheduled: repeat VisDrone baseline with an additional seed to size natural run-to-run variance against the remaining ~2.8%/1.7% gap; install SAM and regenerate hybrid masks for a controlled Gaussian-vs-hybrid comparison on `VisDrone_v2`.
 
 ---
 
@@ -220,6 +219,7 @@ Size-bin recall was non-monotonic (Medium/Large=52.13%, *worse* than Very Tiny=6
 
 - **VisDrone data conversion** — see §1.1. Must go through ESOD's own `prepare_visdrone()`; a generic Ultralytics-style conversion silently skips pixel-masking ignored regions and costs real AP/AP50/calibration.
 - **TinyPerson hyp file** — `hyp.tinyperson.yaml` (the name `train.sh`'s default formula expects) does not exist; must explicitly pick `scratch` or `finetune`. Current best guess is `scratch` (§4.2), not yet validated by a rerun.
+- **TinyPerson data paths** — the dataset root is `/root/autodl-tmp/TinyPerson_v1` with a **sibling** config `/root/autodl-tmp/TinyPerson_v1.yaml` (same convention as `VisDrone_v2`/`VisDrone_v2.yaml` — config next to the data dir, not nested inside it). `run_baseline.sh` briefly had this wrong (`TinyPerson/tinyperson.yaml`, nested, wrong dir name) — fixed; if a "required file not found" error mentions a `TinyPerson` path, check it's using `TinyPerson_v1` first.
 - **`--top-k` / `--selector-loss` / `--box-loss` only exist in `hesod/backends/hesod/`** (the dev tree), not the pristine `esod/`/`hesod/backends/esod/` mirrors — cross-tree checkpoint loads work fine (architecture is identical for the plain baseline), but roster-arm-specific flags will simply not be recognized if pointed at the wrong tree.
 - **`test.py`'s per-class label count (`nt`)** was gated behind `stats[0].any()`, so a validation pass with zero IoU>0.5 hits anywhere displayed `Labels: 0`/`BPR: nan` even when the true label count wasn't zero. Fixed identically in `esod/`, `hesod/backends/esod/`, `hesod/backends/hesod/`. Display-only.
 - Environment-compat patches (NumPy 2.x, PyTorch 2.6+ `torch.load`, etc.) are tracked separately in `ESOD-Baseline-Patches.md` — that file, not this one, is the source of truth for "why did X break and how was it fixed."

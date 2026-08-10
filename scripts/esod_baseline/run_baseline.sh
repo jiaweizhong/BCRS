@@ -280,11 +280,11 @@ case "$DATASET" in
     # HESOD-Experiment-Plan.md's TinyPerson section for the reasoning and the
     # finetune-hyp run's numbers it's being compared against.
     run_dataset tinyperson \
-      /root/autodl-tmp/TinyPerson/tinyperson.yaml \
+      /root/autodl-tmp/TinyPerson_v1.yaml \
       models/cfg/esod/tinyperson_yolov5m.yaml \
       data/hyps/hyp.tinyperson.scratch.yaml \
       2048 8 \
-      /root/autodl-tmp/TinyPerson \
+      /root/autodl-tmp/TinyPerson_v1 \
       "person" \
       val
     ;;
