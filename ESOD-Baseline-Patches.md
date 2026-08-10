@@ -172,6 +172,21 @@ This document records every local change made to the `esod/` checkout at the rep
   Applied to `esod/test.py`, `hesod/backends/esod/test.py`, and `hesod/backends/hesod/test.py` (the latter is HESOD's active dev copy, out of this doc's normal dual-tree scope per the Scope Boundary note above, but this specific fix is a pure upstream bug fix with no algorithmic content, so all three copies were kept in sync rather than letting a third silent fork of the same bug develop).
   - **Display-only, no effect on any reported metric to date:** neither the VisDrone E1.0 run (`HESOD-Experiment-Plan.md`) nor UAVDT's in-progress run had this branch active by their final epoch — VisDrone's very first validation pass already had real matches, so this bug never fired for VisDrone at all.
 
+## 8. `gen_mask()` crashed on first real SAM invocation — CUDA tensor passed directly to `.numpy()`
+
+- **Location:** `scripts/data_prepare.py::gen_mask()`, SAM-hybrid mask branch (`if predictor is not None:`)
+- **Symptom:** the very first time SAM was actually installed and loaded successfully in this project (previously always silently fell back to Gaussian-only, see `HESOD-Experiment-Plan.md`'s "no SAM installed" caveat on every prior run), `gen_masks.py`/`data_prepare.py` crashed immediately on the first image:
+  ```
+  TypeError: can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first
+  ```
+- **Root cause:** `sam_res = (sam_res > 0.5).half().numpy()` — `sam_res` comes from `segment_image()`, which runs SAM inference on `device = "cuda"` (hardcoded in this file's own SAM setup, see #`predictor` init near the top) and returns a CUDA tensor. `torch.Tensor.numpy()` refuses to convert a CUDA tensor directly, no matter the dtype. This code path had apparently never been exercised end-to-end in this project before (every prior mask-generation run used the Gaussian-only fallback), so the bug was latent, not previously hit.
+- **Fix:** insert `.cpu()` before `.numpy()`:
+  ```python
+  sam_res = (sam_res > 0.5).half().cpu().numpy()
+  ```
+  Applied to `esod/scripts/data_prepare.py`, `hesod/backends/esod/scripts/data_prepare.py`, and `hesod/backends/hesod/scripts/data_prepare.py` (all three had the identical unfixed line).
+- **Separately, not a code bug but worth recording:** getting SAM importable at all required bypassing a broken `pip install -e third_party/segment-anything` (fails with a `setuptools`/`distutils` incompatibility under Python 3.12 — `pip install --upgrade setuptools` alone doesn't reliably fix it in a conda base env). Since `segment-anything` is pure Python with no compiled extensions, the working fix was a direct symlink into site-packages instead of fighting the packaging toolchain: `ln -sf <repo>/third_party/segment-anything/segment_anything <conda-env>/lib/python3.12/site-packages/segment_anything`.
+
 ## Pre-flatten commit history (esod's own git history, discarded)
 
 Before `esod/.git` was removed, the clone carried 3 local commits on top of upstream `alibaba/esod`. Preserved here since that history is no longer retrievable locally:

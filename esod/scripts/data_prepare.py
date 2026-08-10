@@ -151,7 +151,13 @@ def gen_mask(label_path, image, cls_ratio=False, thresh=0.5, sam_only=False):
         if stride != 1:
             sam_res = F.interpolate(sam_res[None, None, ...].float(), size=(ny, nx), mode='bilinear', align_corners=False)[0, 0]
             # sam_res = F.interpolate(sam_res[None, None, ...].float(), size=(ny, nx), mode='nearest')[0, 0]
-        sam_res = (sam_res > 0.5).half().numpy()
+        # HESOD local patch: sam_res is a CUDA tensor (segment_image() runs SAM
+        # inference on GPU) -- torch.Tensor.numpy() refuses to convert a CUDA
+        # tensor directly ("can't convert cuda:0 device type tensor to numpy"),
+        # needs an explicit .cpu() first. Upstream never hit this because it
+        # presumably ran in an environment/PyTorch version lenient enough not
+        # to raise, or was never actually exercised end-to-end.
+        sam_res = (sam_res > 0.5).half().cpu().numpy()
 
     c, xc, yc, w, h = labels.T
     x1, y1, x2, y2 = ((xc - w / 2.) * nx).astype(np.int32).clip(0), \
