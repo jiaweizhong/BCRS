@@ -229,15 +229,20 @@ fi
 
 case "$DATASET" in
   visdrone)
-    # classes_csv left empty -> audit_failure_cases.py uses its built-in 10-class
-    # VisDrone default (pedestrian..motor), which matches the labels this pipeline
-    # writes (see esod/scripts/data_prepare.py::prepare_visdrone(), cls - 1).
+    # /root/autodl-tmp/VisDrone(.yaml) is SS1's superseded Ultralytics-converted
+    # data (HESOD-Experiment-Plan.md SS1.1) -- kept on disk for reference, not
+    # deleted, but this case was still pointing at it until this fix. The
+    # current reference dataset is VisDrone_v2 (official prepare_visdrone()
+    # conversion, closes ~half the AP gap / ~3/4 the AP50 gap vs. SS1). classes_csv
+    # left empty -> audit_failure_cases.py uses its built-in 10-class VisDrone
+    # default (pedestrian..motor), which matches the labels this pipeline writes
+    # (see esod/scripts/data_prepare.py::prepare_visdrone(), cls - 1).
     run_dataset visdrone \
-      /root/autodl-tmp/VisDrone.yaml \
+      /root/autodl-tmp/VisDrone_v2.yaml \
       models/cfg/esod/visdrone_yolov5m.yaml \
       data/hyps/hyp.visdrone.yaml \
       1536 8 \
-      /root/autodl-tmp/VisDrone \
+      /root/autodl-tmp/VisDrone_v2 \
       "" \
       val \
       --cls-ratio
