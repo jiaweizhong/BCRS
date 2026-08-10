@@ -268,14 +268,21 @@ case "$DATASET" in
     # NOTE: the official repo ships hyp.tinyperson.finetune.yaml and
     # hyp.tinyperson.scratch.yaml, but no plain hyp.tinyperson.yaml, so
     # scripts/train.sh's `data/hyps/hyp.${DATASET}.yaml` default would 404 here.
-    # We init from the pretrained COCO yolov5m checkpoint (same as the other two
-    # datasets), so the "finetune" hyp set is used. This is an assumption, not
-    # confirmed against the paper's supplementary code -- sanity-check the
-    # resulting AP against Table II (APt50 61.3 / APs50 74.4) before trusting it.
+    # Originally picked "finetune" on the reasoning "we init from the pretrained
+    # COCO yolov5m checkpoint, so finetune applies" -- but hyp.visdrone.yaml and
+    # hyp.uavdt.yaml BOTH also init from that same checkpoint and are both
+    # scratch-style (header comment "COCO training from scratch", lr0=0.01);
+    # hyp.tinyperson.finetune.yaml's own header is unmodified upstream
+    # ultralytics/yolov5 boilerplate ("VOC finetuning", never adapted to
+    # TinyPerson), unlike hyp.tinyperson.scratch.yaml (has the ESOD-specific
+    # `pixl` mask-loss gain, same family as the other two datasets' hyps). Using
+    # "scratch" now for consistency with VisDrone/UAVDT -- see
+    # HESOD-Experiment-Plan.md's TinyPerson section for the reasoning and the
+    # finetune-hyp run's numbers it's being compared against.
     run_dataset tinyperson \
       /root/autodl-tmp/TinyPerson/tinyperson.yaml \
       models/cfg/esod/tinyperson_yolov5m.yaml \
-      data/hyps/hyp.tinyperson.finetune.yaml \
+      data/hyps/hyp.tinyperson.scratch.yaml \
       2048 8 \
       /root/autodl-tmp/TinyPerson \
       "person" \
