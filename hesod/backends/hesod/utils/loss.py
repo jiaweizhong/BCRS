@@ -91,7 +91,8 @@ class QFocalLoss(nn.Module):
 
 class ComputeLoss:
     # Compute losses
-    def __init__(self, model, autobalance=False, selector_loss='upstream', lambda_cov=0.5, pos_weight=2.0):
+    def __init__(self, model, autobalance=False, selector_loss='upstream', lambda_cov=0.5, pos_weight=2.0,
+                 box_loss='upstream', box_weight_ref_area=4.0, box_weight_max=5.0):
         super(ComputeLoss, self).__init__()
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
@@ -106,6 +107,21 @@ class ComputeLoss:
         self.selector_loss = selector_loss
         self.lambda_cov = lambda_cov if selector_loss == 'coverage' else 0.0
         self.mask_pos_weight = pos_weight if selector_loss == 'coverage' else None
+
+        # HESOD box-regression size weighting (ablation switch, HESOD-Experiment-Plan.md
+        # SS4.2's head-localization finding): 'upstream' is the unmodified per-anchor
+        # (1-CIoU).mean() the pristine repo uses, unchanged default so existing runs
+        # (E1.0 and all roster arms trained so far) are unaffected. 'size_weighted'
+        # upweights smaller matched GT boxes' contribution to lbox using the same
+        # inverse-area-with-cap shape as compute_coverage_loss's tiny-object weight,
+        # applied per detection layer (tbox[i]'s w/h are already that layer's own
+        # grid-cell units, same convention build_targets/build_patch_targets use for
+        # anchor matching) -- not shared state with the selector-side coverage weight.
+        if box_loss not in ('upstream', 'size_weighted'):
+            raise ValueError(f"box_loss must be 'upstream' or 'size_weighted', got {box_loss!r}")
+        self.box_loss = box_loss
+        self.box_weight_ref_area = box_weight_ref_area
+        self.box_weight_max = box_weight_max
 
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
@@ -164,7 +180,12 @@ class ComputeLoss:
                     pwh = (ps[:, 2:4].sigmoid() * 2) ** 2 * anchors[i]
                     pbox = torch.cat((pxy, pwh), 1)  # predicted box
                     iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
-                    lbox += (1.0 - iou).mean()  # iou loss
+                    if self.box_loss == 'size_weighted':
+                        area_cells = (tbox[i][:, 2] * tbox[i][:, 3]).clamp(min=1e-3)
+                        box_weight = (self.box_weight_ref_area / area_cells).clamp(1.0, self.box_weight_max)
+                        lbox += ((1.0 - iou) * box_weight).mean()  # size-weighted iou loss
+                    else:
+                        lbox += (1.0 - iou).mean()  # iou loss
     
                     # Objectness
                     tobj[b, a, gj, gi] = (1.0 - self.gr) + self.gr * iou.detach().clamp(0).type(tobj.dtype)  # iou ratio

@@ -351,7 +351,9 @@ def train(hyp, opt, device, tb_writer=None):
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = amp.GradScaler(enabled=cuda)
     compute_loss = ComputeLoss(model, selector_loss=opt.selector_loss, lambda_cov=opt.lambda_cov,
-                                pos_weight=opt.pos_weight)  # init loss class
+                                pos_weight=opt.pos_weight, box_loss=opt.box_loss,
+                                box_weight_ref_area=opt.box_weight_ref_area,
+                                box_weight_max=opt.box_weight_max)  # init loss class
     logger.info(f'Image sizes {imgsz} train, {imgsz_test} test\n'
                 f'Using {dataloader.num_workers} dataloader workers\n'
                 f'Logging results to {save_dir}\n'
@@ -627,6 +629,15 @@ if __name__ == '__main__':
                               "(HESOD-Proposal.md SS3.3/SS5.4)")
     parser.add_argument('--lambda-cov', type=float, default=0.5, help='coverage loss weight (selector_loss=coverage only)')
     parser.add_argument('--pos-weight', type=float, default=2.0, help='mask BCE positive-class weight (selector_loss=coverage only)')
+    parser.add_argument('--box-loss', type=str, default='upstream', choices=('upstream', 'size_weighted'),
+                         help="'upstream': unmodified per-anchor (1-CIoU).mean() box regression loss (E1.0 "
+                              "baseline and all roster arms trained so far). 'size_weighted': upweights smaller "
+                              "matched GT boxes' contribution to lbox (HESOD-Experiment-Plan.md SS4.2 "
+                              "head-localization finding) -- ablation switch, off by default")
+    parser.add_argument('--box-weight-ref-area', type=float, default=4.0,
+                         help='reference GT area (grid cells, per detection layer) below which the box_loss=size_weighted weight saturates')
+    parser.add_argument('--box-weight-max', type=float, default=5.0,
+                         help='cap on the box_loss=size_weighted per-instance weight')
     opt = parser.parse_args()
 
     # Set DDP variables
