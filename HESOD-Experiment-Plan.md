@@ -241,3 +241,92 @@ Same monotonic shape as SS4 (no new anomaly), broadly small positive shift acros
 Cross-class confusion spot-checks (limited to pairs SS4.1's text explicitly quoted, since that entry summarized some pairs as a range rather than exact figures): `bicycle`->`motor` still exactly 12% (unchanged); `awning-tricycle`->`tricycle` still exactly 7% (unchanged); `tricycle`->`awning-tricycle` improved 19%->17%. The full `car`/`van`/`truck`/`bus` cross-confusion block was not precisely diff-able against SS4.1 (that entry recorded only an aggregate "3-11%" range, not the exact per-pair values needed for a fair before/after comparison) — this run's exact values are now on record in this document's underlying `confusion_matrix.png` for any future comparison.
 
 **Revises SS5's gap diagnosis:** the VisDrone-specific data-conversion pipeline (Ultralytics vs. ESOD's own `prepare_visdrone()`) is now a **confirmed, large contributor** — larger, by this measurement, than any single item previously in SS5's ranked list — not a ruled-out or minor factor. This was tested directly via a controlled rerun (only the data-conversion variable changed), which is stronger evidence than any of SS5's other items currently have. See SS5 for the updated ranking.
+
+---
+
+## 10. E2.x roster: dual-evidence concat selector (`ConcatEvidenceSegmenter`) — first roster arm trained, negative result
+
+**Provenance.** `hesod/backends/hesod/` (git hash `570a2e7`), `models/cfg/esod/visdrone_yolov5m_dual_evidence_concat.yaml`, trained on `VisDrone_v2` (SS9's official data), `--selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0`, otherwise identical recipe to SS9 (same hyp, batch 8, img 1536, 50 epochs). Run name `visdrone_yolov5m_dual_evidence_concat`. Hit and fixed two environment bugs specific to `hesod/backends/hesod/` along the way (an incomplete `WandbLogger` stand-in missing `.wandb_run`, then missing `.end_epoch`/`.finish_run`/etc. — both from the same earlier `utils/wandb_logging/` removal, now fully audited against every `wandb_logger.*` call site in both `train.py` and `test.py`, not just the ones hit; local-only fix, not written up as a numbered `ESOD-Baseline-Patches.md` entry since it's specific to this tree, not shared with `esod/`/`hesod/backends/esod/`).
+
+**Headline comparison (both runs on `VisDrone_v2`, batch=1 `--task measure` numbers used for GFLOPs/FPS):**
+
+| Metric | Paper (Table V) | SS9 baseline (official data) | This arm (dual-evidence concat) | Δ vs. SS9 baseline |
+|---|---:|---:|---:|---:|
+| AP@[.5:.95] | 0.357 | 0.347 | 0.344 | −0.003 |
+| AP50 | 0.595 | 0.585 | 0.584 | −0.001 |
+| P | not reported | 0.662 | 0.684 | +0.022 |
+| R | not reported | 0.552 | 0.539 | −0.013 |
+| BPR | not reported | 0.972 | 0.986 | +0.014 |
+| **Occupy** | not reported | 0.424 | **0.557** | **+0.133 (+31%)** |
+| GFLOPs | 119.5 | 138.5 | **171.2** | **+32.7 (+23.6%)** |
+| FPS | 36.4 (not comparable, SS7.13) | 94.9 | 84.9 | −10.5 (−11%) |
+
+**Negative result: AP and AP50 did not improve (both essentially flat to very slightly worse) despite a large jump in Occupy and GFLOPs.** The selector kept 55.7% of the image as patches (vs. 42.4% for the baseline selector) — a +31% relative increase — which cost +23.6% more compute (GFLOPs) and ~11% lower FPS, for no accuracy gain. This is the mechanism SS4.2/SS9 already flagged as a risk: dual-evidence fusion made the selector *more inclusive*, which raises BPR (0.972→0.986, mechanically — a selector that keeps more area is more likely to contain any given GT box) and the near-zero-threshold recall ceiling (below), but neither of those translate into AP, because SS4.2 already established selector coverage was never VisDrone's bottleneck.
+
+**Bucket recall audit (`audit_buckets.py`):**
+
+| Size bin | SS9 baseline | This arm | Δ |
+|---|---:|---:|---:|
+| Very Tiny (<16x16) | 78.00% | 78.62% | +0.62pp |
+| Tiny (16x16-32x32) | 90.85% | 91.18% | +0.33pp |
+| Small (32x32-96x96) | 95.16% | 95.31% | +0.15pp |
+| Medium/Large (>96x96) | 97.00% | 97.10% | +0.10pp |
+| **Total** | **88.29%** | **88.65%** | +0.36pp |
+
+Small, consistent recall-*ceiling* gains across every bin (largest for Very Tiny, same pattern as SS9's own gain over SS1) — confirms the extra Occupy does buy a marginally larger set of "findable at some confidence" objects, exactly as expected from keeping more area. **The fact that this recall-ceiling gain did not move AP at all is itself informative**: it's a second, independent (trained, not inferred) confirmation of SS4/SS4.1's original point — a higher recall ceiling does not imply higher AP, because AP depends on confidence-ranking/calibration quality among the found objects, which this arm did not target and did not improve. Class-composition breakdown checked, no anomalies (same as SS9).
+
+**Confusion matrix (`background FN` row) vs. SS9 baseline, same conf=0.25/iou=0.45 operating point:**
+
+| Class | SS9 baseline | This arm | Δ |
+|---|---:|---:|---:|
+| pedestrian | 24% | 24% | 0 |
+| people | 35% | 35% | 0 |
+| bicycle | 41% | 38% | −3pp |
+| car | 9% | 8% | −1pp |
+| van | 9% | 9% | 0 |
+| truck | 24% | 24% | 0 |
+| tricycle | 31% | 30% | −1pp |
+| awning-tricycle | 33% | 35% | **+2pp (worse)** |
+| bus | 18% | 14% | −4pp |
+| motor | 27% | 26% | −1pp |
+
+**Mixed, not the clean universal improvement SS9 showed.** Six classes flat-to-slightly-better (1-4pp), three exactly flat, one (`awning-tricycle`) slightly worse. This is consistent with — not contradicting — the flat aggregate AP: unlike SS9's data-conversion fix (a systematic, every-image effect), dual-evidence fusion's effect on calibration is diffuse and roughly cancels out. Reinforces that this specific mechanism did not deliver the calibration improvement SS9 demonstrated is possible in principle.
+
+**Conclusion for this arm alone:** at minimum, coverage loss + dual-evidence concat *alone* is not a win on VisDrone — it trades real compute for a recall-ceiling gain that doesn't reach AP. See SS11 below for the channel-pooled variant's result and the combined two-arm conclusion.
+
+---
+
+## 11. E2.x roster: channel-pooled dual-evidence concat (`ChannelPooledConcatEvidenceSegmenter`) — same outcome, and pooling barely reduced compute
+
+**Provenance.** Identical recipe to SS10's arm, only the model cfg swapped to `models/cfg/esod/visdrone_yolov5m_channel_pooled_concat.yaml`. Run name `visdrone_yolov5m_channel_pooled_concat`.
+
+**Three-way headline comparison (SS9 baseline / SS10 dual-evidence concat / this arm), all on `VisDrone_v2`:**
+
+| Metric | SS9 baseline | SS10 dual-evidence concat | This arm (channel-pooled) |
+|---|---:|---:|---:|
+| AP@[.5:.95] | 0.347 | 0.344 | **0.347** |
+| AP50 | 0.585 | 0.584 | 0.586 |
+| P | 0.662 | 0.684 | 0.665 |
+| R | 0.552 | 0.539 | 0.548 |
+| BPR | 0.972 | 0.986 | 0.986 |
+| Occupy | 0.424 | 0.557 | 0.569 |
+| GFLOPs | 138.5 | 171.2 | **167.0** |
+| FPS | 94.9 | 84.9 | 86.6 |
+
+**AP@[.5:.95] ties the baseline exactly; AP50 is marginally higher than both other arms — all differences are noise-level, no clear winner.** More notable: **GFLOPs barely moved relative to the non-pooled arm (167.0 vs. 171.2, only −2.5%)**, despite channel-pooling being specifically an efficiency optimization. Mechanistic read: GFLOPs here is driven mainly by *how much image area the selector decides to keep* (Occupy), not by *how expensive the selector's own internal computation is* — both dual-evidence arms pushed Occupy up to a similar degree (0.557 / 0.569, both well above the baseline's 0.424), and channel-pooling only touches the latter cost, not the former. It measurably reduces the selector's own compute but that's a small fraction of total GFLOPs next to the downstream SparseHead cost on a much larger kept area, so the net effect on total GFLOPs is small.
+
+**Bucket recall audit — highest recall ceiling of all three arms, in every bin, still without an AP payoff:**
+
+| Size bin | SS9 baseline | SS10 dual-evidence concat | This arm |
+|---|---:|---:|---:|
+| Very Tiny (<16x16) | 78.00% | 78.62% | **79.44%** |
+| Tiny (16x16-32x32) | 90.85% | 91.18% | **91.20%** |
+| Small (32x32-96x96) | 95.16% | 95.31% | **95.66%** |
+| Medium/Large (>96x96) | 97.00% | 97.10% | **97.19%** |
+| **Total** | **88.29%** | **88.65%** | **89.01%** |
+
+A third independent confirmation of SS4/SS4.1's core point: this arm has the best near-zero-threshold recall ceiling of everything tried on VisDrone so far, and the *worst-tied* AP among the three (tied with baseline, technically below SS10 on... no, AP ties baseline and both beat SS10 marginally — point stands regardless: recall ceiling and AP are not moving together across these three arms). Class-composition breakdown checked, no anomalies.
+
+**Combined conclusion for both dual-evidence roster arms (SS10 + SS11):** Neither improved AP or AP50 over the SS9 baseline on VisDrone, both cost meaningfully more compute (+20-24% GFLOPs), and channel-pooling did not recover much of that cost. Both raised the recall ceiling slightly (largest gains at Very Tiny, consistent with SS4.2's mechanism), but this is now the *third* time (SS4→SS4.1, SS9, and now SS10/SS11) that a recall-ceiling gain failed to produce an AP gain — reinforcing rather than merely repeating the original SS4/SS4.1 finding that AP is bottlenecked by confidence-ranking/calibration and (SS4.2) head-localization, not by coverage. **On the evidence gathered so far, selector-side interventions (coverage loss, dual-evidence fusion, in either the full or channel-pooled form) are not the highest-leverage lever for VisDrone specifically.** This remains scoped to VisDrone: UAVDT's much worse aggregate selector coverage (BPRbox 0.807 vs. VisDrone's 0.97-0.99) means this conclusion should not be assumed to transfer there, and TinyPerson has not been tested at all yet.
+
+---
