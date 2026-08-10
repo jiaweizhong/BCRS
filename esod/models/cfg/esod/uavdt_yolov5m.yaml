@@ -1,9 +1,15 @@
 # parameters
-# HESOD local patch: ESOD paper §4.B describes UAVDT as "3 categories to
-# detect"; aligned to 3 classes (car/truck/bus) to match the paper's own
-# dataset description and this project's actual 3-class label data. See
-# ESOD-Baseline-Patches.md for the prior nc:1 assumption this replaced.
-nc: 3  # number of classes
+# HESOD local patch, reverted: was flipped nc:1 -> nc:3 earlier on the
+# reasoning that ESOD paper §4.B describes UAVDT as "3 categories to
+# detect" (see ESOD-Baseline-Patches.md). Flipping back to nc:1 now that
+# scripts/data_prepare.py::prepare_uavdt() has actually been read end to
+# end: it hardcodes every GT box to class 0 regardless of raw category
+# (car/truck/bus), no flag or branch changes this. The paper's text and its
+# own released code disagree here; nc:3 against single-class-0 labels would
+# silently starve 2 of 3 classes of any positive example, which is strictly
+# worse than either being fully right or fully wrong. Going with what the
+# code demonstrably does, since that's what's actually reproducible.
+nc: 1  # number of classes
 depth_multiple: 0.67  # model depth multiple
 width_multiple: 0.75  # layer channel multiple
 

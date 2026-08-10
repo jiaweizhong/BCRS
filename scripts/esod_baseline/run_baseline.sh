@@ -243,25 +243,27 @@ case "$DATASET" in
       --cls-ratio
     ;;
   uavdt)
-    # NOTE on classes: the official esod/scripts/data_prepare.py::prepare_uavdt()
-    # collapses ALL UAVDT categories to a single class 0 ("car") when it writes YOLO
-    # labels -- despite the dataset nominally having 3 categories. We don't know
-    # whether /root/autodl-tmp/UAVDT_processed/labels/*.txt was produced by that
-    # official script (1 class) or by BCRS's own converter (3 classes: car/truck/bus,
-    # per BCRS/configs/datasets/uavdt.yaml). "car,truck,bus" below assumes the
-    # latter. If your labels only ever contain class id 0, change this to just "car"
-    # (or the audit will still run correctly for size buckets -- only the per-class
-    # table would be mislabeled).
+    # /root/autodl-tmp/UAVDT_processed (third-party Kaggle repackaging, 3-class
+    # car/truck/bus labels) is superseded: root-caused to a labeling defect
+    # (oversized GT boxes over parking lots, HESOD-Experiment-Plan.md SS5) and
+    # replaced with official-source data (UAV-benchmark-M.zip / M_attr.zip /
+    # UAV-benchmark-MOTD_v1.0.zip from the official UAVDT release), converted
+    # via the real scripts/data_prepare.py::prepare_uavdt() and
+    # scripts/esod_baseline/reorganize_uavdt.py -- see that script's docstring
+    # for the raw layout it expects. nc is 1 ("vehicle"), not 3: confirmed by
+    # reading prepare_uavdt() itself, it hardcodes every GT box to class 0
+    # regardless of raw category; data/uavdt.yaml and uavdt_yolov5m.yaml were
+    # both updated to match (see their own local-patch comments).
     # val_split is "test", not "val": uavdt.yaml maps val -> images/test on disk
     # (UAVDT ships train/test, no separate val split). gen_masks.py/audit_buckets.py
     # need the real on-disk name or they silently skip the split entirely.
     run_dataset uavdt \
-      /root/autodl-tmp/UAVDT_processed/uavdt.yaml \
+      /root/autodl-tmp/UAVDT_v2.yaml \
       models/cfg/esod/uavdt_yolov5m.yaml \
       data/hyps/hyp.uavdt.yaml \
       1280 8 \
-      /root/autodl-tmp/UAVDT_processed \
-      "car,truck,bus" \
+      /root/autodl-tmp/UAVDT_v2 \
+      "vehicle" \
       test
     ;;
   tinyperson)
