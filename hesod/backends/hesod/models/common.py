@@ -507,6 +507,13 @@ class HeatMapParser(nn.Module):
         act_x, act_y = (x1.view(-1, 1) + gx).view(-1), (y1.view(-1, 1) + gy).view(-1)
         act_b = cb.view(-1, 1).repeat((1, gy.size(1))).view(-1)
         activated = F.pad(activated, (0, ratio_x*cluster_w-width, 0, ratio_y*cluster_h-height))
+        # TEMP DEBUG (HESOD ratio=16 crash investigation, remove after diagnosis)
+        print(f"[DEBUG ada_slicer_fast] ratio={ratio} cluster_w={cluster_w} cluster_h={cluster_h} "
+              f"ratio_x={ratio_x} ratio_y={ratio_y} bs={bs} width={width} height={height} "
+              f"activated.shape={tuple(activated.shape)} "
+              f"act_b[min,max]=({act_b.min().item()},{act_b.max().item()}) "
+              f"act_y[min,max]=({act_y.min().item()},{act_y.max().item()}) "
+              f"act_x[min,max]=({act_x.min().item()},{act_x.max().item()})", flush=True)
         act = activated[act_b, act_y, act_x].view(cb.shape[0], cluster_h, cluster_w)
                 
         act_x, act_y = act.any(dim=1).long(), act.any(dim=2).long()  # shape(nc, cw), shape(nc, ch)
