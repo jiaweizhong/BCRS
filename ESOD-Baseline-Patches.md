@@ -187,6 +187,29 @@ This document records every local change made to the `esod/` checkout at the rep
   Applied to `esod/scripts/data_prepare.py`, `hesod/backends/esod/scripts/data_prepare.py`, and `hesod/backends/hesod/scripts/data_prepare.py` (all three had the identical unfixed line).
 - **Separately, not a code bug but worth recording:** getting SAM importable at all required bypassing a broken `pip install -e third_party/segment-anything` (fails with a `setuptools`/`distutils` incompatibility under Python 3.12 — `pip install --upgrade setuptools` alone doesn't reliably fix it in a conda base env). Since `segment-anything` is pure Python with no compiled extensions, the working fix was a direct symlink into site-packages instead of fighting the packaging toolchain: `ln -sf <repo>/third_party/segment-anything/segment_anything <conda-env>/lib/python3.12/site-packages/segment_anything`.
 
+## 9. `HeatMapParser`'s grid cache keyed by a product, not a shape tuple — silent stale-grid reuse, `"index out of bounds"` CUDA assertion at `ratio=16`
+
+- **Location:** `models/common.py::HeatMapParser.ada_slicer()` (`self.grid`) and `HeatMapParser.ada_slicer_fast()` (`self.grid_vtx` and `self.grid`)
+- **Symptom:** TinyPerson trained fine at `ratio=8` (every prior arm), but a new `ratio=16` arm (testing the paper's own "1/16 may be a more suitable choice [for TinyPerson]" patch-size guidance) crashed reliably on the first validation pass after epoch 0, with a wall of asynchronous CUDA errors and no usable Python traceback even under `CUDA_LAUNCH_BLOCKING=1`:
+  ```
+  /pytorch/aten/src/ATen/native/cuda/IndexKernel.cu:113: operator(): block: [...], thread: [...]
+  Assertion `-sizes[i] <= index && index < sizes[i] && "index out of bounds"` failed.
+  ```
+- **Root cause, confirmed via targeted debug prints (not inference):** all three cache checks compared a **product** of two dimensions instead of the dimensions themselves:
+  ```python
+  if ... or self.grid[0].shape[-1] != cluster_h*cluster_w: ...          # ada_slicer / ada_slicer_fast
+  if ... or self.grid_vtx.size(0) != ratio_x*ratio_y*bs: ...            # ada_slicer_fast
+  ```
+  Consecutive validation batches can have transposed `(cluster_h, cluster_w)` (equivalently `(ratio_y, ratio_x)`) if the images in one batch happen to be portrait and the next landscape (or vice versa) after letterboxing. At `ratio=16` on TinyPerson this genuinely happened: one batch computed `cluster_w=12, cluster_h=16` (product 192), the next `cluster_w=16, cluster_h=12` (also 192). The product-based check saw `192 == 192` and treated the cache as still valid, reusing a grid (`gy`/`gx`) built for the *previous* orientation. Debug output at the crash site: `cluster_w=16 cluster_h=12 ... activated.shape=(8, 144, 256) ... act_y[min,max]=(12,147)` — 147 exceeds the valid height range `[0,143]` by exactly the old cache's stale `cluster_h=16` contribution (`11*12 + 15 = 147` instead of the correct `11*12 + 11 = 143`). At `ratio=8`, `cluster_w`/`cluster_h` are larger numbers where an exact product collision after transposition is far less likely, which is why no dataset/arm at `ratio=8` had ever hit this in this project.
+- **Fix:** cache the actual `(cluster_h, cluster_w)` / `(bs, ratio_y, ratio_x)` tuples and compare those, not their products:
+  ```python
+  if not hasattr(self, 'grid') or self.grid is None or getattr(self, '_grid_hw', None) != (cluster_h, cluster_w):
+      ...
+      self._grid_hw = (cluster_h, cluster_w)
+  ```
+  (and analogously `self._grid_vtx_shape = (bs, ratio_y, ratio_x)` for `self.grid_vtx`). Applied to all three sites in `esod/models/common.py`, `hesod/backends/esod/models/common.py`, and `hesod/backends/hesod/models/common.py` (identical unfixed code in all three — this is an upstream bug, not something HESOD introduced).
+- **Not yet re-verified end-to-end:** the fix is in place and the failure mechanism is fully explained by the debug evidence above, but the `ratio=16` TinyPerson arms have not yet been rerun to confirm training completes cleanly through all 50 epochs.
+
 ## Pre-flatten commit history (esod's own git history, discarded)
 
 Before `esod/.git` was removed, the clone carried 3 local commits on top of upstream `alibaba/esod`. Preserved here since that history is no longer retrievable locally:

@@ -418,9 +418,16 @@ class HeatMapParser(nn.Module):
             init_y1 = cy_bi.clamp(half_clus_h, height - half_clus_h) - half_clus_h
 
             # shape(1,m)
-            if not hasattr(self, 'grid') or self.grid is None or self.grid[0].shape[-1] != cluster_h*cluster_w:
+            # HESOD local patch: cache key was cluster_h*cluster_w (a product),
+            # so two calls with transposed dims (e.g. cluster_h=16,cluster_w=12
+            # then cluster_h=12,cluster_w=16 -- both product 192) were wrongly
+            # treated as cache-hits, reusing a grid built for the wrong axis
+            # order and producing out-of-bounds indices downstream. Cache key
+            # must be the (cluster_h, cluster_w) tuple itself, not its product.
+            if not hasattr(self, 'grid') or self.grid is None or getattr(self, '_grid_hw', None) != (cluster_h, cluster_w):
                 gy, gx = torch.meshgrid(torch.arange(cluster_h), torch.arange(cluster_w))
                 self.grid = (gy.reshape(1, -1).to(device), gx.reshape(1, -1).to(device))
+                self._grid_hw = (cluster_h, cluster_w)
             gy, gx = self.grid
 
             # shape(n,m)
@@ -478,16 +485,25 @@ class HeatMapParser(nn.Module):
         if self.top_k is not None:
             return self._top_k_slicer(mask_pred, ratio_x, ratio_y, cluster_w, cluster_h)
 
-        if getattr(self, 'grid_vtx', None) is None or self.grid_vtx.size(0) != ratio_x*ratio_y*bs:
+        # HESOD local patch: cache key was ratio_x*ratio_y*bs (a product), so
+        # two calls with transposed ratio_x/ratio_y (different image aspect
+        # ratios across batches, same product) were wrongly treated as
+        # cache-hits, reusing a grid built for the wrong axis order --
+        # "index out of bounds" CUDA assertion downstream. Cache key must be
+        # the (bs, ratio_y, ratio_x) tuple itself, not its product. Same bug
+        # class as self.grid below.
+        if getattr(self, 'grid_vtx', None) is None or getattr(self, '_grid_vtx_shape', None) != (bs, ratio_y, ratio_x):
             gy, gx = torch.meshgrid(torch.arange(ratio_y), torch.arange(ratio_x))
             gxy = torch.stack((gy.reshape(-1), gx.reshape(-1)), dim=1).unsqueeze(0).repeat(bs, 1, 1).view(-1, 2)  # shape(bs*8*8,2)
             gb = torch.arange(bs).view(-1, 1).repeat(1, ratio_x * ratio_y).view(-1, 1)  # shape(bs*8*8, 1)
             self.grid_vtx = torch.cat((gb, gxy), dim=1).to(device)  # shape(bs*8*8, 3)
+            self._grid_vtx_shape = (bs, ratio_y, ratio_x)
         rb, ry, rx = self.grid_vtx.T
 
-        if getattr(self, 'grid', None) is None or self.grid[0].shape[-1] != cluster_h*cluster_w:
+        if getattr(self, 'grid', None) is None or getattr(self, '_grid_hw', None) != (cluster_h, cluster_w):
             gy, gx = torch.meshgrid(torch.arange(cluster_h), torch.arange(cluster_w))
             self.grid = (gy.reshape(1, -1).to(device), gx.reshape(1, -1).to(device))
+            self._grid_hw = (cluster_h, cluster_w)
         gy, gx = self.grid
 
         # t1 = time_synchronized()
@@ -507,13 +523,6 @@ class HeatMapParser(nn.Module):
         act_x, act_y = (x1.view(-1, 1) + gx).view(-1), (y1.view(-1, 1) + gy).view(-1)
         act_b = cb.view(-1, 1).repeat((1, gy.size(1))).view(-1)
         activated = F.pad(activated, (0, ratio_x*cluster_w-width, 0, ratio_y*cluster_h-height))
-        # TEMP DEBUG (HESOD ratio=16 crash investigation, remove after diagnosis)
-        print(f"[DEBUG ada_slicer_fast] ratio={ratio} cluster_w={cluster_w} cluster_h={cluster_h} "
-              f"ratio_x={ratio_x} ratio_y={ratio_y} bs={bs} width={width} height={height} "
-              f"activated.shape={tuple(activated.shape)} "
-              f"act_b[min,max]=({act_b.min().item()},{act_b.max().item()}) "
-              f"act_y[min,max]=({act_y.min().item()},{act_y.max().item()}) "
-              f"act_x[min,max]=({act_x.min().item()},{act_x.max().item()})", flush=True)
         act = activated[act_b, act_y, act_x].view(cb.shape[0], cluster_h, cluster_w)
                 
         act_x, act_y = act.any(dim=1).long(), act.any(dim=2).long()  # shape(nc, cw), shape(nc, ch)

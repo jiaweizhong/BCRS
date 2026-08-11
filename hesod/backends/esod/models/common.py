@@ -413,9 +413,17 @@ class HeatMapParser(nn.Module):
             init_y1 = cy_bi.clamp(half_clus_h, height - half_clus_h) - half_clus_h
 
             # shape(1,m)
-            if not hasattr(self, 'grid') or self.grid is None or self.grid[0].shape[-1] != cluster_h*cluster_w:
+            # HESOD local patch: cache key was cluster_h*cluster_w (a product),
+            # so two calls with transposed dims (e.g. cluster_h=16,cluster_w=12
+            # then cluster_h=12,cluster_w=16 -- both product 192) were wrongly
+            # treated as cache-hits, reusing a grid built for the wrong axis
+            # order and producing out-of-bounds indices downstream (see
+            # ESOD-Baseline-Patches.md). Cache key must be the (cluster_h,
+            # cluster_w) tuple itself, not its product.
+            if not hasattr(self, 'grid') or self.grid is None or getattr(self, '_grid_hw', None) != (cluster_h, cluster_w):
                 gy, gx = torch.meshgrid(torch.arange(cluster_h), torch.arange(cluster_w))
                 self.grid = (gy.reshape(1, -1).to(device), gx.reshape(1, -1).to(device))
+                self._grid_hw = (cluster_h, cluster_w)
             gy, gx = self.grid
 
             # shape(n,m)
@@ -470,16 +478,26 @@ class HeatMapParser(nn.Module):
         half_clus_w,  half_clus_h = cluster_w // 2, cluster_h // 2
         outs = []
 
-        if getattr(self, 'grid_vtx', None) is None or self.grid_vtx.size(0) != ratio_x*ratio_y*bs:
+        # HESOD local patch: cache key was ratio_x*ratio_y*bs (a product), so
+        # two calls with transposed ratio_x/ratio_y (different image aspect
+        # ratios across batches, same product) were wrongly treated as
+        # cache-hits, reusing a grid built for the wrong axis order --
+        # "index out of bounds" CUDA assertion downstream (see
+        # ESOD-Baseline-Patches.md). Cache key must be the (bs, ratio_y,
+        # ratio_x) tuple itself, not its product. Same bug class as self.grid
+        # below.
+        if getattr(self, 'grid_vtx', None) is None or getattr(self, '_grid_vtx_shape', None) != (bs, ratio_y, ratio_x):
             gy, gx = torch.meshgrid(torch.arange(ratio_y), torch.arange(ratio_x))
             gxy = torch.stack((gy.reshape(-1), gx.reshape(-1)), dim=1).unsqueeze(0).repeat(bs, 1, 1).view(-1, 2)  # shape(bs*8*8,2)
             gb = torch.arange(bs).view(-1, 1).repeat(1, ratio_x * ratio_y).view(-1, 1)  # shape(bs*8*8, 1)
             self.grid_vtx = torch.cat((gb, gxy), dim=1).to(device)  # shape(bs*8*8, 3)
+            self._grid_vtx_shape = (bs, ratio_y, ratio_x)
         rb, ry, rx = self.grid_vtx.T
 
-        if getattr(self, 'grid', None) is None or self.grid[0].shape[-1] != cluster_h*cluster_w:
+        if getattr(self, 'grid', None) is None or getattr(self, '_grid_hw', None) != (cluster_h, cluster_w):
             gy, gx = torch.meshgrid(torch.arange(cluster_h), torch.arange(cluster_w))
             self.grid = (gy.reshape(1, -1).to(device), gx.reshape(1, -1).to(device))
+            self._grid_hw = (cluster_h, cluster_w)
         gy, gx = self.grid
 
         # t1 = time_synchronized()
