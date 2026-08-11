@@ -289,7 +289,7 @@ def prepare_uavdt():
     random.shuffle(data_split['train'])
     data_split['train'], data_split['valid'] = data_split['train'][sep:], data_split['train'][:sep]
 
-    os.mkdir(split_dir)
+    os.makedirs(split_dir, exist_ok=True)
     for mode in ['train', 'valid', 'test']:
         with open(join(split_dir, '%s_video.txt' % mode), 'w+') as f:
             f.writelines(vid + '\n' for vid in data_split[mode])
@@ -365,7 +365,7 @@ def prepare_tinyperson():
     image_dir = join(root, 'erase_with_uncertain_dataset')
     split_dir = join(root, 'split')
 
-    os.mkdir(split_dir)
+    os.makedirs(split_dir, exist_ok=True)
     for mode in ['train', 'test']:
         with open(label_file_dict[mode], 'r') as f:
             anno = json.load(f)
