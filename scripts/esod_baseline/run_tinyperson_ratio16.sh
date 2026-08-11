@@ -36,19 +36,19 @@ EPOCHS="${EPOCHS:-50}"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 run_arm() {
-  local run_name="$1" model_cfg="$2"
+  local run_name="$1" model_cfg="$2" batch="${3:-$BATCH}"
 
   local results_dir="$RUN_ROOT/test/$run_name"
   mkdir -p "$results_dir"
   cd "$HESOD_DEV"
 
-  log "Training $run_name -> $results_dir/${run_name}_train.log"
+  log "Training $run_name (batch=$batch) -> $results_dir/${run_name}_train.log"
   python train.py \
     --data "$DATA" \
     --cfg "$model_cfg" \
     --weights weights/pretrained/yolov5m.pt \
     --hyp data/hyps/hyp.tinyperson.scratch.yaml \
-    --batch-size $BATCH --img-size $IMG_SIZE --epochs "$EPOCHS" --device "$GPU" \
+    --batch-size $batch --img-size $IMG_SIZE --epochs "$EPOCHS" --device "$GPU" \
     --project "$RUN_ROOT/train" --name "$run_name" --exist-ok \
     2>&1 | tee "$results_dir/${run_name}_train.log"
 
@@ -57,7 +57,7 @@ run_arm() {
   log "Evaluating $run_name -> $results_dir/${run_name}_test.log"
   python test.py \
     --data "$DATA" --weights "$ckpt" \
-    --batch-size $BATCH --img-size $IMG_SIZE --device "$GPU" --save-json \
+    --batch-size $batch --img-size $IMG_SIZE --device "$GPU" --save-json \
     --project "$RUN_ROOT/test" --name "$run_name" --exist-ok \
     2>&1 | tee "$results_dir/${run_name}_test.log"
 
@@ -79,8 +79,17 @@ run_arm() {
 log "===== 1/2: baseline, ratio=16 ====="
 run_arm tinyperson_yolov5m_ratio16 models/cfg/esod/tinyperson_yolov5m_ratio16.yaml
 
-log "===== 2/2: full-spectral concat, ratio=16 ====="
-run_arm tinyperson_yolov5m_concat_ratio16 models/cfg/esod/tinyperson_yolov5m_concat_ratio16.yaml
+# batch=2, not $BATCH (8): the full (non-channel-pooled) SpectralBranch used by
+# ConcatEvidenceSegmenter produces a 4x-input-channels (1024ch on TinyPerson's
+# 256ch P3 features) intermediate tensor at full P3 resolution before any
+# pooling -- much larger than the plain baseline's activations, which alone
+# already used ~32.4-32.5GB at batch=8/img=2048 (right at this project's
+# RTX 5090's ~31.4GiB ceiling). OOM'd at batch=8 on the very first forward
+# pass. YOLOv5's own training loop auto-scales gradient accumulation from
+# batch-size (nominal batch size 64), so this does not need a manual LR
+# adjustment to stay comparable to the batch=8 arms.
+log "===== 2/2: full-spectral concat, ratio=16 (batch=2, see OOM note above) ====="
+run_arm tinyperson_yolov5m_concat_ratio16 models/cfg/esod/tinyperson_yolov5m_concat_ratio16.yaml 2
 
 log "All done."
 log "  ratio16 baseline: $RUN_ROOT/test/tinyperson_yolov5m_ratio16/"
