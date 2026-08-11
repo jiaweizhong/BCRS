@@ -337,8 +337,16 @@ def prepare_uavdt():
                 with open(label_path, 'w+') as f:
                     for cls, xc, yc, w, h in bboxes:
                         assert 1 <= cls <= 3  # cls - 1
-                        # treat all categories to one, 'car'
-                        f.write('%d %.6f %.6f %.6f %.6f\n' % (0, xc / width, yc / height, w / width, h / height))
+                        # HESOD local patch: upstream always collapsed every category to
+                        # class 0 ("treat all categories to one, 'car'"). --keep-classes
+                        # preserves the real 0-indexed category (car=0, truck=1, bus=2)
+                        # instead, for testing whether the paper's Table I UAVDT number
+                        # (which sits alongside other methods' well-known 3-class results)
+                        # was actually produced under the standard 3-class protocol rather
+                        # than this script's single-class default. See
+                        # HESOD-Experiment-Plan.md / ESOD-Baseline-Patches.md #6.
+                        out_cls = int(cls) - 1 if getattr(opt, 'keep_classes', False) else 0
+                        f.write('%d %.6f %.6f %.6f %.6f\n' % (out_cls, xc / width, yc / height, w / width, h / height))
 
                 gen_mask(label_path, image)
                 image_paths.append(image_path + '\n')
@@ -405,6 +413,9 @@ def prepare_tinyperson():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='VisDrone', help='dataset, e.g., VisDrone, UAVDT, and TinyPerson')
+    parser.add_argument('--keep-classes', action='store_true',
+                         help='UAVDT only: keep real 0-indexed category (car/truck/bus) instead of '
+                              'collapsing every category to class 0 (upstream default)')
     opt = parser.parse_args()
 
     assert exists(opt.dataset)
