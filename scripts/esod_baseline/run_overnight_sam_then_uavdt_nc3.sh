@@ -134,8 +134,12 @@ python gen_masks.py \
   --cls-ratio --overwrite
 
 log "Verifying masks actually got touched just now (guards against a repeat of the silent-stale-mask failure)"
-touched=$(find /root/autodl-tmp/VisDrone_v2/masks/train -name "*.npy" -newermt "10 minutes ago" | wc -l)
-total=$(find /root/autodl-tmp/VisDrone_v2/masks/train -name "*.npy" | wc -l)
+# NB: masks/train/*.npy are symlinks into VisDrone_raw (see HESOD-Experiment-Plan.md
+# SS1.1) -- must use `find -L` to follow them and check the TARGET's mtime; plain
+# `find` uses lstat and reports the symlink's own (never-changing) creation time,
+# which false-aborted this exact check the first time it was used.
+touched=$(find -L /root/autodl-tmp/VisDrone_v2/masks/train -name "*.npy" -newermt "10 minutes ago" | wc -l)
+total=$(find -L /root/autodl-tmp/VisDrone_v2/masks/train -name "*.npy" | wc -l)
 log "  $touched / $total train masks touched in the last 10 minutes"
 if [ "$touched" -lt "$((total / 2))" ]; then
   log "FATAL: fewer than half the masks were regenerated -- aborting before wasting a training run on stale masks"
