@@ -630,10 +630,11 @@ if __name__ == '__main__':
                               "(HESOD-Proposal.md SS3.3/SS5.4)")
     parser.add_argument('--lambda-cov', type=float, default=0.5, help='coverage loss weight (selector_loss=coverage only)')
     parser.add_argument('--pos-weight', type=float, default=2.0, help='mask BCE positive-class weight (selector_loss=coverage only)')
-    parser.add_argument('--box-loss', type=str, default='upstream', choices=('upstream', 'size_weighted'),
+    parser.add_argument('--box-loss', type=str, default='upstream', choices=('upstream', 'size_weighted', 'sabl'),
                          help="'upstream': unmodified per-anchor (1-CIoU).mean() box regression loss (E1.0 "
-                              "baseline). 'size_weighted': upweights smaller matched GT boxes' contribution "
-                              "to lbox -- research ablation switch, off by default")
+                               "baseline). 'size_weighted': upweights smaller matched GT boxes' contribution "
+                               "to lbox. 'sabl': SSABNet scale-adaptive CIoU rectification with fixed paper "
+                               "constants kappa=32 px, beta=6, C=12 -- research ablation switches, off by default")
     parser.add_argument('--box-weight-ref-area', type=float, default=4.0,
                          help='reference GT area (grid cells, per detection layer) below which the box_loss=size_weighted weight saturates')
     parser.add_argument('--box-weight-max', type=float, default=5.0,

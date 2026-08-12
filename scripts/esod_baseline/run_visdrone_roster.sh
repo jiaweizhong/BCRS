@@ -13,12 +13,14 @@
 # The optional paper-loss arm isolates the publication/code discrepancy:
 # paper text says focal:dice=20:1, while released ESOD code executes weighted
 # BCE and leaves focal/dice commented out.
+# The optional SABL arms add the matched R1/R3 box-regression treatments from
+# HESOD-Experiment-Plan.md without changing any existing selector arm.
 #
 # Usage:
 #   bash scripts/esod_baseline/run_visdrone_roster.sh [gpu]
 #
 # Useful environment overrides:
-#   TOP_K=32 EPOCHS=50 BATCH=8 REUSE_CHECKPOINTS=1 INCLUDE_PAPER=1
+#   TOP_K=32 EPOCHS=50 BATCH=8 REUSE_CHECKPOINTS=1 INCLUDE_PAPER=1 INCLUDE_SABL=0
 #   SPARSE_HEAD=1 RUN_ROOT=/root/esod_roster_runs SKIP_AUDIT=0
 
 set -euo pipefail
@@ -37,6 +39,7 @@ EPOCHS="${EPOCHS:-50}"
 TOP_K="${TOP_K:-32}"
 REUSE_CHECKPOINTS="${REUSE_CHECKPOINTS:-1}"
 INCLUDE_PAPER="${INCLUDE_PAPER:-1}"
+INCLUDE_SABL="${INCLUDE_SABL:-0}"
 SPARSE_HEAD="${SPARSE_HEAD:-1}"
 SKIP_AUDIT="${SKIP_AUDIT:-0}"
 
@@ -108,7 +111,7 @@ if [ "$SPARSE_HEAD" = "1" ]; then
 fi
 
 train_arm() {
-  local run_name="$1" cfg="$2" selector_loss="$3"
+  local run_name="$1" cfg="$2" selector_loss="$3" box_loss="${4:-upstream}"
   local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
   local results_dir="$RUN_ROOT/test/$run_name"
   mkdir -p "$results_dir"
@@ -116,13 +119,13 @@ train_arm() {
   if [ "$REUSE_CHECKPOINTS" = "1" ] && [ -f "$ckpt" ]; then
     log "Reusing checkpoint: $ckpt"
   else
-    log "Training $run_name ($selector_loss)"
+    log "Training $run_name (selector_loss=$selector_loss, box_loss=$box_loss)"
     (
       cd "$HESOD_REPO"
       python train.py \
         --data "$DATA" --cfg "$cfg" --weights "$WEIGHTS" --hyp "$HYP" \
         --batch-size "$BATCH" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
-        --selector-loss "$selector_loss" \
+        --selector-loss "$selector_loss" --box-loss "$box_loss" \
         --project "$RUN_ROOT/train" --name "$run_name" --exist-ok
     ) 2>&1 | tee "$results_dir/${run_name}_train.log"
   fi
@@ -192,5 +195,12 @@ train_arm visdrone_e23_concat \
   models/cfg/esod/visdrone_yolov5m_dual_evidence_concat.yaml coverage
 train_arm visdrone_e29_channel_pooled_concat \
   models/cfg/esod/visdrone_yolov5m_channel_pooled_concat.yaml coverage
+
+if [ "$INCLUDE_SABL" = "1" ]; then
+  train_arm visdrone_r1_semantic_sabl \
+    models/cfg/esod/visdrone_yolov5m.yaml upstream sabl
+  train_arm visdrone_r3_channel_pooled_concat_sabl \
+    models/cfg/esod/visdrone_yolov5m_channel_pooled_concat.yaml coverage sabl
+fi
 
 log "Roster complete. Results: $RUN_ROOT/test"
