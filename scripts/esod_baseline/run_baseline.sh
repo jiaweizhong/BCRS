@@ -18,14 +18,16 @@
 #   SKIP_MASKS    set to 1 to skip mask generation/verification (dangerous: only
 #                 do this if you already know masks/<split>/*.npy exist for every
 #                 labeled image)
+#   MASK_MODE     gaussian (default) or released-hybrid. The selected mode is
+#                 applied explicitly to all requested datasets.
 #   AUDIT_SCRIPT  path to the bucket-recall auditor (default: audit_buckets.py
 #                 next to this script -- standalone, no BCRS package dependency)
-#   SKIP_AUDIT    set to 1 to skip the per-bucket recall audit step
+#   SKIP_AUDIT    set to 1 to skip detector-recall and selector-BPR audits
 #
 # Each dataset run: generate+verify masks -> download yolov5m.pt if missing ->
 # train.py (50 epochs, paper hyperparameters) -> test.py (AP/AP50, --save-json)
-# -> test.py --task measure (GFLOPs/FPS) -> audit_failure_cases.py (size/class
-# bucket recall on the saved predictions). Every step's stdout+stderr is tee'd
+# -> test.py --task measure (GFLOPs/FPS) -> detector recall audit -> exact-route
+# patch dump -> paper BPRbox audit. Every step's stdout+stderr is tee'd
 # to $RUN_ROOT/logs/, and the checkpoint path is fixed via --exist-ok so
 # reruns are idempotent.
 #
@@ -41,8 +43,16 @@ EPOCHS="${EPOCHS:-50}"
 RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
 SKIP_MASKS="${SKIP_MASKS:-0}"
 SKIP_AUDIT="${SKIP_AUDIT:-0}"
+MASK_MODE="${MASK_MODE:-gaussian}"
 AUDIT_SCRIPT="${AUDIT_SCRIPT:-$SCRIPT_DIR/audit_buckets.py}"
+PATCH_DUMP_SCRIPT="${PATCH_DUMP_SCRIPT:-$SCRIPT_DIR/dump_selected_patches.py}"
+SELECTOR_AUDIT_SCRIPT="${SELECTOR_AUDIT_SCRIPT:-$SCRIPT_DIR/audit_selector_coverage.py}"
 GPU="${GPU:-0}"
+
+if [ "$MASK_MODE" != "gaussian" ] && [ "$MASK_MODE" != "released-hybrid" ]; then
+  echo "ERROR: MASK_MODE must be gaussian or released-hybrid (got: $MASK_MODE)" >&2
+  exit 1
+fi
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
@@ -81,12 +91,14 @@ gen_and_verify_masks() {
     --esod-repo "$ESOD_REPO" \
     --dataset-root "$dataset_root" \
     --splits train "$val_split" \
+    --mask-mode "$MASK_MODE" \
+    --overwrite \
     "${extra_flags[@]}"
 }
 
-# Per-size-bin / per-class recall audit on the saved val predictions. Never
-# allowed to abort the whole run: this is a diagnostic on top of an already
-#-completed baseline, not a prerequisite for having reproduced it.
+# Per-size-bin / per-class final-detector recall audit on saved predictions.
+# A malformed or mismatched artifact is fatal: a silently wrong recall number
+# is worse than no diagnostic at all. SKIP_AUDIT=1 is the explicit opt-out.
 run_bucket_audit() {
   local name="$1" dataset_root="$2" val_split="$3" pred_json="$4" classes_csv="$5" audit_log="$6"
 
@@ -95,12 +107,12 @@ run_bucket_audit() {
     return 0
   fi
   if [ ! -f "$AUDIT_SCRIPT" ]; then
-    log "WARN: audit script not found at $AUDIT_SCRIPT, skipping bucket audit for $name"
-    return 0
+    log "ERROR: audit script not found at $AUDIT_SCRIPT"
+    exit 1
   fi
   if [ ! -f "$pred_json" ]; then
-    log "WARN: $pred_json was not produced (test.py --save-json likely wrote 0 predictions), skipping bucket audit for $name"
-    return 0
+    log "ERROR: $pred_json was not produced by test.py --save-json"
+    exit 1
   fi
 
   local classes_args=()
@@ -109,18 +121,41 @@ run_bucket_audit() {
   fi
 
   log "Auditing $name per-size/per-class recall -> $audit_log"
-  set +e
   python "$AUDIT_SCRIPT" \
     --pred "$pred_json" \
     --labels "$dataset_root/labels/$val_split" \
     --images "$dataset_root/images/$val_split" \
     "${classes_args[@]}" \
     2>&1 | tee "$audit_log"
-  local audit_status=$?
-  set -e
-  if [ "$audit_status" -ne 0 ]; then
-    log "WARN: bucket audit for $name exited non-zero ($audit_status); see $audit_log"
+}
+
+run_selector_audit() {
+  local name="$1" data_yaml="$2" ckpt="$3" img_size="$4" batch="$5"
+  local dataset_root="$6" val_split="$7" pred_json="$8" classes_csv="$9" results_dir="${10}"
+
+  if [ "$SKIP_AUDIT" = "1" ]; then
+    return 0
   fi
+  require_file "$PATCH_DUMP_SCRIPT"
+  require_file "$SELECTOR_AUDIT_SCRIPT"
+  require_file "$pred_json"
+  local patches_json="$results_dir/${name}_selected_patches.json"
+  local selector_log="$results_dir/${name}_selector_audit.log"
+  local classes_args=()
+  if [ -n "$classes_csv" ]; then
+    classes_args=(--classes "$classes_csv")
+  fi
+
+  log "Dumping the exact threshold-routed patches for $name"
+  python "$PATCH_DUMP_SCRIPT" \
+    --esod-repo "$ESOD_REPO" --data "$data_yaml" --weights "$ckpt" \
+    --img-size "$img_size" --batch-size "$batch" --device "$GPU" --task val \
+    --out "$patches_json"
+  log "Auditing $name paper BPRbox and detector recall -> $selector_log"
+  python "$SELECTOR_AUDIT_SCRIPT" \
+    --patches "$patches_json" --pred "$pred_json" \
+    --labels "$dataset_root/labels/$val_split" --images "$dataset_root/images/$val_split" \
+    "${classes_args[@]}" 2>&1 | tee "$selector_log"
 }
 
 run_dataset() {
@@ -146,6 +181,9 @@ run_dataset() {
   ensure_weights
 
   local run_name="${name}_yolov5m_baseline"
+  if [ "$MASK_MODE" != "gaussian" ]; then
+    run_name="${name}_yolov5m_${MASK_MODE//-/_}"
+  fi
   # Co-located with everything test.py itself writes here (best_predictions.json,
   # buckets.json, PR/F1 curves, confusion matrix) so one copy of this directory
   # is a complete, self-contained result bundle -- no separate logs/ directory
@@ -203,9 +241,15 @@ run_dataset() {
     --exist-ok \
     2>&1 | tee "$measure_log"
 
+  local measured_buckets="$RUN_ROOT/measure/$run_name/buckets.json"
+  require_file "$measured_buckets"
+  cp "$measured_buckets" "$results_dir/buckets.json"
+
   # test.py names it "<weights-stem>_predictions.json" (best.pt -> best_predictions.json)
   local pred_json="$RUN_ROOT/test/$run_name/best_predictions.json"
   run_bucket_audit "$name" "$dataset_root" "$val_split" "$pred_json" "$classes_csv" "$audit_log"
+  run_selector_audit "$run_name" "$data_yaml" "$ckpt" "$img_size" "$batch" \
+    "$dataset_root" "$val_split" "$pred_json" "$classes_csv" "$results_dir"
 
   log "===== $name: done ====="
   log "---- $name test.py tail (AP/AP50) ----"
@@ -215,6 +259,10 @@ run_dataset() {
   if [ -f "$audit_log" ]; then
     log "---- $name bucket audit tail (size/class recall) ----"
     tail -n 40 "$audit_log"
+  fi
+  if [ -f "$results_dir/${run_name}_selector_audit.log" ]; then
+    log "---- $name selector audit tail (paper BPRbox / detector recall) ----"
+    tail -n 20 "$results_dir/${run_name}_selector_audit.log"
   fi
 }
 
@@ -229,14 +277,8 @@ fi
 
 case "$DATASET" in
   visdrone)
-    # /root/autodl-tmp/VisDrone(.yaml) is SS1's superseded Ultralytics-converted
-    # data (HESOD-Experiment-Plan.md SS1.1) -- kept on disk for reference, not
-    # deleted, but this case was still pointing at it until this fix. The
-    # current reference dataset is VisDrone_v2 (official prepare_visdrone()
-    # conversion, closes ~half the AP gap / ~3/4 the AP50 gap vs. SS1). classes_csv
-    # left empty -> audit_failure_cases.py uses its built-in 10-class VisDrone
-    # default (pedestrian..motor), which matches the labels this pipeline writes
-    # (see esod/scripts/data_prepare.py::prepare_visdrone(), cls - 1).
+    # VisDrone_v2 is the canonical ESOD conversion with ignored/others regions
+    # masked exactly once during data preparation.
     run_dataset visdrone \
       /root/autodl-tmp/VisDrone_v2.yaml \
       models/cfg/esod/visdrone_yolov5m.yaml \
@@ -248,31 +290,11 @@ case "$DATASET" in
       --cls-ratio
     ;;
   uavdt)
-    # /root/autodl-tmp/UAVDT_processed (third-party Kaggle repackaging) and
-    # UAVDT_v2 (official source, but nc=1 single-class collapse) are both
-    # superseded -- see HESOD-Experiment-Plan.md SS5. UAVDT_v2/nc=1 was
-    # originally believed correct (prepare_uavdt() hardcodes every GT box to
-    # class 0, so nc=1 matches what the public code actually does) but scored
-    # ~1.8-2.3x the paper's own Table I number; a direct nc=3 (car/truck/bus,
-    # `--keep-classes`) test confirmed the paper's number reflects the
-    # standard 3-class UAVDT-DET protocol other cited baselines in the same
-    # table use, not prepare_uavdt()'s single-class default (nc=3 lands 9-11%
-    # relative *below* the paper, matching every other dataset in this
-    # project, vs. nc=1's 80-130% *above*). UAVDT_v3/uavdt_yolov5m_nc3.yaml is
-    # now the correct, paper-comparable protocol; UAVDT_v2/nc=1 kept on disk
-    # only as the historical record of how the mismatch was diagnosed.
-    # NOTE: prepare_uavdt() reruns must have the SAM checkpoint temporarily
-    # renamed if segment-anything is installed (module-level global in
-    # data_prepare.py -- see run_overnight_sam_then_uavdt_nc3.sh), but this
-    # script's gen_and_verify_masks step is safe to rerun as-is: it calls
-    # gen_masks.py WITHOUT --overwrite, so it only verifies existing UAVDT_v3
-    # masks are present, never regenerates/contaminates them.
-    # val_split is "test", not "val": uavdt.yaml maps val -> images/test on disk
-    # (UAVDT ships train/test, no separate val split). gen_masks.py/audit_buckets.py
-    # need the real on-disk name or they silently skip the split entirely.
+    # UAVDT_v3 preserves car/truck/bus. The on-disk validation split is named
+    # test because UAVDT has no separate val directory.
     run_dataset uavdt \
       /root/autodl-tmp/UAVDT_v3.yaml \
-      models/cfg/esod/uavdt_yolov5m_nc3.yaml \
+      models/cfg/esod/uavdt_yolov5m.yaml \
       data/hyps/hyp.uavdt.yaml \
       1280 8 \
       /root/autodl-tmp/UAVDT_v3 \
@@ -280,24 +302,11 @@ case "$DATASET" in
       test
     ;;
   tinyperson)
-    # NOTE: the official repo ships hyp.tinyperson.finetune.yaml and
-    # hyp.tinyperson.scratch.yaml, but no plain hyp.tinyperson.yaml, so
-    # scripts/train.sh's `data/hyps/hyp.${DATASET}.yaml` default would 404 here.
-    # Originally picked "finetune" on the reasoning "we init from the pretrained
-    # COCO yolov5m checkpoint, so finetune applies" -- but hyp.visdrone.yaml and
-    # hyp.uavdt.yaml BOTH also init from that same checkpoint and are both
-    # scratch-style (header comment "COCO training from scratch", lr0=0.01);
-    # hyp.tinyperson.finetune.yaml's own header is unmodified upstream
-    # ultralytics/yolov5 boilerplate ("VOC finetuning", never adapted to
-    # TinyPerson), unlike hyp.tinyperson.scratch.yaml (has the ESOD-specific
-    # `pixl` mask-loss gain, same family as the other two datasets' hyps). Using
-    # "scratch" now for consistency with VisDrone/UAVDT -- see
-    # HESOD-Experiment-Plan.md's TinyPerson section for the reasoning and the
-    # finetune-hyp run's numbers it's being compared against.
+    # hyp.tinyperson.yaml is the only supported TinyPerson profile.
     run_dataset tinyperson \
       /root/autodl-tmp/TinyPerson_v1.yaml \
       models/cfg/esod/tinyperson_yolov5m.yaml \
-      data/hyps/hyp.tinyperson.scratch.yaml \
+      data/hyps/hyp.tinyperson.yaml \
       2048 8 \
       /root/autodl-tmp/TinyPerson_v1 \
       "person" \

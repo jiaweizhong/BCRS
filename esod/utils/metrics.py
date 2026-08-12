@@ -69,7 +69,9 @@ def cluster_recall(clusters, targets, imgsz=(1024,576), mode='bbox', stride=8):
             # t = t[w * h > 12. * 12.]  # 4 * 8 = 32, 12 * 8 = 96
             # tp += len(t)
             ios = general.box_ios(general.xywh2xyxy(t), cluster)
-            tp += (ios >= 0.5).any(dim=1).sum()
+            # ESOD Eq. (7): a GT is recalled only when a patch covers strictly
+            # more than half of its area (box_ios divides by GT area).
+            tp += (ios > 0.5).any(dim=1).sum()
             # tp += ((ios < 0.5).all(dim=1) & (ios >= 0.01).any(dim=1)).sum()  # fn
     # total_patch_num = bs * ratio ** 2
     # total_patch_num = bs * math.ceil(imgsz[0] / patch_w / stride) * math.ceil(imgsz[1] / patch_h / stride)

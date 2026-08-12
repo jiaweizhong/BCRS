@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
 # VisDrone baseline retrained with SAM-hybrid pseudo-masks instead of the
-# Gaussian-only fallback every arm in this project has used so far. Isolates
-# exactly one variable vs. the SS9 baseline (HESOD-Experiment-Plan.md SS1):
+# Gaussian-only canonical baseline. Isolates exactly one variable:
 # same VisDrone_v2 data, same cfg/hyp/img-size/epochs, same hesod/backends/esod
 # tree -- only mask generation changes.
 #
-# Prerequisite (run once, NOT done by this script):
+# Prerequisite (run once):
 #   cd hesod/backends/esod/third_party/segment-anything && pip install -e .
 #   mkdir -p hesod/backends/esod/weights
 #   cd hesod/backends/esod/weights
 #   wget -q https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
-#   cd scripts/esod_baseline
-#   python gen_masks.py --esod-repo ../../hesod/backends/esod \
-#     --dataset-root /root/autodl-tmp/VisDrone_v2 --splits train val \
-#     --cls-ratio --overwrite
 # data_prepare.py's SAM import is a bare try/except at module load time (see
 # its own top-of-file code) -- once segment-anything is installed and the
 # checkpoint is at hesod/backends/esod/weights/sam_vit_h_4b8939.pth,
-# gen_mask() picks up SAM automatically, no flag needed. --overwrite is
-# required since VisDrone_v2/masks/*.npy already exist (Gaussian-only, from
-# the original SS9 run) and gen_masks.py skips existing files by default.
+# this script regenerates released-code hybrid masks explicitly before training.
 #
 # Usage: bash run_visdrone_sam.sh [gpu_index]
 
@@ -46,6 +39,11 @@ if [ ! -f "$ESOD_REPO/weights/sam_vit_h_4b8939.pth" ]; then
   echo "Run the prerequisite steps in this script's header comment first." >&2
   exit 1
 fi
+
+log "Regenerating released-code SAM-hybrid masks"
+CUDA_VISIBLE_DEVICES="$GPU" python "$SCRIPT_DIR/gen_masks.py" \
+  --esod-repo "$ESOD_REPO" --dataset-root "$DATASET_ROOT" \
+  --splits train val --mask-mode released-hybrid --cls-ratio --overwrite
 
 results_dir="$RUN_ROOT/test/$RUN_NAME"
 mkdir -p "$results_dir"
@@ -77,10 +75,29 @@ python test.py \
   --project "$RUN_ROOT/measure" --name "$RUN_NAME" --exist-ok \
   2>&1 | tee "$results_dir/${RUN_NAME}_measure.log"
 
+measured_buckets="$RUN_ROOT/measure/$RUN_NAME/buckets.json"
+if [ ! -f "$measured_buckets" ]; then
+  echo "ERROR: measure run did not produce $measured_buckets" >&2
+  exit 1
+fi
+cp "$measured_buckets" "$results_dir/buckets.json"
+
 log "Auditing $RUN_NAME -> $results_dir/${RUN_NAME}_audit.log"
 python "$SCRIPT_DIR/audit_buckets.py" \
   --pred "$results_dir/best_predictions.json" \
   --labels "$DATASET_ROOT/labels/val" --images "$DATASET_ROOT/images/val" \
   2>&1 | tee "$results_dir/${RUN_NAME}_audit.log"
+
+patches_json="$results_dir/${RUN_NAME}_selected_patches.json"
+log "Dumping exact threshold-routed patches -> $patches_json"
+python "$SCRIPT_DIR/dump_selected_patches.py" \
+  --esod-repo "$ESOD_REPO" --data "$DATA" --weights "$ckpt" \
+  --img-size "$IMG_SIZE" --batch-size "$BATCH" --device "$GPU" --task val \
+  --out "$patches_json"
+log "Auditing paper BPRbox -> $results_dir/${RUN_NAME}_selector_audit.log"
+python "$SCRIPT_DIR/audit_selector_coverage.py" \
+  --patches "$patches_json" --pred "$results_dir/best_predictions.json" \
+  --labels "$DATASET_ROOT/labels/val" --images "$DATASET_ROOT/images/val" \
+  2>&1 | tee "$results_dir/${RUN_NAME}_selector_audit.log"
 
 log "Done. $results_dir/"

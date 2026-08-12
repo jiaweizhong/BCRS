@@ -66,6 +66,12 @@ class Detect(nn.Module):
         self.inplace = inplace  # use in-place ops (e.g. slice assignment)
 
         self.sparse = False
+        # Exact Top-K routing must evaluate every location inside each selected
+        # patch.  The upstream SparseHead instead applies a second hard-coded
+        # heatmap threshold (0.3), which silently changes Top-K into
+        # "Top-K, then threshold again". test.py enables this flag whenever
+        # --top-k and --sparse-head are used together.
+        self.sparse_all_selected = False
         self.register_buffer('sparse_gird', torch.zeros(1))
 
     def set_sparse(self):
@@ -89,12 +95,16 @@ class Detect(nn.Module):
         ob1, ox1, oy1 = offsets[:, :3].unsqueeze(-1).chunk(3, dim=1)  # shape(n,1,1)
         ob, ox, oy = (ob1 + gb).view(-1), (ox1 + gx).view(-1), (oy1 + gy).view(-1)
         
-        maxima = F.max_pool2d(mask, 3, stride=1, padding=1) == mask
-        response = mask >= thresh
-        indices = (maxima & response).to(dtype)
-        indices = F.max_pool2d(indices, 3, stride=1, padding=1)  # expansion  
-
-        slices = indices[ob, 0, oy, ox].view(offsets.shape[0], 1, patch_h, patch_w)
+        if self.sparse_all_selected:
+            slices = torch.ones(
+                (offsets.shape[0], 1, patch_h, patch_w), device=device, dtype=dtype
+            )
+        else:
+            maxima = F.max_pool2d(mask, 3, stride=1, padding=1) == mask
+            response = mask >= thresh
+            indices = (maxima & response).to(dtype)
+            indices = F.max_pool2d(indices, 3, stride=1, padding=1)  # expansion
+            slices = indices[ob, 0, oy, ox].view(offsets.shape[0], 1, patch_h, patch_w)
 
         indices_per_layer = []
         for i in range(self.nl):

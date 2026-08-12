@@ -97,13 +97,17 @@ class ComputeLoss:
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
 
-        # HESOD selector loss isolation (HESOD-Proposal.md SS3.4, SS5.4): 'upstream'
-        # trains the selector on the official per-pixel weighted BCE only, with no
-        # BCRS term active -- this is what E1.0 baseline must use. 'coverage' adds
-        # the object-level soft-coverage term (SS3.3) plus a positive-class weight
-        # boost on the base BCE; no coverage term can leak into 'upstream' mode.
-        if selector_loss not in ('upstream', 'coverage'):
-            raise ValueError(f"selector_loss must be 'upstream' or 'coverage', got {selector_loss!r}")
+        # HESOD selector-loss isolation:
+        #   upstream: released-code behavior, per-pixel weighted BCE only.
+        #   paper:    paper-text behavior, focal:dice = 20:1 (Eq. 4 discussion).
+        #   coverage: HESOD object-level soft coverage + positive BCE weighting.
+        # The paper-text variant is explicit because the released ESOD code
+        # leaves its focal/dice lines commented out; these are two distinct
+        # reproduction targets rather than interchangeable baselines.
+        if selector_loss not in ('upstream', 'paper', 'coverage'):
+            raise ValueError(
+                f"selector_loss must be 'upstream', 'paper', or 'coverage', got {selector_loss!r}"
+            )
         self.selector_loss = selector_loss
         self.lambda_cov = lambda_cov if selector_loss == 'coverage' else 0.0
         self.mask_pos_weight = pos_weight if selector_loss == 'coverage' else None
@@ -362,10 +366,16 @@ class ComputeLoss:
         lpixl, larea, ldist = torch.zeros(1, device=device), torch.zeros(1, device=device), \
                               torch.zeros(1, device=device)
 
-        pos_weight = None
-        if self.selector_loss == 'coverage' and self.mask_pos_weight is not None:
-            pos_weight = torch.as_tensor(self.mask_pos_weight, device=device, dtype=p.dtype)
-        lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight, pos_weight=pos_weight)
+        if self.selector_loss == 'paper':
+            # ESOD paper: focal loss and dice loss with a 20:1 ratio. This is
+            # deliberately separate from the released-code weighted BCE path.
+            ldist += self.sigmoid_focal_loss(p, masks) * 20.0
+            larea += self.dice_loss(p, masks)
+        else:
+            pos_weight = None
+            if self.selector_loss == 'coverage' and self.mask_pos_weight is not None:
+                pos_weight = torch.as_tensor(self.mask_pos_weight, device=device, dtype=p.dtype)
+            lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight, pos_weight=pos_weight)
 
         nt = targets.shape[0]
         if self.selector_loss == 'coverage' and nt:

@@ -42,6 +42,26 @@ from utils.loss import ComputeLoss
 
 lbucket = LatencyBucket()
 
+
+def pad_trailing_empty_predictions(outputs, batch_size, device):
+    """Restore images at the tail of a batch that selected zero patches.
+
+    The patch Detect head infers its output batch dimension from
+    ``max(offset_batch_id) + 1``.  If the final image(s) in a batch have no
+    selected patches, they are therefore absent from ``outputs`` entirely.
+    They are valid zero-prediction images and must still contribute their GT
+    labels to AP/recall, so append explicit empty prediction tensors here.
+    """
+    outputs = [] if outputs is None else list(outputs)
+    if len(outputs) > batch_size:
+        raise RuntimeError(
+            f'detector returned {len(outputs)} image outputs for batch size {batch_size}'
+        )
+    outputs.extend(
+        torch.zeros((0, 6), device=device) for _ in range(batch_size - len(outputs))
+    )
+    return outputs
+
 @torch.no_grad()
 def test(data,
          weights=None,
@@ -119,6 +139,10 @@ def test(data,
     # Configure
     if sparse_head:
         model.model[-1].set_sparse()
+        # Without this, Detect.get_indices() applies its own fixed 0.3
+        # threshold after HeatMapParser has already selected exact Top-K cells,
+        # so the executed action is no longer exact Top-K.
+        model.model[-1].sparse_all_selected = top_k is not None
     model.eval()
     if isinstance(data, str):
         is_coco = data.endswith('coco.yaml')
@@ -210,8 +234,7 @@ def test(data,
                 t = time_synchronized()
                 out = non_max_suppression(out, conf_thres, iou_thres, labels=lb, multi_label=True, agnostic=single_cls)
                 t1 += time_synchronized() - t
-        else:
-            out = [torch.zeros((0, 6), device=device)] * nb
+        out = pad_trailing_empty_predictions(out, nb, device)
 
         # Statistics per image
         for si, pred in enumerate(out):
@@ -404,7 +427,8 @@ def test(data,
     if not training:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         print(f"Results saved to {save_dir}{s}")
-        lbucket.save(f'{save_dir}/buckets.json')
+        if opt.task == 'measure':
+            lbucket.save(f'{save_dir}/buckets.json')
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]

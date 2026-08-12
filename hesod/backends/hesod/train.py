@@ -623,17 +623,17 @@ if __name__ == '__main__':
     parser.add_argument('--hm-only', action='store_true', help='training on heatmap prediction only')
     parser.add_argument('--hm-metric', action='store_true', help='use heatmap-related evaluation metrics')
     parser.add_argument('--disable-half', action='store_true', help='disable FP16 half-precision training')
-    parser.add_argument('--selector-loss', type=str, default='upstream', choices=('upstream', 'coverage'),
-                         help="'upstream': official weighted BCE only (E1.0 baseline). "
-                              "'coverage': adds HESOD object-level soft coverage loss + pos_weight boost "
+    parser.add_argument('--selector-loss', type=str, default='upstream', choices=('upstream', 'paper', 'coverage'),
+                         help="'upstream': released-code weighted BCE only (E1.0 baseline). "
+                              "'paper': paper-text focal:dice=20:1 selector loss. "
+                              "'coverage': HESOD object-level soft coverage loss + pos_weight boost "
                               "(HESOD-Proposal.md SS3.3/SS5.4)")
     parser.add_argument('--lambda-cov', type=float, default=0.5, help='coverage loss weight (selector_loss=coverage only)')
     parser.add_argument('--pos-weight', type=float, default=2.0, help='mask BCE positive-class weight (selector_loss=coverage only)')
     parser.add_argument('--box-loss', type=str, default='upstream', choices=('upstream', 'size_weighted'),
                          help="'upstream': unmodified per-anchor (1-CIoU).mean() box regression loss (E1.0 "
-                              "baseline and all roster arms trained so far). 'size_weighted': upweights smaller "
-                              "matched GT boxes' contribution to lbox (HESOD-Experiment-Plan.md SS4.2 "
-                              "head-localization finding) -- ablation switch, off by default")
+                              "baseline). 'size_weighted': upweights smaller matched GT boxes' contribution "
+                              "to lbox -- research ablation switch, off by default")
     parser.add_argument('--box-weight-ref-area', type=float, default=4.0,
                          help='reference GT area (grid cells, per detection layer) below which the box_loss=size_weighted weight saturates')
     parser.add_argument('--box-weight-max', type=float, default=5.0,

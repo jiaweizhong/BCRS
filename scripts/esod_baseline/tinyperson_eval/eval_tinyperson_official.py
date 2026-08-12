@@ -23,10 +23,8 @@ shouldn't count as false negatives if missed; ignore regions are matched by
 intersection-over-detection rather than IoU since they are often much larger
 than a single detection). Confirmed correct, not just assumed: matches
 `evaluate_tiny.py`'s own hardcoded call in the vendored tiny_benchmark package
-exactly (HESOD-Experiment-Plan.md SS4.1). img-size=2048 is likewise confirmed
-correct against the paper's own text (SS4.2), and the training hyp file is
-`hyp.tinyperson.scratch.yaml`, not `finetune.yaml` -- an A/B test showed
-finetune cost ~13-20% relative AP/AP50 (SS4.1).
+exactly. img-size=2048 is likewise confirmed against the paper, and the only
+supported training profile is `data/hyps/hyp.tinyperson.yaml`.
 
 Usage:
   python eval_tinyperson_official.py \

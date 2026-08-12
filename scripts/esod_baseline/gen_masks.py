@@ -5,13 +5,15 @@ all-zero objectness mask (weight=1) whenever `masks/<split>/<stem>.npy` is
 missing for an image. For an image with zero GT boxes that fallback happens
 to be correct. For an image WITH GT boxes it silently trains the selector on
 a wrong target -- this is the exact bug documented in
-`BCRS-Experiment-Plan.md` (P0, vendored dataloader), and the official repo
+`HESOD-Experiment-Plan.md`, and the official repo
 has the identical code path.
 
-This script reuses the official `gen_mask()` routine from
-`<esod_repo>/scripts/data_prepare.py` (same Gaussian/SAM-hybrid pseudo-mask
-logic the paper describes) so masks are bit-for-bit consistent with what
-`data_prepare.py` would have produced from the raw dataset, but it walks an
+This script reuses the released `gen_mask()` routine from
+`<esod_repo>/scripts/data_prepare.py`, so masks are bit-for-bit consistent
+with the public code's Gaussian/SAM-hybrid implementation. The paper's stated
+hybrid equation is not identical to that implementation (see
+`HESOD-Experiment-Plan.md`), so this is a released-code reproduction target,
+not a claim of bit-exact paper-equation reproduction. It walks an
 already-converted `images/<split>/` + `labels/<split>/` tree instead of the
 raw per-dataset layout that `data_prepare.py` expects.
 
@@ -51,7 +53,14 @@ def _label_has_boxes(label_path: Path) -> bool:
         return any(line.strip() for line in f)
 
 
-def generate(esod_repo: Path, dataset_root: Path, splits: list[str], cls_ratio: bool, overwrite: bool) -> None:
+def generate(
+    esod_repo: Path,
+    dataset_root: Path,
+    splits: list[str],
+    cls_ratio: bool,
+    overwrite: bool,
+    mask_mode: str,
+) -> None:
     sys.path.insert(0, str(esod_repo))
     cwd = os.getcwd()
     os.chdir(esod_repo)  # data_prepare.py resolves `utils.general` relative to repo root
@@ -70,7 +79,16 @@ def generate(esod_repo: Path, dataset_root: Path, splits: list[str], cls_ratio: 
 
         torch.load = _compat_torch_load
 
-        from scripts.data_prepare import gen_mask  # noqa: E402
+        from scripts import data_prepare  # noqa: E402
+
+        if mask_mode == "gaussian":
+            data_prepare.predictor = None
+        elif data_prepare.predictor is None:
+            raise RuntimeError(
+                "--mask-mode released-hybrid requires segment-anything and "
+                f"{esod_repo / 'weights' / 'sam_vit_h_4b8939.pth'}"
+            )
+        gen_mask = data_prepare.gen_mask
     finally:
         os.chdir(cwd)
 
@@ -144,6 +162,12 @@ def main() -> None:
     ap.add_argument("--dataset-root", required=True, type=Path, help="Dataset root with images/<split>, labels/<split>")
     ap.add_argument("--splits", nargs="+", default=["train", "val"])
     ap.add_argument("--cls-ratio", action="store_true", help="Per-class weight boosting (VisDrone only, matches prepare_visdrone())")
+    ap.add_argument(
+        "--mask-mode",
+        choices=("gaussian", "released-hybrid"),
+        default="gaussian",
+        help="Explicit pseudo-mask implementation; never infer the protocol from installed packages",
+    )
     ap.add_argument("--overwrite", action="store_true", help="Regenerate masks even if the .npy already exists")
     ap.add_argument("--verify-only", action="store_true", help="Skip generation, only check for missing masks")
     args = ap.parse_args()
@@ -154,7 +178,14 @@ def main() -> None:
         raise SystemExit(f"--esod-repo does not look like the official ESOD checkout: {esod_repo}")
 
     if not args.verify_only:
-        generate(esod_repo, dataset_root, args.splits, args.cls_ratio, args.overwrite)
+        generate(
+            esod_repo,
+            dataset_root,
+            args.splits,
+            args.cls_ratio,
+            args.overwrite,
+            args.mask_mode,
+        )
 
     if not verify(dataset_root, args.splits):
         raise SystemExit(2)

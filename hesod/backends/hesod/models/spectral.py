@@ -13,11 +13,13 @@ import torch.nn as nn
 
 
 class MultiKernelSpectralFilter(nn.Module):
-    """Fixed depthwise Laplacian + Sobel-x/y (3x3) and Laplacian (5x5) filters.
+    """Trainable depthwise filters initialized as Laplacian/Sobel high-pass kernels.
 
     Extracts high-frequency edge/texture saliency from a shared feature map
-    without a learned backbone; only the downstream 1x1 stem/head are
-    learned (see SpectralBranch).
+    without a second backbone.  The high-pass kernels are initializations,
+    not frozen constants: their parameters and the downstream 1x1 stem/head
+    are optimized jointly.  A truly fixed-filter arm remains a separate
+    ablation in HESOD-Proposal.md section 7.9.
     """
 
     def __init__(self, in_channels):
@@ -85,7 +87,7 @@ class SpectralBranch(nn.Module):
 
 
 class ChannelPooledSpectralFilter(nn.Module):
-    """Channel-pooled spectral filter: max+avg pool to 2 channels before filtering.
+    """Channel-pooled trainable spectral filter initialized from Sobel/Laplacian.
 
     Trades some spectral resolution for a large FLOPs reduction versus
     MultiKernelSpectralFilter (filters run on 2 pooled channels instead of

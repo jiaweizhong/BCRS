@@ -3,15 +3,11 @@ train: ./UAVDT/split/train_ds.txt  # train_ds.txt
 val: ./UAVDT/split/test_ds.txt  # 1.5k images
 test: ./UAVDT/split/test.txt  # 
 
-# number of classes
-# prepare_uavdt() (scripts/data_prepare.py) writes every GT box as class 0
-# regardless of its raw category (car/truck/bus) -- confirmed by reading the
-# code, not assumed. The paper's real UAVDT protocol is single-class; nc=3
-# here would silently starve 2 of 3 classes of any positive example.
-nc: 1
+# Paper-comparable UAVDT-DET protocol.
+nc: 3
 
 # class names
-names: ['vehicle']
+names: ['car', 'truck', 'bus']
 
 # Print classes
 # with open('data/coco.yaml') as f:

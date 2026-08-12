@@ -1,12 +1,13 @@
 """Size-bin / class recall audit for official ESOD `test.py --save-json` output.
 
-Standalone by design -- lives under scripts/, no dependency on the BCRS
+Standalone by design -- lives under scripts/, no dependency on the HESOD
 package. Consumes the raw ESOD prediction JSON (0-indexed category_id, as
 written by `<esod_repo>/test.py --save-json`) plus the YOLO labels/images
 tree, and reports one-to-one class-aware recall broken down by GT box size
-and by class, matching a detector's own recall semantics (predictions
-sorted by score, greedily matched to still-unmatched GT of the same class
-and image at IoU >= threshold).
+and by class. Matching is COCO-style at a single IoU threshold: predictions
+are sorted by score and greedily assigned to the best still-unmatched GT of
+the same class and image. This is intentionally a diagnostic recall ceiling,
+not the P/R value selected from ESOD's PR curve.
 
 Usage:
   python audit_buckets.py \
@@ -109,6 +110,11 @@ def _image_index(images_dir: Path) -> dict[str, Path]:
         if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
             continue
         for key in {path.stem, _canonical_key(path.stem)}:
+            if key in result and result[key] != path:
+                raise ValueError(
+                    f"Ambiguous image id {key!r}: both {result[key].name} and "
+                    f"{path.name} exist in {images_dir}"
+                )
             result[key] = path
     if not result:
         raise ValueError(f"No supported images found in {images_dir}")
@@ -263,6 +269,15 @@ def audit_predictions(
     predictions = load_predictions(
         Path(pred_json_path), confidence_threshold=confidence_threshold, class_names=class_names
     )
+    valid_image_keys = set(_image_index(Path(images_dir)))
+    unknown_image_keys = sorted({p.image_key for p in predictions} - valid_image_keys)
+    if unknown_image_keys:
+        preview = ", ".join(repr(x) for x in unknown_image_keys[:5])
+        raise ValueError(
+            f"Prediction JSON contains {len(unknown_image_keys)} image id(s) not present "
+            f"under {images_dir}: {preview}. Check image-id/category mapping before "
+            "trusting this audit."
+        )
     recalled = match_predictions(targets, predictions, iou_threshold)
 
     size_stats = {name: {"total": 0, "recalled": 0} for name, _, _ in SIZE_BINS}
