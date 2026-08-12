@@ -18,15 +18,15 @@ reasonable at IoU 0.25/0.5/0.75, plus ignore/uncertain-region handling). This
 is a *different* size convention from this project's own audit_buckets.py
 (Very Tiny/Tiny/Small/Medium-Large) -- the two are not directly comparable.
 
---ignore-uncertain / --use-iod-for-ignore default to on, matching what is
-believed to be the benchmark's typical convention (uncertain boxes shouldn't
-count as false negatives if missed; ignore regions are matched by
+--ignore-uncertain / --use-iod-for-ignore default to on (uncertain boxes
+shouldn't count as false negatives if missed; ignore regions are matched by
 intersection-over-detection rather than IoU since they are often much larger
-than a single detection) -- but this has NOT been independently confirmed
-against whatever exact flags produced the ESOD paper's own Table II numbers.
-Treat this as an assumption of the same status as this project's other
-TinyPerson protocol assumptions (img-size=2048, hyp.tinyperson.finetune.yaml),
-not a verified match.
+than a single detection). Confirmed correct, not just assumed: matches
+`evaluate_tiny.py`'s own hardcoded call in the vendored tiny_benchmark package
+exactly (HESOD-Experiment-Plan.md SS4.1). img-size=2048 is likewise confirmed
+correct against the paper's own text (SS4.2), and the training hyp file is
+`hyp.tinyperson.scratch.yaml`, not `finetune.yaml` -- an A/B test showed
+finetune cost ~13-20% relative AP/AP50 (SS4.1).
 
 Usage:
   python eval_tinyperson_official.py \

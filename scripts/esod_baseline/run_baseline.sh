@@ -248,27 +248,35 @@ case "$DATASET" in
       --cls-ratio
     ;;
   uavdt)
-    # /root/autodl-tmp/UAVDT_processed (third-party Kaggle repackaging, 3-class
-    # car/truck/bus labels) is superseded: root-caused to a labeling defect
-    # (oversized GT boxes over parking lots, HESOD-Experiment-Plan.md SS5) and
-    # replaced with official-source data (UAV-benchmark-M.zip / M_attr.zip /
-    # UAV-benchmark-MOTD_v1.0.zip from the official UAVDT release), converted
-    # via the real scripts/data_prepare.py::prepare_uavdt() and
-    # scripts/esod_baseline/reorganize_uavdt.py -- see that script's docstring
-    # for the raw layout it expects. nc is 1 ("vehicle"), not 3: confirmed by
-    # reading prepare_uavdt() itself, it hardcodes every GT box to class 0
-    # regardless of raw category; data/uavdt.yaml and uavdt_yolov5m.yaml were
-    # both updated to match (see their own local-patch comments).
+    # /root/autodl-tmp/UAVDT_processed (third-party Kaggle repackaging) and
+    # UAVDT_v2 (official source, but nc=1 single-class collapse) are both
+    # superseded -- see HESOD-Experiment-Plan.md SS5. UAVDT_v2/nc=1 was
+    # originally believed correct (prepare_uavdt() hardcodes every GT box to
+    # class 0, so nc=1 matches what the public code actually does) but scored
+    # ~1.8-2.3x the paper's own Table I number; a direct nc=3 (car/truck/bus,
+    # `--keep-classes`) test confirmed the paper's number reflects the
+    # standard 3-class UAVDT-DET protocol other cited baselines in the same
+    # table use, not prepare_uavdt()'s single-class default (nc=3 lands 9-11%
+    # relative *below* the paper, matching every other dataset in this
+    # project, vs. nc=1's 80-130% *above*). UAVDT_v3/uavdt_yolov5m_nc3.yaml is
+    # now the correct, paper-comparable protocol; UAVDT_v2/nc=1 kept on disk
+    # only as the historical record of how the mismatch was diagnosed.
+    # NOTE: prepare_uavdt() reruns must have the SAM checkpoint temporarily
+    # renamed if segment-anything is installed (module-level global in
+    # data_prepare.py -- see run_overnight_sam_then_uavdt_nc3.sh), but this
+    # script's gen_and_verify_masks step is safe to rerun as-is: it calls
+    # gen_masks.py WITHOUT --overwrite, so it only verifies existing UAVDT_v3
+    # masks are present, never regenerates/contaminates them.
     # val_split is "test", not "val": uavdt.yaml maps val -> images/test on disk
     # (UAVDT ships train/test, no separate val split). gen_masks.py/audit_buckets.py
     # need the real on-disk name or they silently skip the split entirely.
     run_dataset uavdt \
-      /root/autodl-tmp/UAVDT_v2.yaml \
-      models/cfg/esod/uavdt_yolov5m.yaml \
+      /root/autodl-tmp/UAVDT_v3.yaml \
+      models/cfg/esod/uavdt_yolov5m_nc3.yaml \
       data/hyps/hyp.uavdt.yaml \
       1280 8 \
-      /root/autodl-tmp/UAVDT_v2 \
-      "vehicle" \
+      /root/autodl-tmp/UAVDT_v3 \
+      "car,truck,bus" \
       test
     ;;
   tinyperson)

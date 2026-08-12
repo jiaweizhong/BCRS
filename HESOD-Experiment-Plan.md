@@ -2,7 +2,7 @@
 
 **Reset note (2026-08-09):** this document was rewritten from scratch to drop the original VisDrone baseline audit, which ran on a mis-converted copy of VisDrone2019-DET (Ultralytics' convenience conversion, not ESOD's own `prepare_visdrone()`) and is superseded in every respect by the official-data rerun below. The old material's only lasting value — that the two conversions differ and which one to use — is folded into §1's provenance note. Full history is still in this file's git log if ever needed.
 
-**Status.** VisDrone: baseline reproduced close to the paper's own Gaussian-only ablation (§1), two roster arms (dual-evidence concat, channel-pooled concat) tested and both negative including under a hard patch-budget sweep (§2-3); SAM hybrid-mask arm queued (retry in progress, §5's `run_overnight_sam_then_uavdt_nc3.sh`). TinyPerson: baseline retrained on the corrected hyp file, gap closed by more than half (§4.1-4.2); channel-pooled-concat is a genuine positive result (first roster arm anywhere in this project to move AP, not just recall ceiling), box-regression size-weighting and `ratio=16` are both negative (§4.2-4.3). UAVDT: re-fetched from the official source; nc=1 baseline was ~1.8-2.3x above the paper's own number, nc=3 re-test **confirms** the paper's Table I number reflects the standard 3-class protocol, not nc=1's single-class collapse — nc=3 lands 9-11% *below* the paper, in line with every other dataset in this document (§5).
+**Status.** VisDrone: baseline reproduced close to the paper's own Gaussian-only ablation (§1), two roster arms (dual-evidence concat, channel-pooled concat) tested and both negative including under a hard patch-budget sweep (§2-3); SAM hybrid-mask arm also negative, flat-to-marginally-worse than Gaussian-only, contradicting the paper's own small claimed gain (§1.7). TinyPerson: baseline retrained on the corrected hyp file, gap closed by more than half (§4.1-4.2); channel-pooled-concat is a genuine positive result (first roster arm anywhere in this project to move AP, not just recall ceiling), box-regression size-weighting and `ratio=16` are both negative (§4.2-4.3). UAVDT: re-fetched from the official source; nc=1 baseline was ~1.8-2.3x above the paper's own number, nc=3 re-test **confirms** the paper's Table I number reflects the standard 3-class protocol, not nc=1's single-class collapse — nc=3 lands 9-11% *below* the paper, in line with every other dataset in this document (§5).
 
 ---
 
@@ -80,6 +80,25 @@ Ranked by evidence strength, for the ~2.8%/1.7% relative AP/AP50 gap that remain
 6. **Hyperparameter/library-version drift** (paper's ~2021-era stack vs. this project's PyTorch 2.8/CUDA 12.8). No direct evidence this is happening (loss/mAP curves are smooth and textbook-shaped), stays last-ranked, not eliminated.
 
 **Ruled out:** training under-convergence (50-epoch curve fully flattened, last-15-epoch mAP gain +0.008) and gross/size-biased selector coverage failure (§1.4: selector-dropped rate flat 2.1-2.7% across every bin).
+
+### 1.7 SAM hybrid masks — negative, contradicts the paper's own small claimed gain
+
+**Provenance.** Same recipe as §1.1 (`visdrone_yolov5m.yaml`, `hyp.visdrone.yaml`, batch 8, img 1536, 50 epochs), only the pseudo-mask source changed: `gen_masks.py --overwrite` regenerated all 6471 train + 548 val masks via the official `gen_mask()`'s SAM branch (`segment-anything` installed via a site-packages symlink after `pip install -e .` failed under this environment's Python 3.12/setuptools, `sam_vit_h_4b8939.pth`, CUDA-tensor-to-numpy bug fixed, ESOD-Baseline-Patches.md #8). Run name `visdrone_yolov5m_sam_masks`.
+
+**Two false starts before a trustworthy result, both self-inflicted tooling bugs, not data/method issues:** (1) the first training attempt silently used 2-day-old Gaussian-only masks — `gen_masks.py --overwrite` was never actually invoked (or its output discarded) by whatever launched that run; caught because the resulting metrics were suspiciously bit-identical to the Gaussian-only baseline, confirmed via mask mtime (2026-08-09, two days before that training run). (2) After hardening the pipeline with a post-regeneration mtime check, the check itself false-aborted a genuinely-successful regeneration (`gen_masks.py` reported `wrote=6471`/`wrote=548`, both `[PASS]`) — `VisDrone_v2/masks/` are symlinks into `VisDrone_raw` (§1.1), and the check used `find`/`stat` without `-L`, so it read the symlinks' own never-changing creation time instead of the target files' write time. Fixed (`-L` added, `run_overnight_sam_then_uavdt_nc3.sh`) and reran; masks confirmed genuinely fresh (6471/6471 touched) before committing to training this time.
+
+**Result — flat to marginally worse, not the small gain the paper reports:**
+
+| Metric | Gaussian-only (§1) | SAM hybrid | Δ (relative) |
+|---|---:|---:|---:|
+| P | 0.662 | 0.669 | +1.1% |
+| R | 0.552 | 0.548 | −0.7% |
+| AP50 | 0.585 | 0.584 | −0.2% |
+| AP@[.5:.95] | 0.347 | 0.346 | −0.3% |
+| BPR | 0.972 | 0.971 | −0.1% |
+| Occupy | 0.424 | 0.426 | +0.5% |
+
+Bucket recall likewise flat-to-slightly-lower across every bin (Total 88.29%→88.22%, Medium/Large the largest single move at −0.37pp). The paper's own Table I (hybrid, AP 36.0) vs. Table V (Gaussian-only, AP 35.7) claims a small +0.3pp/+0.8%-relative gain from adding SAM; this reproduction moves the opposite direction, though the magnitude on both sides is small enough to plausibly be single-seed noise rather than a real disagreement (§1.6 item 4's caveat applies here too — no repeat seeds run). **Conclusion: SAM hybrid masks are not worth their cost in this reproduction** — real GPU time (~70 min ViT-H inference over 7019 images) and installation friction, for no measurable benefit over the much cheaper Gaussian-only masks already used everywhere else in this document.
 
 ---
 
@@ -257,7 +276,7 @@ Bucket recall (nc=3): Very Tiny 82.98%, Tiny 86.74%, Small 96.01%, **Medium/Larg
 ## 6. Next steps
 
 1. ~~UAVDT `nc=3` re-test~~ **Done (§5).** Confirmed the paper's Table I UAVDT number reflects the standard 3-class protocol; `nc=3` (AP 0.201/AP50 0.370, −9-11% rel. vs. paper) is now the protocol to report, not `nc=1`.
-2. **VisDrone + SAM hybrid masks — retry in progress.** First attempt (`run_overnight_sam_then_uavdt_nc3.sh`) silently trained on 2-day-old Gaussian-only masks (`gen_masks.py --overwrite` never actually touched the `.npy` files for reasons not root-caused — script logic reads correctly on inspection); caught via suspiciously-identical metrics vs. the Gaussian-only baseline plus an mtime check. Script hardened with a post-regeneration verification gate and rerun; that gate itself then false-aborted because `VisDrone_v2/masks/` are symlinks into `VisDrone_raw` and the check used `find`/`stat` without `-L`, so it read the symlinks' own (unchanged) creation time instead of the target files' write time — `gen_masks.py`'s own output (`wrote=6471`, `wrote=548`, both `[PASS]`) indicates the actual regeneration succeeded. Resuming training directly (masks should already be correct; verification gate needs an `-L` fix before this script is trusted again for future reruns).
+2. ~~VisDrone + SAM hybrid masks~~ **Done (§1.7).** Negative — flat to marginally worse than Gaussian-only on every metric, not the small gain the paper's own Table I vs. Table V comparison reports. Not worth the cost (installation friction + ~70min ViT-H inference) given no measurable benefit.
 3. **UAVDT protocol resolved — roster arms there now unblocked.** Decide whether to test the roster arms on UAVDT `nc=3` (§1.6/§2's VisDrone conclusion and §4.3's TinyPerson conclusion actively disagree on which lever — selector-side vs. head-side — helps, so a third data point matters) and whether TinyPerson's "budget-constrained selector benefits more from dual-evidence fusion" hypothesis (§4.3) replicates on UAVDT.
 4. Lower priority, not scheduled: repeat VisDrone baseline with an additional seed to size natural run-to-run variance against the remaining ~2.8%/1.7% gap; retune box-size-weighting's hyperparameters (`ref_area`, `max_weight`) for TinyPerson specifically before concluding the mechanism itself doesn't work there (§4.3 only tested one hyperparameter setting, carried over from the VisDrone-oriented default); full-spectral concat (`ConcatEvidenceSegmenter`) at `ratio=8` specifically, isolating spectral resolution from the already-negative `ratio=16` result (§4.2).
 
