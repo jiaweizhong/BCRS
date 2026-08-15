@@ -265,6 +265,55 @@ The main comparison table contains our rerun results for A0/X1/X2a/X3/X4 and HES
 
 Pest-PVT is included only as a Pest24-specific agriculture baseline. It is not presented as a three-dataset method because its paper does not report AgriPest or GWHD 2021.
 
+#### Audited values that may be pre-populated
+
+These tables are literature anchors, not outputs from our common evaluator. The `Direct?` column states whether a future result may be compared numerically after reproducing the named protocol.
+
+**AgriPest official validation protocol** — 44,716 training images and 4,991 validation images. The source paper defines AP50, AP75, and `AP@[0.50:0.05:0.95]` explicitly, so the metric mapping is usable.
+
+| Method | AP50 | AP75 | AP@[.50:.95] | Direct? |
+|---|---:|---:|---:|---|
+| SSD512 | 63.38 | 26.23 | 30.85 | Yes, only with the same official validation split/protocol |
+| RetinaNet | 65.03 | 28.97 | 33.45 | Yes, only with the same official validation split/protocol |
+| FCOS | 66.22 | 28.72 | 33.24 | Yes, only with the same official validation split/protocol |
+| Faster R-CNN | 65.58 | 27.58 | 32.26 | Yes, only with the same official validation split/protocol |
+| FPN | 70.20 | 29.91 | 35.21 | Yes, only with the same official validation split/protocol |
+| Cascade R-CNN | 70.83 | 32.29 | 36.54 | Yes, only with the same official validation split/protocol |
+
+Source: AgriPest dataset paper, Tables 4-6. These numbers may be placed in an `original protocol` comparison table; they must not be copied into our rerun result fields.
+
+**Pest24 / Pest-PVT paper protocol** — the paper reports `mAP` but does not state the IoU threshold/range or the exact train/validation/test split. Its raw image description gives 2095×1944, while an architecture description states 224×224 input; this is not enough to reconstruct a direct-comparison protocol.
+
+| Method | Reported mAP | Recall | Precision | Direct? |
+|---|---:|---:|---:|---|
+| Faster R-CNN | 42.67 | 54.00 | 45.58 | No; metric/split under-specified |
+| YOLOv5m | 66.89 | 70.90 | 64.84 | No; metric/split under-specified |
+| YOLOv7-x | 72.92 | 70.51 | 72.73 | No; metric/split under-specified |
+| Pest-YOLO | 69.59 | 77.71 | 46.94 | No; imported by the paper from earlier work |
+| Pest-PVT | 77.20 | 81.27 | 78.42 | No; metric/split under-specified |
+
+Source: Pest-PVT, Table 6. The paper also gives Pest-PVT mAP as 77.24% in its ablation Table 4, versus 77.20% in Table 6/abstract. Preserve this source inconsistency; use `77.20 (reported mAP, definition not disclosed)` in prose and never map it to AP50 or AP50:95.
+
+**GWHD 2021 official challenge protocol** — the official dataset paper reports WDA, not COCO AP.
+
+| Method | WDA | Direct? |
+|---|---:|---|
+| Official Faster R-CNN reference | 0.492 | Yes, only with the Global Wheat Challenge 2021 split and exact WDA evaluator |
+| Challenge best entry | 0.700 | Context only; ensemble/training recipe differs |
+
+Source: GWHD 2021 dataset paper, Table 2. Neither value belongs in an AP/AP50 column.
+
+#### Missing target-dataset results in the selected method papers
+
+| Method paper | Paper datasets | AgriPest | Pest24 | GWHD 2021 | Action |
+|---|---|---:|---:|---:|---|
+| SAHI | VisDrone, xView | No | No | No | Rerun X2a/X2b |
+| QueryDet | COCO, VisDrone | No | No | No | Rerun X3 |
+| RTMDet | COCO | No | No | No | Rerun X4 |
+| SSABNet/SABL | VisDrone, UAVDT | No | No | No | Use only as SABL prior; train R1/R3 |
+
+Therefore, no numerical value from SAHI, QueryDet, RTMDet, or SSABNet can be filled into an AgriPest/Pest24/GWHD result cell before running the corresponding experiment.
+
 #### Selection and fairness rules
 
 Every rerun baseline requires:

@@ -103,6 +103,18 @@ The irreducible matrix on every admitted dataset is:
 
 No verified paper was found that reports AgriPest, Pest24, and GWHD 2021 together under one split and metric contract. This is unsurprising: the first two are multi-class pest benchmarks, whereas GWHD is a one-class cross-domain wheat-head benchmark. The paper must not imply that unrelated published tables form a unified leaderboard.
 
+The audited coverage of the papers currently in `reference/` is:
+
+| Paper | Datasets actually evaluated | Coverage of the three target datasets |
+|---|---|---|
+| AgriPest dataset paper | AgriPest | AgriPest only |
+| Pest-PVT | Pest24 | Pest24 only |
+| QueryDet | COCO, VisDrone | None |
+| SSABNet | VisDrone, UAVDT | None |
+| GWHD 2021 dataset paper | GWHD 2021 | GWHD only |
+
+Consequently, existing values can pre-populate only dataset-specific original-protocol tables. The unified three-dataset table remains empty until A0/X1-X4 and HESOD are rerun under the common evaluator.
+
 Instead, the core comparison uses the **same public implementations rerun by us on all three datasets**:
 
 | ID | Baseline | Why it is included | Three-dataset policy |
