@@ -35,6 +35,7 @@ from models.segmenter import (
     ChannelPooledSpectralOnlySegmenter,
     ChannelPooledDualEvidenceSegmenter,
     ChannelPooledConcatEvidenceSegmenter,
+    ReliabilityGateEvidenceSegmenter,
 )
 from models.experimental import *
 from utils.autoanchor import check_anchor_order
@@ -472,6 +473,7 @@ class Model(nn.Module):
                 ChannelPooledSpectralOnlySegmenter,
                 ChannelPooledDualEvidenceSegmenter,
                 ChannelPooledConcatEvidenceSegmenter,
+                ReliabilityGateEvidenceSegmenter,
             )):
                 pred_masks = x
                 if hm_only:
@@ -543,6 +545,15 @@ class Model(nn.Module):
                 bias_convs = [branch.head for branch in m_.spectral_branches]
             elif isinstance(m_, (ConcatEvidenceSegmenter, ChannelPooledConcatEvidenceSegmenter)):
                 bias_convs = list(m_.concat_convs)
+            elif isinstance(m_, ReliabilityGateEvidenceSegmenter):
+                # u = p_semantic + alpha*a*p_spectral: both self.m and the
+                # spectral head's bias directly shift the fused logit's
+                # initial value, same reasoning as DualEvidenceSegmenter
+                # above. The gate/texture-risk heads are excluded -- they
+                # output a mixing coefficient and a risk score, not a
+                # foreground logit, so the "8 objects per image" prior this
+                # loop encodes doesn't apply to them.
+                bias_convs = list(m_.m) + [branch.head for branch in m_.spectral_branches]
             else:
                 continue
             for mi in bias_convs:
@@ -646,6 +657,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             ChannelPooledSpectralOnlySegmenter,
             ChannelPooledDualEvidenceSegmenter,
             ChannelPooledConcatEvidenceSegmenter,
+            ReliabilityGateEvidenceSegmenter,
         ]:  # Detect2 deprecated
             args.append([ch[x] for x in f])
             if len(args) > 1 and isinstance(args[1], int):  # number of anchors

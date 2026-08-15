@@ -13,7 +13,7 @@ Agricultural monitoring images combine three properties that make conventional f
 2. target density varies sharply between images and domains;
 3. localization errors dominate when boxes are small, crowded, or weakly separated from the background.
 
-The proposed study asks whether an image-conditioned router can allocate expensive high-resolution local inference only where it is useful, while preserving small-object recall. The detector is HESOD; the proposed selector uses a low-cost semantic signal together with channel-pooled spectral evidence. A scale-adaptive box loss (SABL) is tested as an orthogonal localization intervention, not presented as part of the routing novelty.
+The proposed study asks whether an image-conditioned router can allocate expensive high-resolution local inference only where it is useful, while preserving small-object recall. The detector is HESOD; the proposed selector fuses a low-cost semantic signal with channel-pooled spectral evidence through a **reliability-aware residual gate**, not plain concatenation — see §4.2 and [BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md](BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md) §5.3C for the source design this study transfers to agriculture. A scale-adaptive box loss (SABL) is tested as an orthogonal localization intervention, not presented as part of the routing novelty.
 
 The central thesis is therefore:
 
@@ -35,7 +35,7 @@ For GWHD, `AP_small` is computed from native-resolution instance area (`area < 3
 
 ### RQ1 — Does dynamic routing beat fixed computation?
 
-At comparable detector and input information, compare full/dense processing, uniform fixed-K patching, semantic routing, and the proposed channel-pooled semantic–spectral routing.
+At comparable detector and input information, compare full/dense processing, uniform fixed-K patching, semantic routing, and the proposed reliability-aware semantic–spectral gated routing (§4.2).
 
 **H1:** the proposed router provides a better AP–latency or AP–processed-pixel Pareto point than uniform fixed-K and semantic-only routing on AgriPest and Pest24.
 
@@ -64,20 +64,70 @@ The fixed threshold is an inference hyperparameter, not merely an initialization
 - **threshold mode:** how much computation the image requests;
 - **Top-K mode:** how much accuracy is possible under an enforced budget.
 
-### 4.2 Channel-pooled semantic–spectral selector
+### 4.2 Reliability-aware semantic–spectral selector
 
-The proposed selector combines:
+**2026-08-15 revision.** An earlier draft of this section described the proposed selector as channel-pooled semantic + spectral concatenation. That was a scoping error, not a deliberate simplification: `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md` §5.3C is explicit that concatenation *"只作为容量匹配 baseline，不作为默认主方法"* (only a capacity-matched baseline, not the default main method), because concat has no mechanism forcing the network to learn "trust spectral evidence specifically when semantic confidence is insufficient" — it can just as easily learn "spectral always dominates" or "spectral gets pulled toward texture-rich background," neither of which is the intended behavior. This revision replaces concat as the proposed method with BCRS's actual headline mechanism.
 
-- semantic evidence from the learned heatmap branch; and
-- spectral evidence compressed across channels before concatenation.
+**Evidence.** Two branches feed the selector for region $i$:
 
-The intended contribution is a low-overhead routing signal. Architecture claims require a matched semantic-only control, the same detector backbone/head, the same label target, and measured routing overhead.
+- semantic/objectness $q_i = P(y_i=1 \mid f_i^{sem})$ from the learned heatmap branch, as before;
+- spectral evidence, compressed across channels (`ChannelPooledSpectralFilter`, depthwise multi-band filters — not raw per-patch FFT), but now producing **two** outputs instead of one: a signed residual $z_i^{spec}$ (must be able to go negative, so it can suppress texture-heavy background as well as rescue low-objectness targets) and a reliability score $c_i^{spec} \in [0,1]$.
+
+A third, lightweight head estimates texture-contamination risk $t_i^{bg} \in [0,1]$ from the same shared shallow features.
+
+**Fusion.** Semantic uncertainty is computed as normalized binary entropy:
+
+$$h_i = \frac{-q_i\log(q_i+\varepsilon) - (1-q_i)\log(1-q_i+\varepsilon)}{\log 2}.$$
+
+A gate MLP combines all three signals plus the routing budget embedding $e_B$:
+
+$$a_i = \sigma\big(\mathrm{MLP}[q_i, h_i, c_i^{spec}, t_i^{bg}, e_B]\big),$$
+
+and the final routing priority is a **residual fusion in logit space**, not a weighted sum in probability space:
+
+$$u_i = \mathrm{logit}(q_i) + \alpha \cdot a_i \cdot z_i^{spec}.$$
+
+$u_i$ is a ranking score, not a probability, so it is not clamped to $[0,1]$; $z_i^{spec}$ being signed means the gate can move priority down (background suppression) as well as up (tiny-object rescue).
+
+**Why not just $(1-q_i)^\gamma$.** A simpler low-objectness rescue gate — spectral weight rises purely as semantic confidence falls — is tempting, but BCRS's own analysis (§5.4) flags the failure mode directly: such a gate activates on *all* low-$q_i$ regions, including low-$q_i$ background, so it cannot distinguish "quiet real target" from "quiet background" and would be expected to inflate textured-background false routing exactly where Pest24 (§2, this document) is meant to stress-test it. It is kept in this study only as a **named diagnostic ablation** ($a_i^{low}$, §4.2.1), not the proposed mechanism.
+
+### 4.2.1 Fusion ablation ladder
+
+Because the gate's value proposition rests on doing *better than* simpler alternatives, not merely *differently*, the following ladder is run parameter/latency-matched (BCRS §7.4), primary validation on AgriPest before promoting to Pest24/GWHD (BCRS §11.2 Phase 2 gate):
+
+| ID | Fusion | Definition | Role |
+|---|---|---|---|
+| F0 | Objectness-only | $u_i = \mathrm{logit}(q_i)$ | Semantic baseline (= R0/R1 in §5) |
+| F1 | Concat → MLP | $u_i = f([q_i, s_i])$ | Capacity-matched control — the *previous* draft's proposed method, now a required control |
+| F2 | Unconstrained learned gate | $a_i = \sigma(\mathrm{MLP}[q_i, s_i])$, no uncertainty/confidence/texture inputs | Tests whether gate *structure* alone (vs. concat) helps |
+| F3 | Uncertainty-only gate | $a_i = h_i$ | Tests "intervene exactly when semantic is genuinely uncertain" |
+| F4 | Low-score rescue gate | $a_i = (1-q_i)^\gamma$ | Tests low-objectness rescue in isolation; expected to raise textured-background false routing — see above |
+| F5 | Reliability-aware residual gate | as derived above | **Proposed method** |
+| F6 | F5 + rescue-ranking + conditional-gate regularization + coverage | full training objective, §4.2.2 | **Full proposed method** |
+
+F5/F6 not beating parameter-matched F1 on the low-objectness-tiny-recall / textured-background-false-routing trade-off is a named falsification condition (§9).
+
+### 4.2.2 Rescue-ranking and conditional-gate regularization losses
+
+Two loss terms shape the gate beyond ranking/coverage supervision (BCRS §5.4), used only for F6:
+
+**Rescue-ranking loss.** Let $\mathcal{P}_{rescue} = \{(i,j): y_i=1, q_i < \tau_{low}, y_j=0, j \in \mathcal{B}_{tex}\}$ pair real low-objectness positives against texture hard-negatives (from AgriPest/Pest24's dense-background regions). The gate is trained so real rescued targets outrank texture background in priority:
+
+$$\mathcal{L}_{rescue} = \frac{1}{|\mathcal{P}_{rescue}|} \sum_{(i,j) \in \mathcal{P}_{rescue}} \log\big(1 + \exp(m - u_i + u_j)\big).$$
+
+**Conditional-gate regularization.** Suppresses gate activation both where semantic is already confidently correct and on texture hard-negatives, as a small anti-degeneration term (must not overpower coverage/ranking supervision):
+
+$$\mathcal{L}_{cond} = \frac{1}{|\mathcal{C}_{sem}|}\sum_{i \in \mathcal{C}_{sem}} a_i + \frac{1}{|\mathcal{B}_{tex}|}\sum_{i \in \mathcal{B}_{tex}} a_i.$$
+
+Hyperparameters ($\tau_{low}$, margin $m$, $\lambda_{rescue}$, $\lambda_{cond}$, $\alpha$) are **not locked** the way SABL's are (§4.3) — BCRS does not specify fixed values for these, so they require a validation sweep before the primary operating point is chosen (mirrors the `hm_threshold` sweep already required in §8.1 of the companion Experiment Plan). Candidate starting points for that sweep: $\tau_{low}=0.3$, $m=1.0$, $\lambda_{rescue}=0.5$, $\lambda_{cond}=0.1$, $\alpha=1.0$ — these are unvalidated defaults, not conclusions.
+
+Architecture claims (F5/F6 over F0/F1) require a matched semantic-only control, the same detector backbone/head, the same label target, and measured routing overhead — the overhead of the confidence and texture-risk heads must be included in that measurement (§5.7–5.8 of the BCRS source proposal), not just the gate MLP itself.
 
 ### 4.3 SABL as an orthogonal loss ablation
 
 SABL is applied only to box regression during training. The current implementation uses scale-adaptive mixing based on ground-truth box size and keeps the objectness target on the upstream CIoU path. It adds no inference parameters or FLOPs.
 
-SABL can be combined directly with channel-pooled concatenation because the selector controls **where** to process and SABL controls **how selected boxes are regressed**. It must be retrained; it cannot be enabled only at test time.
+SABL can be combined directly with the reliability-aware gate (or, in the F0–F6 ablation, with any other fusion variant) because the selector controls **where** to process and SABL controls **how selected boxes are regressed**. It must be retrained; it cannot be enabled only at test time.
 
 The paper must distinguish clearly between:
 
@@ -93,11 +143,13 @@ The irreducible matrix on every admitted dataset is:
 |---|---|---|---|---|
 | A0 | Full image or exhaustive local processing | N/A | CIoU | Accuracy-oriented dense reference |
 | A1 | Uniform fixed-K | N/A | CIoU | Compute-matched non-learned control |
-| R0 | Dynamic/fixed-budget | Semantic only | CIoU | Reproduced HESOD baseline |
-| R1 | Dynamic/fixed-budget | Semantic only | SABL | Loss-only effect |
-| R2 | Dynamic/fixed-budget | Channel-pooled semantic + spectral concat | CIoU | Proposed selector-only effect |
-| R3 | Dynamic/fixed-budget | Channel-pooled semantic + spectral concat | SABL | Combined model and interaction |
+| R0 | Dynamic/fixed-budget | Semantic only (F0) | CIoU | Reproduced HESOD baseline |
+| R1 | Dynamic/fixed-budget | Semantic only (F0) | SABL | Loss-only effect |
+| R2 | Dynamic/fixed-budget | Reliability-aware residual gate (F5/F6, §4.2) | CIoU | Proposed selector-only effect |
+| R3 | Dynamic/fixed-budget | Reliability-aware residual gate (F5/F6, §4.2) | SABL | Combined model and interaction |
 | O | Ground-truth oracle patches | Oracle | CIoU | Upper bound on routing; not deployable |
+
+R2/R3 use the gate (F5, or F6 once its losses validate), not concat — concat is F1 in §4.2.1's fusion ablation ladder, run as a required control on AgriPest before R2/R3 are trusted, not as a substitute for them. If F5/F6 fails to beat parameter-matched F1 (§9's falsification conditions), R2/R3 in this table should be understood to have reverted to F1 by default, and that reversion must be stated explicitly in any reported result, not silently substituted.
 
 ### 5.1 Cross-dataset baseline strategy
 
@@ -201,6 +253,9 @@ This gate is a feasibility decision, not a licence to cherry-pick favorable imag
 - SABL gains disappear across seeds or occur only at AP50.
 - Pest24/GWHD require almost all 64 cells, making routing overhead unjustified.
 - Claimed speedup exists only in theoretical FLOPs, not end-to-end measurements.
+- F5/F6 does not beat parameter/latency-matched F1 (concat) on low-objectness-tiny-recall or on textured-background false-routing rate (§4.2.1) — the gate structure would then not be earning its added complexity over the simpler control.
+- The gate saturates ($a_i \to 1$ almost everywhere) or collapses ($a_i \to 0$ almost everywhere) after training with $\mathcal{L}_{rescue}$/$\mathcal{L}_{cond}$ — indicates conditional fusion failed to learn selectivity, not just a weak effect size.
+- On Pest24 specifically, F5/F6's textured-background false-routing rate is not lower than F1's — this is Pest24's specific admission role (§2) and a result here is not an optional nicety.
 
 Negative outcomes remain useful if reported as density-dependent operating limits rather than hidden.
 

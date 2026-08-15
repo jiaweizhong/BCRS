@@ -1,9 +1,10 @@
 # HESOD-Agri Experiment Plan
 
 > **Companion proposal:** [HESOD-Agri-Proposal.md](HESOD-Agri-Proposal.md)  
+> **Method source:** [BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md](BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md) SS5.3C/SS5.4 (reliability-aware residual gate)  
 > **Datasets in scope:** AgriPest, Pest24, GWHD 2021 only  
-> **Primary question:** Does channel-pooled semantic–spectral routing improve the detection accuracy–compute Pareto frontier?  
-> **Status:** protocol definition; no agricultural result has been accepted yet
+> **Primary question:** Does a reliability-aware semantic–spectral gate improve the detection accuracy–compute Pareto frontier, and does it do so *specifically* by conditioning spectral evidence on semantic uncertainty rather than treating it as a co-equal signal (plain concat)?  
+> **Status:** protocol definition; no agricultural result has been accepted yet. 2026-08-15: R2/R3's selector redefined from concat to the reliability-aware gate; concat retained as a required F1 control, not the proposed method — see SS6.2 and the decision log (SS12).
 
 ## 1. Non-negotiable protocol
 
@@ -34,6 +35,17 @@ For selected region mask `M` and ground-truth box `G`:
 - report the K distribution and zero-patch frequency, not just the mean.
 
 `BPR_box` is not IoU. The union with the selected region must not appear in its denominator.
+
+### 1.3.1 Gate-specific metrics (F2–F6 arms only)
+
+- `TFR(B) = |selected regions ∩ textured-background regions| / max(1, |selected regions|)` at a fixed budget `B` — Pest24's specific admission criterion (HESOD-Agri-Proposal.md SS2/SS9); a texture-hard-negative region set `B_tex` must be defined per dataset before this is computed, not post-hoc;
+- gate activation `a_i` distribution, reported separately for tiny-object regions and `B_tex` regions — not a single global mean;
+- conditional spectral lift: F5/F6's recall or coverage minus F1's, computed **within** each objectness x texture-risk bucket (SS1.3.2), not as a global average that can hide a mechanism failure behind an aggregate win;
+- priority-coverage rank correlation: Spearman correlation between $u_i$ and the GT-coverage target, per dataset.
+
+### 1.3.2 Difficulty buckets for gate analysis
+
+In addition to size/density/objectness buckets used elsewhere in this plan, gate-specific analysis (SS1.3.1, SS6.2) requires a **2D cross-tab**: $q_i$ quantile (low/mid/high) x texture-risk quantile (low/mid/high), 3x3, reporting tiny recall, background false-routing rate, and mean gate activation in each cell — not two separate 1D means, which can average away exactly the conditional behavior the gate is meant to exhibit.
 
 ### 1.4 Systems metrics
 
@@ -139,12 +151,19 @@ hesod/backends/hesod/data/
   gwhd2021.yaml
 
 hesod/backends/hesod/models/cfg/esod/
-  agripest_yolov5m.yaml
-  agripest_yolov5m_channel_pooled_concat.yaml
+  agripest_yolov5m.yaml                         # F0 / R0-R1
+  agripest_yolov5m_channel_pooled_concat.yaml    # F1 control (SS6.2)
+  agripest_yolov5m_reliability_gate.yaml         # F5/F6, R2-R3 (SS4.2 of the proposal)
   pest24_yolov5m.yaml
   pest24_yolov5m_channel_pooled_concat.yaml
+  pest24_yolov5m_reliability_gate.yaml
   gwhd2021_yolov5m.yaml
   gwhd2021_yolov5m_channel_pooled_concat.yaml
+  gwhd2021_yolov5m_reliability_gate.yaml
+  # F2-F4 (unconstrained gate / uncertainty-only / low-score-rescue) can share
+  # the reliability_gate.yaml architecture with a gate-mode flag rather than
+  # separate files, once the gate module supports it -- do not duplicate the
+  # whole architecture YAML per ablation rung.
 
 results/agri/<dataset>/<arm>/seed_<seed>/
 ```
@@ -197,18 +216,20 @@ This isolates selector evidence and box loss. Hybrid labels may be proposed late
 |---|---|---|---|---|---|---|
 | A0 | Full image or exhaustive 64-cell local processing | None | N/A | CIoU | Yes | Dense accuracy reference |
 | A1 | Uniform fixed-K | None | N/A | CIoU | Yes/matched detector | Compute-matched allocation control |
-| R0 | Threshold and declared Top-K sweep | Semantic only | Upstream selector loss | CIoU | Yes | Reproduced HESOD baseline |
-| R1 | Same as R0 | Semantic only | Upstream selector loss | SABL | Yes | Loss-only effect |
-| R2 | Same as R0 | Channel-pooled semantic + spectral concat | Coverage selector loss | CIoU | Yes | Proposed selector-only effect |
-| R3 | Same as R0 | Channel-pooled semantic + spectral concat | Coverage selector loss | SABL | Yes | Combined effect and interaction |
+| R0 | Threshold and declared Top-K sweep | Semantic only (F0) | Upstream selector loss | CIoU | Yes | Reproduced HESOD baseline |
+| R1 | Same as R0 | Semantic only (F0) | Upstream selector loss | SABL | Yes | Loss-only effect |
+| R2 | Same as R0 | Reliability-aware residual gate (F5/F6, SS6.2) | Coverage selector loss + rescue-ranking + conditional-gate reg. | CIoU | Yes | Proposed selector-only effect |
+| R3 | Same as R0 | Reliability-aware residual gate (F5/F6, SS6.2) | Coverage selector loss + rescue-ranking + conditional-gate reg. | SABL | Yes | Combined effect and interaction |
 | O | Ground-truth oracle Top-K | Oracle | N/A | CIoU detector | No deployable claim | Routing upper bound |
+
+R2/R3's selector changed from concat to the gate on 2026-08-15 (SS12). Concat is F1 in the fusion ablation ladder below, run and validated on AgriPest *before* R2/R3 are trained — per HESOD-Agri-Proposal.md SS9's falsification conditions, if F5/F6 does not beat parameter/latency-matched F1 on low-objectness-tiny-recall or textured-background false-routing, R2/R3 should be understood to fall back to F1, and that fallback must be stated explicitly wherever results are reported.
 
 The primary factorial is:
 
 | | CIoU | SABL |
 |---|---:|---:|
-| Semantic only | R0 | R1 |
-| Channel-pooled concat | R2 | R3 |
+| Semantic only (F0) | R0 | R1 |
+| Reliability-aware gate (F5/F6) | R2 | R3 |
 
 Interpretation:
 
@@ -217,17 +238,34 @@ Interpretation:
 - `R3 − R2`: SABL effect with the proposed selector;
 - `(R3 − R2) − (R1 − R0)`: selector–loss interaction.
 
-### 6.2 Secondary selector ablations
+### 6.2 Fusion ablation ladder (justifies the R2/R3 selector choice)
 
-Only run after R0 and R2 are validated on AgriPest:
+This ladder is not secondary/optional the way the old S1–S3 table was — it is the evidence that the gate (not concat) belongs in R2/R3. Run on AgriPest first; promote to Pest24/GWHD only once F5/F6 shows the expected pattern there (BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md SS11.2 Phase 2 gate). All rungs use CIoU box loss only (SABL is crossed with F0 and F5/F6 in the R0–R3 factorial, not with every fusion variant — do not multiply the full ladder by every loss/dataset/seed).
 
-| ID | Selector | Question |
-|---|---|---|
-| S1 | Spectral only | Does spectral evidence work without semantics? |
-| S2 | Semantic + spectral gate | Is multiplicative gating preferable to concatenation? |
-| S3 | Full-channel semantic + spectral concat | Is channel pooling the useful efficiency/regularization choice? |
+| ID | Fusion | Definition | Question |
+|---|---|---|---|
+| F0 | Objectness-only | $u_i = \mathrm{logit}(q_i)$ | Semantic baseline (= R0) |
+| F1 | Concat -> MLP | $u_i = f([q_i, s_i])$ | Capacity-matched control — the previous plan's proposed method |
+| F2 | Unconstrained learned gate | $a_i = \sigma(\mathrm{MLP}[q_i, s_i])$ | Does gate structure alone (no uncertainty/confidence/texture inputs) beat concat? |
+| F3 | Uncertainty-only gate | $a_i = h_i$ (binary entropy of $q_i$) | Does "intervene exactly when semantic is uncertain" work on its own? |
+| F4 | Low-score rescue gate | $a_i = (1-q_i)^\gamma$ | Isolates low-objectness rescue; expected to raise textured-background false-routing (predicted failure mode, not a strawman — report it even if confirmed) |
+| F5 | Reliability-aware residual gate | $a_i = \sigma(\mathrm{MLP}[q_i, h_i, c_i^{spec}, t_i^{bg}, e_B])$, $u_i = \mathrm{logit}(q_i) + \alpha \cdot a_i \cdot z_i^{spec}$ | **Proposed selector** |
+| F6 | F5 + rescue-ranking + conditional-gate regularization + coverage | full objective, HESOD-Agri-Proposal.md SS4.2.2 | **Full proposed method**, used in R2/R3 once validated |
 
-Do not automatically multiply S1–S3 by every loss, dataset, and seed. Promote an ablation beyond AgriPest only if it challenges the R2 design choice.
+Requirements for every rung (BCRS SS7.4): parameter count, channel width, input resolution, and training epochs matched across F0–F6; report new MACs and measured latency per rung, including the confidence/texture-risk heads' own cost for F5/F6, not just the gate MLP. Do not promote F5/F6 into R2/R3 (SS6.1) until this ladder confirms F5/F6 beats parameter-matched F1 on both low-objectness-tiny-recall and textured-background false-routing rate (SS8.4) — that comparison, not intuition, is what licenses the selector choice.
+
+### 6.2.1 Gate implementation lock
+
+Parallel to SS7's SABL implementation lock, for F5/F6:
+
+- $h_i$ = normalized binary entropy of $q_i$ (peaks at $q_i=0.5$);
+- gate MLP inputs: $[q_i, h_i, c_i^{spec}, t_i^{bg}, e_B]$ — dropping any of these without renaming the arm is not permitted;
+- $u_i = \mathrm{logit}(q_i) + \alpha \cdot a_i \cdot z_i^{spec}$, evaluated in logit space, not probability space;
+- $z_i^{spec}$ must be able to take negative values (background suppression), verified by inspecting its sign distribution before trusting any F5/F6 result;
+- rescue-ranking pairs: $\mathcal{P}_{rescue} = \{(i,j): y_i=1, q_i<\tau_{low}, y_j=0, j\in\mathcal{B}_{tex}\}$, loss $\mathcal{L}_{rescue} = \frac{1}{|\mathcal{P}_{rescue}|}\sum \log(1+\exp(m-u_i+u_j))$;
+- conditional-gate regularization: $\mathcal{L}_{cond} = \frac{1}{|\mathcal{C}_{sem}|}\sum_{i\in\mathcal{C}_{sem}} a_i + \frac{1}{|\mathcal{B}_{tex}|}\sum_{i\in\mathcal{B}_{tex}} a_i$, small weight, must not overpower coverage/ranking supervision;
+- **not locked, unlike SABL's constants:** $\tau_{low}$, $m$, $\lambda_{rescue}$, $\lambda_{cond}$, $\alpha$ require a validation sweep before the primary operating point is chosen. Candidate starting points (unvalidated): $\tau_{low}=0.3$, $m=1.0$, $\lambda_{rescue}=0.5$, $\lambda_{cond}=0.1$, $\alpha=1.0$.
+- gate saturation check: report the distribution of $a_i$ on tiny-object and texture-background regions separately; $a_i \to 1$ or $a_i \to 0$ almost everywhere is a failure to report, not a result to hide (HESOD-Agri-Proposal.md SS9).
 
 ### 6.3 External baselines
 
@@ -346,7 +384,8 @@ Fairness rules:
 - R0/R2 and R1/R3 use the same detector components except for declared selector modules and selector loss;
 - SABL requires retraining and is never toggled only at evaluation;
 - never reuse a checkpoint whose module graph or training target contract does not match the resolved config;
-- failed/non-finite runs remain in the ledger with a reason; they are not silently replaced.
+- failed/non-finite runs remain in the ledger with a reason; they are not silently replaced;
+- F0–F6 (SS6.2) match parameter count, channel width, input resolution, and training epochs — an F5/F6 win that is actually just "more parameters than F1" is not a supported claim.
 
 SABL implementation lock for this study:
 
@@ -355,6 +394,8 @@ SABL implementation lock for this study:
 - scale mixing `mu = exp(-(s / 32)^6)` and `C = 12`, unless a separately named sensitivity experiment changes them;
 - objectness target remains on the upstream CIoU path;
 - no inference-cost difference is expected.
+
+Gate implementation lock (F5/F6): see SS6.2.1 — unlike SABL's fixed constants, the gate's hyperparameters ($\tau_{low}$, $m$, $\lambda_{rescue}$, $\lambda_{cond}$, $\alpha$) require a validation sweep before the primary operating point is chosen; do not treat the candidate starting values there as pre-validated.
 
 ## 8. Validation and budget selection
 
@@ -499,11 +540,18 @@ Minimum fields:
   "ap75": null,
   "ap_small": null,
   "recall50_one_to_one": null,
-  "recall75_one_to_one": null
+  "recall75_one_to_one": null,
+  "router_latency_ms": null,
+  "detector_latency_ms": null,
+  "tfr": null,
+  "gate_activation_mean_tiny": null,
+  "gate_activation_mean_texture_bg": null,
+  "conditional_spectral_lift": null,
+  "priority_coverage_rank_corr": null
 }
 ```
 
-Use `null` plus a reason for unavailable metrics; never silently write zero for “not computed.”
+The last six fields apply only to F2–F6 arms (SS1.3.1); leave `null` with a reason for F0/F1/A0/A1/O. Use `null` plus a reason for unavailable metrics; never silently write zero for “not computed.”
 
 ### 11.2 Main paper table
 
@@ -526,7 +574,9 @@ Repeat the identical schema for Pest24 and admitted GWHD arms. Do not paste AP50
 4. selected-K distribution by dataset/density stratum;
 5. R0–R3 factorial effect plot for AP75/AP_small;
 6. GWHD domain-level plot or density-boundary plot;
-7. failure taxonomy: missed routing, poor localization, confusion, duplicate, background false positive.
+7. failure taxonomy: missed routing, poor localization, confusion, duplicate, background false positive;
+8. F0–F6 fusion-ablation Pareto plot (AP or low-objectness-tiny-recall vs. TFR), parameter/latency-matched, per SS6.2;
+9. 2D heatmap: $q_i$ x texture-risk bucket (SS1.3.2), tiny recall and gate activation as two separate panels.
 
 ## 12. Decision log
 
@@ -539,6 +589,7 @@ Repeat the identical schema for Pest24 and admitted GWHD arms. Do not paste AP50
 | 2026-08-13 | Treat exact Top-K as the proposed budget mode and threshold routing as upstream-compatible baseline behavior | Prevents attributing the new budget policy to the original method |
 | 2026-08-13 | Use A0/X1/X2/X3/X4 as the cross-dataset baseline set | No verified paper reports all three datasets; common code reruns provide the only defensible unified comparison |
 | 2026-08-13 | Keep dataset-paper values in a separate original-protocol table | AgriPest AP50, Pest24 paper-specific mAP/mRecall, and GWHD WDA are not interchangeable |
+| 2026-08-15 | Redefine R2/R3's selector from channel-pooled concat to BCRS's reliability-aware residual gate (F5/F6); demote concat to a required F1 control in a new fusion ablation ladder (SS6.2) | The prior draft's proposed method was, in BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md's own words, explicitly "a capacity-matched baseline, not the default main method" — concat has no mechanism forcing spectral evidence to activate specifically under semantic uncertainty. Independently raised by reviewer feedback converging on the same gap; BCRS SS5.3C/SS5.4 already specifies the gate, its evidence composition, and the rescue-ranking/conditional-gate-regularization losses needed to keep it from degenerating into a texture detector on Pest24 |
 
 ## 13. Publication-facing additions
 

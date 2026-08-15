@@ -137,6 +137,83 @@ class ChannelPooledSpectralBranch(nn.Module):
         return self.head(spec_feat), spec_feat
 
 
+class ReliabilitySpectralBranch(nn.Module):
+    """Channel-pooled spectral branch producing a signed logit AND a separate
+    learned confidence score c_i^spec, for the reliability-aware residual gate
+    (BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md SS5.3C, F5 in
+    HESOD-Agri-Experiment-Plan.md SS6.2).
+
+    Kept as its own class rather than adding a confidence output to
+    ChannelPooledSpectralBranch: existing callers (ConcatEvidenceSegmenter,
+    GatedEvidenceFusion arms) unpack a 2-tuple and would break on a 3-tuple.
+    The logit head is unchanged from ChannelPooledSpectralBranch -- it is
+    already an unconstrained Conv2d output, so it can already go negative
+    (needed so the gate can suppress texture background, not just rescue
+    low-objectness targets) without any change.
+    """
+
+    def __init__(self, in_channels, out_channels=1):
+        super().__init__()
+        self.filter = ChannelPooledSpectralFilter()
+        self.stem = nn.Sequential(
+            nn.Conv2d(6, in_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(in_channels),
+            nn.SiLU(),
+        )
+        self.head = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.confidence_head = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+
+    def forward(self, x):
+        spec_feat = self.stem(self.filter(x))
+        logit = self.head(spec_feat)
+        confidence = torch.sigmoid(self.confidence_head(spec_feat))
+        return logit, spec_feat, confidence
+
+
+class TextureRiskHead(nn.Module):
+    """Estimates per-location texture-contamination risk t_i^bg in [0,1] from
+    the shared shallow feature map (HESOD-Agri-Proposal.md SS4.2) -- a
+    lightweight 1x1-conv head, not a second backbone, so its cost must still
+    be included in any reported selector overhead (SS4.2.2's requirement).
+    """
+
+    def __init__(self, in_channels):
+        super().__init__()
+        hidden = max(1, in_channels // 4)
+        self.head = nn.Sequential(
+            nn.Conv2d(in_channels, hidden, kernel_size=1, bias=False),
+            nn.BatchNorm2d(hidden),
+            nn.SiLU(),
+            nn.Conv2d(hidden, 1, kernel_size=1),
+        )
+
+    def forward(self, x):
+        return torch.sigmoid(self.head(x))
+
+
+class ReliabilityGateMLP(nn.Module):
+    """Gate a_i = sigmoid(MLP([q_i, h_i, c_i^spec, t_i^bg])), implemented as
+    1x1 convs since evidence is per-spatial-location, not global.
+
+    Matches HESOD-Agri-Proposal.md SS4.2's gate formula except the budget
+    embedding e_B is omitted: this project has no budget-conditioning
+    mechanism yet (BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md
+    SS5.5 is unimplemented), so the gate sees 4 inputs, not 5.
+    """
+
+    def __init__(self, hidden=8):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Conv2d(4, hidden, kernel_size=1),
+            nn.SiLU(),
+            nn.Conv2d(hidden, 1, kernel_size=1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, evidence):
+        return self.mlp(evidence)
+
+
 class GatedEvidenceFusion(nn.Module):
     """Input-dependent gate over semantic vs. spectral priority (HESOD-Proposal.md SS5.3.C).
 

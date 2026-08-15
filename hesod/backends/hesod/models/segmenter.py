@@ -11,10 +11,19 @@ forward/parse pipeline) the same way models/spectral.py splits out the
 building blocks these classes compose.
 """
 
+import math
+
 import torch
 import torch.nn as nn
 
-from models.spectral import ChannelPooledSpectralBranch, GatedEvidenceFusion, SpectralBranch
+from models.spectral import (
+    ChannelPooledSpectralBranch,
+    GatedEvidenceFusion,
+    ReliabilityGateMLP,
+    ReliabilitySpectralBranch,
+    SpectralBranch,
+    TextureRiskHead,
+)
 
 
 class Segmenter(nn.Module):
@@ -124,6 +133,10 @@ class ChannelPooledConcatEvidenceSegmenter(nn.Module):
     ConcatEvidenceSegmenter with the low-overhead channel-pooled spectral
     filter (SS7.9) -- tests whether the lightweight spectral implementation
     keeps its complementary value once its own compute is reduced.
+
+    HESOD-Agri context (HESOD-Agri-Experiment-Plan.md SS6.2): this is F1, a
+    required capacity-matched control, not the proposed HESOD-Agri method --
+    see ReliabilityGateEvidenceSegmenter (F5) below for that.
     """
 
     def __init__(self, nc=10, ch=()):
@@ -138,4 +151,60 @@ class ChannelPooledConcatEvidenceSegmenter(nn.Module):
             p_semantic = self.m[i](x[i])
             p_spectral, _ = self.spectral_branches[i](x[i])
             res.append(self.concat_convs[i](torch.cat([p_semantic, p_spectral], dim=1)))
+        return res
+
+
+class ReliabilityGateEvidenceSegmenter(nn.Module):
+    """F5: reliability-aware residual gate (BCRS-Budget-Constrained-Recall-Safe-
+    Selector-Proposal.md SS5.3C; HESOD-Agri-Proposal.md SS4.2;
+    HESOD-Agri-Experiment-Plan.md SS6.2/SS6.2.1 -- the proposed HESOD-Agri
+    selector, R2/R3 once validated against the F0-F6 ladder).
+
+    Differs from both existing fusion arms on purpose:
+    - vs. ConcatEvidenceSegmenter (F1): fusion is an explicit residual gate,
+      not a learned 1x1 combiner over concatenated logits -- at a_i=0 this
+      degenerates EXACTLY to the semantic-only baseline, so spectral evidence
+      can only ever perturb, never replace, the semantic prior.
+    - vs. GatedEvidenceFusion (F2, used by *DualEvidenceSegmenter): the gate
+      is conditioned on interpretable per-location scalars -- semantic
+      uncertainty h_i, the spectral branch's own confidence c_i^spec, and a
+      dedicated texture-risk t_i^bg -- not on the raw semantic/spectral
+      feature maps. That is what makes this "reliability-aware" rather than
+      just "another learned gate": F2 can learn to depend on spectral
+      unconditionally, this cannot without also raising t_i^bg or c_i^spec
+      in the wrong direction.
+
+    u_i = logit(q_i) + alpha * a_i * z_i^spec, evaluated in logit space
+    (HESOD-Agri-Proposal.md SS4.2). No budget embedding e_B -- see
+    ReliabilityGateMLP's docstring. alpha is a fixed (not learned)
+    constructor arg: HESOD-Agri-Experiment-Plan.md SS6.2.1 treats it as an
+    unvalidated hyperparameter requiring a sweep, not something to fold into
+    end-to-end optimization before that sweep happens.
+
+    Only the F5 fusion mechanism is implemented here -- F6's rescue-ranking
+    and conditional-gate-regularization losses (HESOD-Agri-Proposal.md
+    SS4.2.2) are a separate, not-yet-implemented step in loss.py, deferred
+    until F5 itself is validated against F1 (SS6.2's promotion gate).
+    """
+
+    def __init__(self, nc=1, ch=(), alpha=1.0):
+        super().__init__()
+        self.alpha = alpha
+        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
+        self.spectral_branches = nn.ModuleList(ReliabilitySpectralBranch(x, nc) for x in ch)
+        self.texture_risk_heads = nn.ModuleList(TextureRiskHead(x) for x in ch)
+        self.gates = nn.ModuleList(ReliabilityGateMLP() for _ in ch)
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_semantic = self.m[i](x[i])
+            p_spectral, _, c_spectral = self.spectral_branches[i](x[i])
+            t_bg = self.texture_risk_heads[i](x[i])
+
+            q = torch.sigmoid(p_semantic)
+            h = -(q * torch.log(q + 1e-7) + (1 - q) * torch.log(1 - q + 1e-7)) / math.log(2)
+            a = self.gates[i](torch.cat([q, h, c_spectral, t_bg], dim=1))
+
+            res.append(p_semantic + self.alpha * a * p_spectral)
         return res
