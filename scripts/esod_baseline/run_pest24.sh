@@ -108,22 +108,33 @@ run_arm() {
   mkdir -p "$results_dir"
   cd "$ESOD_REPO"
 
-  log "===== Training $run_name ====="
-  python train.py \
-    --data "$DATA_YAML" \
-    --cfg "$model_cfg" \
-    --weights weights/pretrained/yolov5m.pt \
-    --hyp data/hyps/hyp.pest24.yaml \
-    --batch-size "$BATCH" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
-    "${extra_flags[@]}" \
-    --project "$RUN_ROOT/train" --name "$run_name" --exist-ok \
-    2>&1 | tee "$results_dir/${run_name}_train.log"
-
   local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
+  if [ -f "$ckpt" ]; then
+    log "===== $run_name already trained (found $ckpt), skipping training ====="
+  else
+    log "===== Training $run_name ====="
+    python train.py \
+      --data "$DATA_YAML" \
+      --cfg "$model_cfg" \
+      --weights weights/pretrained/yolov5m.pt \
+      --hyp data/hyps/hyp.pest24.yaml \
+      --batch-size "$BATCH" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
+      "${extra_flags[@]}" \
+      --project "$RUN_ROOT/train" --name "$run_name" --exist-ok \
+      2>&1 | tee "$results_dir/${run_name}_train.log"
+  fi
 
   log "Evaluating $run_name"
+  # --task test is required: test.py's own task resolution (test.py L164,
+  # "task = opt.task if opt.task in ('train','val','test') else 'val'")
+  # defaults to the VAL split for anything else, including no --task at all.
+  # Without this, test.py silently evaluates Pest24_v1's 5077-image val split
+  # instead of the 7600-image test split -- confirmed by "Images 5077" in the
+  # printed summary line, and by audit_buckets.py then failing because it
+  # correctly checks predictions against images/test, which the val-split
+  # predictions mostly don't belong to.
   python test.py \
-    --data "$DATA_YAML" --weights "$ckpt" \
+    --data "$DATA_YAML" --weights "$ckpt" --task test \
     --batch-size "$BATCH" --img-size "$IMG_SIZE" --device "$GPU" --save-json \
     --project "$RUN_ROOT/test" --name "$run_name" --exist-ok \
     2>&1 | tee "$results_dir/${run_name}_test.log"
