@@ -68,7 +68,7 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 if [ ! -d "$DATA_ROOT/images/train" ]; then
   log "Reorganizing Pest24 raw data -> $DATA_ROOT"
   python "$SCRIPT_DIR/reorganize_pest24.py" \
-    --raw-root /root/autodl-tmp/Pest24/VOCdevkit/voc2007 \
+    --raw-root /root/data/Pest24/VOCdevkit/voc2007 \
     --out-root "$DATA_ROOT" \
     --splits train val test
 else
