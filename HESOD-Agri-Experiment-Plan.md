@@ -1,10 +1,10 @@
 # HESOD-Agri Experiment Plan
 
 > **Companion proposal:** [HESOD-Agri-Proposal.md](HESOD-Agri-Proposal.md)  
-> **Method source:** [BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md](BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md) SS5.3C/SS5.4 (reliability-aware residual gate)  
+> **Method source:** [HESOD-Agri-Proposal.md](HESOD-Agri-Proposal.md) SS4.2 (reliability-aware residual gate)
 > **Datasets in scope:** AgriPest, Pest24, GWHD 2021 only  
 > **Primary question:** Does a reliability-aware semantic–spectral gate improve the detection accuracy–compute Pareto frontier, and does it do so *specifically* by conditioning spectral evidence on semantic uncertainty rather than treating it as a co-equal signal (plain concat)?  
-> **Status:** protocol definition; no agricultural result has been accepted as a claim yet (all Pest24 numbers below are single-seed and preliminary — SS7's minimum-three-seeds bar is not yet met). 2026-08-15: R2/R3's selector redefined from concat to the reliability-aware gate; concat retained as a required F1 control, not the proposed method — see SS6.2 and the decision log (SS12). 2026-08-16: Pest24 R0, R1 (SABL, negative control), and R2 (F1 concat control) all complete and audited, see SS11.2.1/SS11.2.2. R3 (F1+SABL) and F5 (reliability gate) in progress; AgriPest and GWHD 2021 preparation has not started.
+> **Status (2026-08-17):** Pest24 R0–R3 and F5 are all audited single-seed preliminary results (SS11.2.1–SS11.2.5); F5 beats the F1 control modestly but the SS9 win condition is only half-checked (TFR unmeasured, gate+SABL not run); AgriPest and GWHD 2021 have not started. No result is claim-bearing until it meets the three-seed rule in SS7.
 
 ## 1. Non-negotiable protocol
 
@@ -197,6 +197,8 @@ Tiny-object conclusions are invalid if preprocessing destroys the targets. Befor
 
 A0 and routed methods must receive comparable native information. A low-resolution full-image baseline cannot be called compute-matched to high-resolution routed patches without an explicit processed-pixel and information analysis.
 
+**Pest24 lock.** `IMG_SIZE=1024` means a 1024-pixel long-side working resolution: training uses a 1024×1024 mosaic canvas, while `test.py`/measure use `rect=True` and therefore evaluate native 800×600 images as 1024×768 tensors. This 1.28× interpolation preserves an exact 8×8 routing grid but does not add native detail and was not selected by a resolution sweep. An unmodified 640 switch is invalid: the training slicer fails its P3 divisibility assertion and test-time routing changes from 64 to 56 candidate cells. Current R0–R3 comparisons remain internally fair; comparisons with 640/416/224 literature values remain contextual until rerun under a common resolution.
+
 ## 5. Routing-label contract
 
 The core study uses only box-derived selector supervision:
@@ -240,7 +242,7 @@ Interpretation:
 
 ### 6.2 Fusion ablation ladder (justifies the R2/R3 selector choice)
 
-This ladder is not secondary/optional the way the old S1–S3 table was — it is the evidence that the gate (not concat) belongs in R2/R3. The intended order is AgriPest first, promoting to Pest24/GWHD only once F5/F6 shows the expected pattern there (BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md SS11.2 Phase 2 gate). **In practice this order was not followed**: Pest24's pipeline was ready first and AgriPest preparation has not started (SS2.2 vs. SS2.3), so F1 was run and validated on Pest24 first (SS11.2.2), and F5/F6 will run there next. This is a recorded deviation, not a silent substitution — the gate still must clear the ladder before promotion into R2/R3 on whichever dataset it is tested on first, and the three-dataset claim (Proposal SS9) still requires AgriPest and GWHD results before it can be made. All rungs use CIoU box loss only (SABL is crossed with F0 and F5/F6 in the R0–R3 factorial, not with every fusion variant — do not multiply the full ladder by every loss/dataset/seed).
+This ladder is not secondary/optional the way the old S1–S3 table was — it is the evidence that the gate (not concat) belongs in R2/R3. The intended order is AgriPest first, promoting to Pest24/GWHD only once F5/F6 shows the expected pattern there (HESOD-Agri-Proposal.md SS4.2/SS9). **In practice this order was not followed**: Pest24's pipeline was ready first and AgriPest preparation has not started (SS2.2 vs. SS2.3), so F1 was run and validated on Pest24 first (SS11.2.2), and F5/F6 will run there next. This is a recorded deviation, not a silent substitution — the gate still must clear the ladder before promotion into R2/R3 on whichever dataset it is tested on first, and the three-dataset claim (Proposal SS9) still requires AgriPest and GWHD results before it can be made. All rungs use CIoU box loss only (SABL is crossed with F0 and F5/F6 in the R0–R3 factorial, not with every fusion variant — do not multiply the full ladder by every loss/dataset/seed).
 
 | ID | Fusion | Definition | Question |
 |---|---|---|---|
@@ -249,7 +251,7 @@ This ladder is not secondary/optional the way the old S1–S3 table was — it i
 | F2 | Unconstrained learned gate | $a_i = \sigma(\mathrm{MLP}[q_i, s_i])$ | Does gate structure alone (no uncertainty/confidence/texture inputs) beat concat? |
 | F3 | Uncertainty-only gate | $a_i = h_i$ (binary entropy of $q_i$) | Does "intervene exactly when semantic is uncertain" work on its own? |
 | F4 | Low-score rescue gate | $a_i = (1-q_i)^\gamma$ | Isolates low-objectness rescue; expected to raise textured-background false-routing (predicted failure mode, not a strawman — report it even if confirmed) |
-| F5 | Reliability-aware residual gate | $a_i = \sigma(\mathrm{MLP}[q_i, h_i, c_i^{spec}, t_i^{bg}, e_B])$, $u_i = \mathrm{logit}(q_i) + \alpha \cdot a_i \cdot z_i^{spec}$ | **Proposed selector** |
+| F5 | Reliability-aware residual gate | $a_i = \sigma(\mathrm{MLP}[q_i, h_i, c_i^{spec}, t_i^{bg}])$, $u_i = \mathrm{logit}(q_i) + \alpha \cdot a_i \cdot z_i^{spec}$ | **Proposed selector** |
 | F6 | F5 + rescue-ranking + conditional-gate regularization + coverage | full objective, HESOD-Agri-Proposal.md SS4.2.2 | **Full proposed method**, used in R2/R3 once validated |
 
 Requirements for every rung (BCRS SS7.4): parameter count, channel width, input resolution, and training epochs matched across F0–F6; report new MACs and measured latency per rung, including the confidence/texture-risk heads' own cost for F5/F6, not just the gate MLP. Do not promote F5/F6 into R2/R3 (SS6.1) until this ladder confirms F5/F6 beats parameter-matched F1 on both low-objectness-tiny-recall and textured-background false-routing rate (SS8.4) — that comparison, not intuition, is what licenses the selector choice.
@@ -259,7 +261,7 @@ Requirements for every rung (BCRS SS7.4): parameter count, channel width, input 
 Parallel to SS7's SABL implementation lock, for F5/F6:
 
 - $h_i$ = normalized binary entropy of $q_i$ (peaks at $q_i=0.5$);
-- gate MLP inputs: $[q_i, h_i, c_i^{spec}, t_i^{bg}, e_B]$ — dropping any of these without renaming the arm is not permitted;
+- gate MLP inputs, as implemented in `ReliabilityGateMLP`: $[q_i, h_i, c_i^{spec}, t_i^{bg}]$. Budget conditioning $e_B$ is an unimplemented future extension; dropping any of the four locked inputs requires renaming the arm;
 - $u_i = \mathrm{logit}(q_i) + \alpha \cdot a_i \cdot z_i^{spec}$, evaluated in logit space, not probability space;
 - $z_i^{spec}$ must be able to take negative values (background suppression), verified by inspecting its sign distribution before trusting any F5/F6 result;
 - rescue-ranking pairs: $\mathcal{P}_{rescue} = \{(i,j): y_i=1, q_i<\tau_{low}, y_j=0, j\in\mathcal{B}_{tex}\}$, loss $\mathcal{L}_{rescue} = \frac{1}{|\mathcal{P}_{rescue}|}\sum \log(1+\exp(m-u_i+u_j))$;
@@ -269,106 +271,36 @@ Parallel to SS7's SABL implementation lock, for F5/F6:
 
 ### 6.3 External baselines
 
-#### Evidence audit
+No paper covers all three agricultural datasets under one protocol. Keep two tables: common-protocol reruns and original-protocol literature anchors. Never rank rows across those tables.
 
-As of 2026-08-13, no verified paper reports results on AgriPest, Pest24, and GWHD 2021 together. Therefore:
+#### Controlled reruns
 
-- do not construct a pseudo-leaderboard by joining numbers from unrelated papers;
-- build the three-dataset comparison by rerunning the same public implementations;
-- keep source-paper numbers in a separate, dataset-specific protocol table;
-- call a published number directly comparable only after its split, metric, resize, and test-time policy are reproduced.
-
-Faster R-CNN is the closest common architecture-level literature anchor: Faster R-CNN-family results appear in the original/official evaluations of AgriPest, Pest24, and GWHD 2021. However, the reported metrics still differ—AgriPest emphasizes AP at IoU 0.5, Pest24 papers use paper-specific mAP/mRecall conventions, and GWHD uses WDA—so even this anchor must be rerun with the common evaluator.
-
-#### Locked cross-dataset comparison set
-
-| ID | Implementation | Coverage | Function in the paper | Admission rule |
-|---|---|---|---|---|
-| A0 | Dense YOLOv5m | All three | Same-detector matched control | Mandatory |
-| X1 | [Faster R-CNN](https://arxiv.org/abs/1506.01497) R50-FPN | All three | Common source-paper architecture and two-stage localization control | Mandatory |
-| X2a | YOLOv5m + [SAHI](https://arxiv.org/abs/2202.06934) inference | All three | Exhaustive regular slicing using the A0 detector | Mandatory |
-| X2b | YOLOv5m + SAHI sliced fine-tuning + inference | All three | Stronger uniform-tile baseline | Run if training budget permits; never merge with X2a |
-| X3 | [QueryDet](https://openaccess.thecvf.com/content/CVPR2022/html/Yang_QueryDet_Cascaded_Sparse_Query_for_Accelerating_High-Resolution_Small_Object_Detection_CVPR_2022_paper.html) R50-FPN | Prefer all three; AgriPest minimum | Closest external learned sparse high-resolution method | Port official code; exclude rather than silently rewrite its algorithm |
-| X4 | [RTMDet-m](https://arxiv.org/abs/2212.07784) | All three | Modern dense accuracy/efficiency control | Mandatory |
-
-The main comparison table contains our rerun results for A0/X1/X2a/X3/X4 and HESOD R0/R2/R3. X2b is a clearly labelled stronger-cost SAHI variant. All rows are evaluated from saved predictions by the same common evaluator.
-
-#### Dataset-specific published anchors
-
-| Dataset | Published anchor | Original metric role | Paper usage |
+| Priority | ID | Baseline | Role |
 |---|---|---|---|
-| AgriPest | SSD512, RetinaNet, FCOS, Faster R-CNN/FPN, Cascade R-CNN in the dataset paper | Primarily AP at IoU 0.5 and condition subsets | Reproduction sanity table; only exact-protocol values may be compared directly |
-| Pest24 | Faster R-CNN, SSD, YOLOv3, Cascade R-CNN in the dataset paper; [Pest-YOLO](https://pmc.ncbi.nlm.nih.gov/articles/PMC9783619/)/[Pest-PVT](https://www.sciencedirect.com/science/article/pii/S0168169924012559) as later specialized methods | Paper-specific mAP/mRecall; some later work reports AP50 and AP50:95 explicitly | Secondary Pest24 table; re-evaluate public checkpoints/predictions where possible |
-| GWHD 2021 | Official Faster R-CNN reference and challenge entries | WDA/domain accuracy | Exact official split and WDA implementation required |
+| Mandatory | A0 | Dense YOLOv5m | Architecture-matched no-routing control |
+| Mandatory | X1 | Faster R-CNN R50-FPN | Two-stage localization control |
+| Mandatory | X2a | YOLOv5m + SAHI inference | Exhaustive uniform-slicing control using A0 |
+| Mandatory | X4 | RTMDet-m | Modern dense accuracy/efficiency control |
+| Optional | X2b | SAHI sliced fine-tuning + inference | Stronger uniform-tile baseline |
+| Optional | X3 | QueryDet R50-FPN | Learned sparse high-resolution baseline; exclude if official code cannot be ported unchanged |
 
-Pest-PVT is included only as a Pest24-specific agriculture baseline. It is not presented as a three-dataset method because its paper does not report AgriPest or GWHD 2021.
+All direct rows use frozen image IDs/class maps, saved predictions, the same common evaluator, the same declared working resolution, and same-hardware cost measurement.
 
-#### Audited values that may be pre-populated
+#### Original-protocol anchors
 
-These tables are literature anchors, not outputs from our common evaluator. The `Direct?` column states whether a future result may be compared numerically after reproducing the named protocol.
+| Dataset / method | Reported result | Protocol status | Use |
+|---|---|---|---|
+| AgriPest FPN / Cascade R-CNN | AP50 70.20/70.83; AP 35.21/36.54 | Official 44,716/4,991 split; COCO-style metrics | Original-protocol sanity anchors |
+| Pest24 AgriPest-YOLO | AP50 71.3; AP 46.9 | 12,701/5,077/7,600; 640 px; no public official code found | Reported only; do not reconstruct |
+| Pest24 Pest-YOLO | IoU-0.5 mAP 69.59; recall 77.71 | Random 70/20/10; 416 px; public legacy code but incomplete artifacts | Optional controlled port |
+| Pest24 Pest-PVT | VOC07 11-point AP50 77.24; recall 81.27 | 224 px; public config, missing split/class/pretraining artifacts | Priority controlled rerun |
+| Pest24 TP-YOLO | AP 42.0; AP50 66.8 | Paper §3.3 Table 4; public code/checkpoint, missing Pest24 split YAML/result log | Priority controlled rerun |
+| Pest24 DAMI-YOLOv8l | AP50 74.8; AP 53.7 | Public module fragments; no complete training stack/split/checkpoint | Optional reconstruction |
+| GWHD Faster R-CNN / challenge best | WDA 0.492/0.700 | Official WDA protocol, not AP | Original-protocol context only |
 
-**AgriPest official validation protocol** — 44,716 training images and 4,991 validation images. The source paper defines AP50, AP75, and `AP@[0.50:0.05:0.95]` explicitly, so the metric mapping is usable.
+Minimum Pest24 evidence is A0/X1 plus HESOD R0/R2/R3. Add TP-YOLO and Pest-PVT when their releases can be adapted with a complete patch manifest. Pest-YOLO and DAMI are lower priority; AgriPest-YOLO remains literature-only because no official code was found.
 
-| Method | AP50 | AP75 | AP@[.50:.95] | Direct? |
-|---|---:|---:|---:|---|
-| SSD512 | 63.38 | 26.23 | 30.85 | Yes, only with the same official validation split/protocol |
-| RetinaNet | 65.03 | 28.97 | 33.45 | Yes, only with the same official validation split/protocol |
-| FCOS | 66.22 | 28.72 | 33.24 | Yes, only with the same official validation split/protocol |
-| Faster R-CNN | 65.58 | 27.58 | 32.26 | Yes, only with the same official validation split/protocol |
-| FPN | 70.20 | 29.91 | 35.21 | Yes, only with the same official validation split/protocol |
-| Cascade R-CNN | 70.83 | 32.29 | 36.54 | Yes, only with the same official validation split/protocol |
-
-Source: AgriPest dataset paper, Tables 4-6. These numbers may be placed in an `original protocol` comparison table; they must not be copied into our rerun result fields.
-
-**Verified against the primary source directly (2026-08-16), not re-derived from a secondary citation.** All five values above match the PDF exactly (Tables 4/5/6). Two things confirmed worth recording: (1) the paper properly separates AP50/AP75/AP[.50:.95] into three distinct tables using standard COCO-style `IoU in [0.50:0.05:0.95]` (paper's own words) -- a materially more rigorous and directly-comparable protocol than Pest-PVT's single ambiguous "mAP" column (SS6.3's Pest24 anchor above); (2) training recipe was only 12 epochs (Detectron-style 1x schedule, LR drop at 8th/11th epoch) on two NVIDIA 1080Ti -- these baselines may not represent a fully-converged upper bound, and are not directly comparable to this project's 50-epoch RTX 5090 recipe without accounting for that gap. Split is 44,716 train / 4,991 val, no separate test set -- the paper's own "validation set" is the reported evaluation split, not held out from model selection the way this project's own train/val/test three-way split is.
-
-**Pest24 / Pest-PVT paper protocol** — the paper reports `mAP` but does not state the IoU threshold/range or the exact train/validation/test split. Its raw image description gives 2095×1944, while an architecture description states 224×224 input; this is not enough to reconstruct a direct-comparison protocol.
-
-| Method | Reported mAP | Recall | Precision | Direct? |
-|---|---:|---:|---:|---|
-| Faster R-CNN | 42.67 | 54.00 | 45.58 | No; metric/split under-specified |
-| YOLOv5m | 66.89 | 70.90 | 64.84 | No; metric/split under-specified |
-| YOLOv7-x | 72.92 | 70.51 | 72.73 | No; metric/split under-specified |
-| Pest-YOLO | 69.59 | 77.71 | 46.94 | No; imported by the paper from earlier work |
-| Pest-PVT | 77.20 | 81.27 | 78.42 | No; metric/split under-specified |
-
-Source: Pest-PVT, Table 6. The paper also gives Pest-PVT mAP as 77.24% in its ablation Table 4, versus 77.20% in Table 6/abstract. Preserve this source inconsistency; use `77.20 (reported mAP, definition not disclosed)` in prose and never map it to AP50 or AP50:95.
-
-**GWHD 2021 official challenge protocol** — the official dataset paper reports WDA, not COCO AP.
-
-| Method | WDA | Direct? |
-|---|---:|---|
-| Official Faster R-CNN reference | 0.492 | Yes, only with the Global Wheat Challenge 2021 split and exact WDA evaluator |
-| Challenge best entry | 0.700 | Context only; ensemble/training recipe differs |
-
-Source: GWHD 2021 dataset paper, Table 2. Neither value belongs in an AP/AP50 column.
-
-#### Missing target-dataset results in the selected method papers
-
-| Method paper | Paper datasets | AgriPest | Pest24 | GWHD 2021 | Action |
-|---|---|---:|---:|---:|---|
-| SAHI | VisDrone, xView | No | No | No | Rerun X2a/X2b |
-| QueryDet | COCO, VisDrone | No | No | No | Rerun X3 |
-| RTMDet | COCO | No | No | No | Rerun X4 |
-| SSABNet/SABL | VisDrone, UAVDT | No | No | No | Use only as SABL prior; train R1/R3 |
-| TP-YOLO | Own 3-class Khapra-beetle set (published numbers); lists Pest24 as a supported training dataset (450-epoch recipe) but publishes no Pest24 numbers | No | No (trains, doesn't report) | No | Context only — architecture/training-recipe reference, not a citable Pest24 comparison point; verified by reading the repo directly (2026-08-16) |
-
-Therefore, no numerical value from SAHI, QueryDet, RTMDet, SSABNet, or TP-YOLO can be filled into an AgriPest/Pest24/GWHD result cell before running the corresponding experiment.
-
-#### Selection and fairness rules
-
-Every rerun baseline requires:
-
-- open code and a licence compatible with evaluation;
-- official or reproducible split;
-- explicit image resolution and augmentation;
-- COCO AP support or retained predictions enabling a common evaluator;
-- measured inference cost on the same hardware.
-- a frozen source commit and a patch manifest;
-- no HESOD-specific augmentation or loss unless a separately named sensitivity arm applies it;
-- both the common COCO evaluator and, where reproducible, the dataset's original metric evaluator.
-
-If the source paper used a different dataset release, hidden test set, unavailable split, or undocumented preprocessing, its number remains literature context and the rerun is reported as a new controlled result—not a claimed exact reproduction.
+Every rerun must freeze the source commit, split manifest, class order, input policy, initialization, evaluator, prediction artifact, and patch manifest. A controlled port is reported as our rerun, never as an exact reproduction unless the original protocol is fully recovered.
 
 ## 7. Training protocol
 
@@ -483,7 +415,7 @@ Metrics must use the exact selected regions consumed by inference. Never reconst
 
 ### Phase 1 — Routing feasibility
 
-**Pest24 status (2026-08-16): complete** -- occupancy/size/density stats measured (SS11.2.1's Occupy=0.0815, size-bucket table); Pest24 is in scope by default (SS2.3) so no formal admission gate applied (unlike GWHD); input resolution and timing contract frozen (1024x1024, `hyp.pest24.yaml`, SS11.2's Pest24 table footnote). **AgriPest and GWHD 2021: not started** (GWHD's own admission gate, SS2.4, has not been evaluated).
+**Pest24 status (2026-08-16): complete** -- occupancy/size/density stats measured (SS11.2.1's Occupy=0.0815, size-bucket table); Pest24 is in scope by default (SS2.3) so no formal admission gate applied (unlike GWHD); input resolution and timing contract frozen (1024 long-side working resolution -- 1024x1024 train canvas, 1024x768 rectangular test/measure input, see SS11.2.4 -- `hyp.pest24.yaml`). **AgriPest and GWHD 2021: not started** (GWHD's own admission gate, SS2.4, has not been evaluated).
 
 - [ ] Compute size, density, occupancy, and oracle BPR curves.
 - [ ] Apply the GWHD admission gate.
@@ -503,7 +435,7 @@ Metrics must use the exact selected regions consumed by inference. Never reconst
 
 ### Phase 3 — Core factorial
 
-**Pest24 status (2026-08-16): R1 and R2 (F1 control) complete, single-seed only; R3 and F5 in progress** (SS11.2.2). This ran on Pest24 first, not AgriPest as the checklist below assumes -- see SS6.2's reconciling note. Three-seed replication has not started for any arm on any dataset. **AgriPest and GWHD 2021: not started.**
+**Pest24 status (2026-08-16): R1, R2, and R3 (F1 control family) complete, single-seed only; F5 in progress** (SS11.2.1-SS11.2.3). This ran on Pest24 first, not AgriPest as the checklist below assumes -- see SS6.2's reconciling note. Three-seed replication has not started for any arm on any dataset. **AgriPest and GWHD 2021: not started.**
 
 - [ ] Train R1, R2, R3 with three seeds on AgriPest.
 - [ ] Promote the validated matrix to Pest24.
@@ -517,6 +449,7 @@ Metrics must use the exact selected regions consumed by inference. Never reconst
 - [ ] Run X2a SAHI inference with the exact A0 detector/checkpoint on all three; add X2b only if budget permits.
 - [ ] Port and validate X3 QueryDet on AgriPest, then promote the unchanged implementation to Pest24/GWHD where feasible.
 - [ ] Run X4 RTMDet-m on all three admitted datasets.
+- [ ] On Pest24, prioritize controlled TP-YOLO and Pest-PVT reruns; treat Pest-YOLO/DAMI as optional ports and AgriPest-YOLO as reported-only.
 - [ ] Produce separate common-evaluator and original-protocol tables; never mix their metric columns.
 - [ ] Add counting/density and domain analyses needed for the intended journal.
 
@@ -584,18 +517,18 @@ Repeat the identical schema for Pest24 and admitted GWHD arms. Do not paste AP50
 | R0 (semantic-only, CIoU) | 0.286 | 0.477 | 0.462 | 0.2834 | 0.8261 | 0.0815 | 40.6 | 122.2 |
 | R1 (semantic-only, SABL) | TBD | TBD | TBD | 0.2905 | TBD | TBD | TBD | TBD |
 | R2 (F1 concat control, CIoU) | 0.348 | 0.592 | 0.597 | 0.6276 | 0.9416 | 0.158 | 49.3 | 115.1 |
-| R3 (F1 concat control, SABL) | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| F5 (reliability gate, CIoU) | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| R3 (F1 concat control, SABL) | 0.349 | 0.594 | 0.572 | 0.6686 | 0.925 | 0.157 | 49.0 | 110.5 |
+| F5 (reliability gate, CIoU) | 0.348 | 0.593 | 0.576 | 0.6403 | 0.929 | 0.167 | 50.2 | 109.0 |
 
-R2's row is labeled "F1 concat control" per SS6.1/SS6.2 -- it is the fusion-ablation control, not yet the proposed reliability gate (F5, still training). R1's AP/AP50/R/BPRbox(total)/Occupy/GFLOPs/FPS are still TBD pending that run's full `test.py` summary line. **All rows below are single-seed** (seed 0 only) -- SS7's minimum-three-seeds-for-claim-bearing-arms bar has not been met, so none of these numbers are yet an accepted result outside this working document; they are the current best evidence, not a validated finding.
+R2's and R3's rows are labeled "F1 concat control" per SS6.1/SS6.2 -- fusion-ablation controls. F5 is the proposed reliability gate (SS4.2 of the Proposal), CIoU only so far -- gate+SABL has not been run. **All rows above are single-seed** (seed 0 only) -- SS7's minimum-three-seeds-for-claim-bearing-arms bar has not been met, so none of these numbers are yet an accepted result outside this working document; they are the current best evidence, not a validated finding.
 
-Evaluated on the official 7599/7600-image test split (`--task test`; one image dropped, see SS11.2.1's gotcha entry), 1024x1024 input, `hyp.pest24.yaml` (unmodified `hyp.uavdt.yaml`, not tuned for Pest24), `pest24_yolov5m.yaml` anchors carried over from `uavdt_yolov5m_nc3.yaml`, HeatMapParser threshold=0.5 (project default, not swept for Pest24's density).
+Evaluated on the official 7599/7600-image test split (`--task test`; one image dropped, see SS11.2.1's gotcha entry). Input resolution is **not** uniformly 1024x1024 -- training uses a square 1024x1024 canvas, but test/measure use rect=True and actually run at 1024x768; see SS11.2.4 for the full mechanism. `hyp.pest24.yaml` (unmodified `hyp.uavdt.yaml`, not tuned for Pest24), `pest24_yolov5m.yaml` anchors carried over from `uavdt_yolov5m_nc3.yaml`, HeatMapParser threshold=0.5 (project default, not swept for Pest24's density).
 
 ### 11.2.1 Pest24 R0 findings and a real gotcha to record
 
 **Gotcha: `run_pest24.sh`'s eval step silently evaluated the wrong split.** `test.py` resolves its data split via `task = opt.task if opt.task in ('train','val','test') else 'val'` (test.py L164) — with no `--task` flag at all, and even with `--task measure` (which is not in that tuple), it silently falls back to **val** (5077 images), not **test** (7600 images). The first R0 pass reported "Images 5077" and its predictions.json then failed `audit_buckets.py`'s image-id check when cross-referenced against the test split's images (4724 of ~5077 val image ids not found under `images/test`, correctly rejected rather than silently trusted). Root cause confirmed by reading `test.py` directly, not inferred. Fixed by adding `--task test` to the eval step in `run_pest24.sh`; the measure step (`--task measure`, GFLOPs/FPS only) still profiles on the val split by default, which is left as-is since efficiency numbers should not differ meaningfully between two similarly-distributed held-out splits, unlike accuracy numbers. Separately, `reorganize_pest24.py`'s symlinks needed a from-raw refresh after a GPU-instance restart (stale target paths) before the corrected eval could run — an operational gotcha, not a code bug, recorded here since it blocked the same fix from landing cleanly on the first retry.
 
-**Result, correctly on the test split: R0 AP50 = 47.7%, a real ~19pp gap below dense YOLOv5m's reported 66.89% on the same dataset** (Pest-PVT's own repo, `pest-pvt/configs/_base_/datasets/voc0712.py`: `dataset_type='VOCDataset'`, `evaluation=dict(metric='mAP')`, no `iou_thr` override in `test.py` -> mmdetection's VOC-style single-IoU=0.5 mAP, matching this project's own `mAP@.5` column, not `mAP@.5:.95` — confirmed by reading their config directly, not inferred from the paper text). The gap held at essentially the same magnitude when first measured (incorrectly) on the val split (44.8%) as it does on the correct test split (47.7%), so it is not a split-mismatch artifact. Some gap is structurally expected -- their number is dense YOLOv5m (no patch selection at all), while R0 is YOLOv5m with ESOD's sparse patch-selection architecture, i.e., a different model that trades some accuracy for compute savings by construction -- but 19pp/~29% relative is far larger than any other dataset in this project's own aerial track has ever shown for a comparable trade-off (VisDrone's baseline sits only 2.8% below the paper's own ablation, HESOD-Experiment-Plan.md SS1.2), so "the trade-off itself" does not fully explain this, and the untuned hyperparameters/anchors/threshold above remain live suspects.
+**Result, correctly on our test split: R0 AP50 = 47.7%.** This is numerically 19.2 pp below the published dense-YOLOv5m anchor of 66.89, but it is **not a direct 19.2-pp gap**: the 66.89 row originates in Pest-YOLO's random 70/20/10, 416-px, confidence-threshold-0.5 protocol, while our result uses the 12,701/5,077/7,599 manifest and 1024-px common evaluator. The cloned Pest-PVT repo confirms only that its own 77.24 is VOC07 11-point mAP@0.5; HESOD computes AP50 with 101-point interpolation, and Pest-PVT does not release the contents of `trainval.txt`, its 24-class order patch, or the private `epoch_55.pth` used by the checked-in config. Our 44.8% erroneous-val result versus 47.7% corrected-test result shows that the local eval-split bug is not the sole cause of low R0 accuracy, but only a controlled dense-YOLOv5m rerun can measure the true architecture gap. Sparse routing, untuned Pest24 anchors/hyperparameters, and the selector threshold remain live suspects.
 
 **Size-bucket breakdown reveals the gap concentrates almost entirely in the smallest objects, not the whole dataset uniformly:**
 
@@ -630,15 +563,65 @@ This directly licenses R2/R3's reliability gate as the correct lever for this sp
 | Very Tiny recall | 28.34% | 62.76% | +121% |
 | GFLOPs | 40.6 | 49.3 | +21.4% |
 
-For comparison, the largest prior positive selector-side result in this project (TinyPerson channel-pooled-concat, HESOD-Experiment-Plan.md SS4.3) was +3.2% relative AP@[.5:.95] -- this is roughly 7x that effect size. The Pest-PVT gap also closed substantially: R0 sat 19.2pp below dense YOLOv5m's 66.89 mAP@0.5; R2 sits only 7.7pp below it (59.2 vs. 66.89).
+For comparison, the largest prior positive selector-side result in this project (TinyPerson channel-pooled-concat, HESOD-Experiment-Plan.md SS4.3) was +3.2% relative AP@[.5:.95] -- this is roughly 7x that effect size. Relative to the non-direct 66.89 dense-YOLOv5m literature anchor, the numerical distance shrinks from 19.2 pp for R0 to 7.7 pp for R2 (59.2 vs. 66.89); this is useful context, not a reproduction claim, until P24-C0 is rerun under the same manifest/evaluator.
 
 **Coverage-vs-miss diagnostic confirms the mechanism directly, not just correlationally.** Of 1415 Very Tiny GT boxes: R0 misses 1014 (868 selector-dropped, 65 head-localization-failure, 81 confusion); R2 misses only 527 (236 selector-dropped, 186 head-localization-failure, 104 confusion, 1 stolen-by-another-GT). The selector-dropped count fell by 632 in absolute terms -- this is the direct mechanism behind the Very Tiny recall jump, not a side effect of something else.
 
 **New finding: fixing the selector bottleneck exposed the head-localization bottleneck as the next-largest failure mode.** Right-class-low-IoU cases (head sees the target, box doesn't clear IoU 0.5) grew from 65 to 186 in absolute count (and from 6.4% to 35.3% of a much smaller miss pool) -- concat is successfully delivering previously-invisible Very Tiny targets to the head, but the head's box regression on them is often still not accurate enough. **This makes R3 (concat + SABL) a materially different test than R1 (semantic-only + SABL) was**: R1 found no SABL effect because the selector, not the head, was the bottleneck at that point; R3 tests SABL against a population where head-localization failure is now a much larger share of what remains. A genuine R3-over-R2 improvement here would be real evidence of the selector x loss interaction the R0-R3 factorial was designed to detect (HESOD-Agri-Proposal.md SS5's interpretation rules), not just two independently-additive effects.
 
-**Open caveat, not yet resolved: how much of R2's gain is "smarter selection" vs. "selecting more area"?** Occupy nearly doubled (0.0815 -> 0.158); GFLOPs grew more modestly (+21.4%) and far less than the AP gain (+21.7% to +24.1%), which is a good sign this isn't simply "keep the whole image" in disguise (contrast TinyPerson's channel-pooled-concat, which cost +64% GFLOPs for a much smaller +3.2% AP gain) -- but a proper fixed-budget comparison (BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md SS7.8/SS9.1's equal-budget requirement) has not been run yet. A Top-K sweep on R0 vs. R2 (same method as HESOD-Experiment-Plan.md SS3's VisDrone sweep) would settle whether R2's advantage survives at matched Occupy, not just at each arm's own free-threshold operating point.
+**Open caveat, not yet resolved: how much of R2's gain is "smarter selection" vs. "selecting more area"?** Occupy nearly doubled (0.0815 -> 0.158); GFLOPs grew more modestly (+21.4%) and far less than the AP gain (+21.7% to +24.1%), which is a good sign this isn't simply "keep the whole image" in disguise (contrast TinyPerson's channel-pooled-concat, which cost +64% GFLOPs for a much smaller +3.2% AP gain) -- but the equal-budget comparison required by HESOD-Agri-Proposal.md SS6.2/SS9 has not been run yet. A Top-K sweep on R0 vs. R2 (same method as HESOD-Experiment-Plan.md SS3's VisDrone sweep) would settle whether R2's advantage survives at matched Occupy, not just at each arm's own free-threshold operating point.
 
-**If the gate does turn out to target this specific weakness, Pest24 is a better validation testbed for it than any aerial dataset tried so far** -- there is far more headroom here (72pp of missed Very Tiny recall vs. VisDrone's 22pp) and the failure mode (low-objectness real targets, disproportionately rare classes) matches BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md's H1 ("objectness不充分假设") more directly than anything seen on the aerial datasets. This is a reason to prioritize the coverage-vs-miss diagnostic and R2/R3, not a reason to assume the gate will help without checking.
+**If the gate does turn out to target this specific weakness, Pest24 is a better validation testbed for it than any aerial dataset tried so far** -- there is far more headroom here (72pp of missed Very Tiny recall vs. VisDrone's 22pp), and the low-objectness failure mode directly matches the gate rationale in HESOD-Agri-Proposal.md SS4.2. This is a reason to prioritize the coverage-vs-miss diagnostic and R2/R3, not a reason to assume the gate will help without checking.
+
+### 11.2.3 R3 results -- SABL's effect is real, mechanistically clean, and invisible in the aggregate
+
+**Aggregate AP is essentially flat: mAP@.5:.95 0.348 -> 0.349, mAP@.5 0.592 -> 0.594.** Read alone this looks like R1's null result repeating (SS11.2.2's "no SABL effect" negative control) -- but the size-bucket and coverage-vs-miss breakdowns (both from the class-aware one-to-one audit, `pest24_yolov5m_channel_pooled_concat_sabl_audit.log`) show this is an aggregation artifact, not a null effect.
+
+| Bucket | R2 recall | R3 recall | Delta |
+|---|---:|---:|---:|
+| Very Tiny (<16x16) | 62.76% (888/1415) | 66.86% (946/1415) | **+4.10pp** |
+| Tiny (16x16-32x32) | 92.44% | 92.29% | -0.15pp (noise) |
+| Small (32x32-96x96) | 97.61% | 97.69% | +0.08pp (noise) |
+| Total | 94.16% (54798/58199) | 94.21% (54832/58199) | +0.05pp |
+
+The gain is concentrated entirely in Very Tiny, which is only 1415/58199 = 2.4% of all GT boxes -- large enough to move the Very-Tiny-specific number by 4pp, too small to move the total by more than rounding noise. This is the same lesson SS11.2.1/SS11.2.2 already established for the selector fix, now repeating for the loss: **aggregate AP hides mechanism-targeted gains on this dataset because of Pest24's own extreme size-imbalance, and bucket-level reporting is not optional here.**
+
+**Coverage-vs-miss diagnostic (`vt_diagnose.py pest24_yolov5m_channel_pooled_concat_sabl`) shows the gain lands exactly where SS11.2.2 predicted it should:**
+
+| Miss category (Very Tiny) | R2 (527 missed) | R3 (469 missed) | Delta |
+|---|---:|---:|---:|
+| Selector-dropped (no nearby prediction) | 236 (44.8%) | 232 (49.5%) | -4 (flat, as expected -- SABL never touches the selector) |
+| Head-localization failure (right class, low IoU) | 186 (35.3%) | 150 (32.0%) | **-36 (-19.4% relative)** |
+| Confusion (wrong class nearby) | 104 (19.7%) | 87 (18.6%) | -17 (-16.3% relative) |
+| Stolen by another GT | 1 | 0 | -1 |
+
+Selector-dropped count is flat (as it must be -- SS6's fairness rules require R2/R3 to share every component except `box_loss`). Head-localization failure -- the exact new-dominant failure mode SS11.2.2 flagged after the selector fix -- dropped by nearly a fifth. This is the R2-vs-R3 test SS11.2.2 said would be the sharp one, and it comes back positive.
+
+**Selector x loss interaction, using SS6.1's own formula:** `(R3-R2) - (R1-R0)` on Very Tiny recall = (66.86%-62.76%) - (29.05%-28.34%) = 4.10pp - 0.71pp = **+3.39pp**. SABL's benefit is roughly 5.8x larger once the selector is actually delivering Very Tiny targets to the head (R2/R3 pair) than it is on the semantic-only baseline (R0/R1 pair, SS11.2.2's near-null result). This is genuine evidence of the predicted interaction, not two independently-additive effects: SABL has little to work with when the selector drops most Very Tiny targets before the head ever sees them (R0/R1), and much more to work with once concat rescues them (R2/R3).
+
+GFLOPs/FPS are unchanged from R2 within measurement noise (49.0 vs 49.3 GFLOPs, 110.5 vs 115.1 FPS) -- consistent with SS7's SABL implementation lock ("no inference-cost difference is expected").
+
+Single-seed caveat (SS11.2's table note) applies here as everywhere else in this section -- this is the current best evidence, not a three-seed-validated claim.
+
+### 11.2.4 Resolution protocol audit: 1024 is not uniformly 1024x1024, and is not literature-optimal
+
+`IMG_SIZE=1024` is a long-side target, not a universal square input. Pest24 training uses a 1024×1024 mosaic canvas; standalone test/measure uses rectangular batching and runs native 800×600 images at 1024×768. At P3/8 these become 128×128 and 128×96, both yielding the intended 8×8 routing grid.
+
+An unmodified 640 experiment is not resolution-only: training produces P3 80×80 and fails `uni_slicer`'s divisibility assertion, while 640×480 test input produces a 7×8=56-cell action space. Supporting a fair 640 arm therefore requires a slicer redesign and a separately named protocol.
+
+The 1024 choice preserves already-small targets and the 64-cell action space, but it is interpolation from native 800×600 and was not selected by a resolution sweep. Existing R0–R3 comparisons remain internally valid; literature values at 640/416/224 remain contextual. Run A0 dense YOLOv5m under the same 1024-long-side contract before considering a resolution study. The authoritative input contract is §4; this subsection records its consequence for current results.
+
+### 11.2.5 F5 results -- the gate beats F1 broadly but modestly, not decisively
+
+F5 (CIoU only; gate+SABL not yet run) vs. R2 (F1 concat, CIoU): AP@.5:.95 ties at 0.348, AP50 +0.001 -- but recall improves in *every* size bucket, not just Very Tiny: Very Tiny +1.27pp (62.76%->64.03%), Tiny +0.20pp, Small +0.37pp, total +0.30pp (94.16%->94.46%, the best total recall of all five arms). Cost: +1.8% GFLOPs (49.3->50.2), -5.3% FPS (115.1->109.0).
+
+Coverage-vs-miss confirms the mechanism is real, not noise: selector-dropped Very Tiny misses fall 236->216 (-8.5% relative), consistent with the gate rescuing more real low-objectness targets than concat's flat fusion does. But head-localization-failure rises 186->198 (+6.5%) -- expected, since F5 has no SABL yet to fix that half of the picture the way R3 did for concat (SS11.2.3).
+
+**F5 is not yet the single best Very-Tiny arm.** Its Very Tiny recall (64.03%) sits between R2 (62.76%) and R3/concat+SABL (66.86%) -- R3 still holds that number, on the strength of SABL, not a better selector. F5's actual edge is breadth (best *total* recall across all buckets) rather than depth on the one bucket the gate was specifically designed for.
+
+**The Proposal SS9 win condition is only half-checked.** Low-objectness-tiny-recall: met, modestly (above). Textured-background false-routing rate (TFR, SS1.3.1) has never been computed for any arm -- `B_tex` was never defined for Pest24. Until TFR is measured for both F1 and F5, "F5 beats F1" is not yet a fully licensed claim under the Proposal's own bar, only half of one.
+
+Gate+SABL has not been run, so the gate's own selector x loss interaction (parallel to SS11.2.3's `(R3-R2)-(R1-R0)`) is unmeasured -- it is a natural next arm, but lower priority than closing the TFR gap above.
 
 ### 11.3 Required plots
 
@@ -656,16 +639,17 @@ For comparison, the largest prior positive selector-side result in this project 
 
 | Date | Decision | Reason |
 |---|---|---|
-| 2026-08-13 | Limit the agricultural paper to AgriPest, Pest24, and GWHD 2021 | Two pest datasets provide field/dense contrast; GWHD provides cross-task validation and a density boundary |
-| 2026-08-13 | Do not create a private GWHD small-image benchmark | Preserves official comparability; small objects are evaluated as an instance stratum |
-| 2026-08-13 | Use R0–R3 selector × SABL factorial | Separates routing contribution from box-regression contribution |
-| 2026-08-13 | Keep hybrid/SAM labels outside the core matrix | Avoids confounding selector evidence and loss ablations |
-| 2026-08-13 | Treat exact Top-K as the proposed budget mode and threshold routing as upstream-compatible baseline behavior | Prevents attributing the new budget policy to the original method |
-| 2026-08-13 | Use A0/X1/X2/X3/X4 as the cross-dataset baseline set | No verified paper reports all three datasets; common code reruns provide the only defensible unified comparison |
-| 2026-08-13 | Keep dataset-paper values in a separate original-protocol table | AgriPest AP50, Pest24 paper-specific mAP/mRecall, and GWHD WDA are not interchangeable |
-| 2026-08-15 | Redefine R2/R3's selector from channel-pooled concat to BCRS's reliability-aware residual gate (F5/F6); demote concat to a required F1 control in a new fusion ablation ladder (SS6.2) | The prior draft's proposed method was, in BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md's own words, explicitly "a capacity-matched baseline, not the default main method" — concat has no mechanism forcing spectral evidence to activate specifically under semantic uncertainty. Independently raised by reviewer feedback converging on the same gap; BCRS SS5.3C/SS5.4 already specifies the gate, its evidence composition, and the rescue-ranking/conditional-gate-regularization losses needed to keep it from degenerating into a texture detector on Pest24 |
-| 2026-08-16 | Accept Pest24 R0 as the first real result; fixed a real eval-split bug first | `run_pest24.sh`'s eval step had no `--task test`, so `test.py` silently evaluated the 5077-image val split instead of the 7600-image test split (test.py's own task-resolution logic defaults anything not in `('train','val','test')` to val). Caught because `audit_buckets.py` correctly rejected the resulting predictions rather than silently cross-checking them against the wrong split. Fixed; R0 re-evaluated cleanly on 7599 test images. See SS11.2.1 |
-| 2026-08-16 | Flag Pest24's Very Tiny recall (28.34%) and rare-class recall (3.68%-98.79%, correlated with instance count) as the leading candidate explanation for R0's ~19pp AP50 gap vs. dense YOLOv5m | Confirmed via mmdetection's actual VOC-style eval config in the cloned pest-pvt repo (not inferred) that the comparison metric matches this project's `mAP@.5`; gap persisted at the same magnitude across both the (buggy) val-split and (correct) test-split measurements, ruling out split mismatch as the explanation. Whether this is selector-side (gate/concat territory) or head-side (SABL/tuning territory) is not yet determined — coverage-vs-miss diagnostic planned before R2/R3 results are over-interpreted |
+| 2026-08-13 | Scope = AgriPest, Pest24, GWHD 2021; no private GWHD subset | Preserves the field/dense/cross-task story and official comparability |
+| 2026-08-13 | Use R0–R3 selector × SABL factorial; keep hybrid/SAM labels outside it | Separates routing, localization loss, and label effects |
+| 2026-08-13 | Exact Top-K is the proposed budget mode; threshold routing is the upstream-compatible baseline | Keeps method attribution explicit |
+| 2026-08-13 | Separate common-protocol reruns from original-protocol literature values | AP/AP50/WDA and incompatible splits/resizes are not interchangeable |
+| 2026-08-15 | Reliability-aware F5/F6 is the proposed selector; concat is F1 control | The gate must beat the capacity-matched concat control before promotion into R2/R3 |
+| 2026-08-16 | Fix Pest24 evaluation to `--task test`; retain the 7,599/7,600 caveat | The prior default silently evaluated the 5,077-image validation split |
+| 2026-08-16 | Pest24 R2 rescues selector-dropped Very Tiny targets; R3+SABL mainly reduces the resulting localization failures | Aggregate AP hides the single-seed mechanism signal; see §11.2.2–§11.2.3 |
+| 2026-08-16 | F5/F6 gate has four implemented inputs; $e_B$ is future work | Aligns Proposal, plan, and `ReliabilityGateMLP` |
+| 2026-08-16 | Pest24 uses 1024-long-side: 1024×1024 train, 1024×768 test/measure | Preserves the 8×8 grid; 640 is not a clean switch; see §4/§11.2.4 |
+| 2026-08-16 | Pest24 baseline policy: TP-YOLO/Pest-PVT priority reruns; Pest-YOLO/DAMI optional; AgriPest-YOLO reported-only | Reflects actual public-code completeness and avoids speculative reconstruction |
+| 2026-08-17 | F5 (gate, CIoU) beats F1/R2 across every size bucket, modestly (+0.30pp total recall, +1.27pp Very Tiny, +1.8% GFLOPs); still trails R3/concat+SABL on Very Tiny alone (66.86%) | See SS11.2.5. TFR is unmeasured for every arm and gate+SABL hasn't been run, so Proposal SS9's two-part win condition is only half-checked |
 
 ## 13. Publication-facing additions
 

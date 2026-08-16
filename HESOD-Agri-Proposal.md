@@ -13,7 +13,7 @@ Agricultural monitoring images combine three properties that make conventional f
 2. target density varies sharply between images and domains;
 3. localization errors dominate when boxes are small, crowded, or weakly separated from the background.
 
-The proposed study asks whether an image-conditioned router can allocate expensive high-resolution local inference only where it is useful, while preserving small-object recall. The detector is HESOD; the proposed selector fuses a low-cost semantic signal with channel-pooled spectral evidence through a **reliability-aware residual gate**, not plain concatenation — see §4.2 and [BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md](BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md) §5.3C for the source design this study transfers to agriculture. A scale-adaptive box loss (SABL) is tested as an orthogonal localization intervention, not presented as part of the routing novelty.
+The proposed study asks whether an image-conditioned router can allocate expensive high-resolution local inference only where it is useful, while preserving small-object recall. The detector is HESOD; the proposed selector fuses a low-cost semantic signal with channel-pooled spectral evidence through a **reliability-aware residual gate**, not plain concatenation — see §4.2 for the locked agriculture design. A scale-adaptive box loss (SABL) is tested as an orthogonal localization intervention, not presented as part of the routing novelty.
 
 The central thesis is therefore:
 
@@ -26,7 +26,7 @@ This is not a proposal for one universal model trained on merged agriculture lab
 | Dataset | Task and scale | Role in the paper | Required protocol |
 |---|---|---|---|
 | **AgriPest** | Field pest detection; 49,700 images, 264,700 boxes, 14 species on four crops; severe density, illumination, and background variation | Primary mechanism dataset. Tests whether routing adapts between sparse and dense field scenes | Preserve the official split and the dataset's dense/sparse, illumination, and clutter analyses where available |
-| **Pest24** | High-resolution light-trap pest detection; about 25,000 images and 24 visually similar classes; crowded, adhesive, very small targets | Originally scoped as a dense-routing stress test / failure-boundary probe. In practice (2026-08-16) it has become the strongest positive validation case for H1 found anywhere in this project so far — see companion Experiment Plan §11.2.1/§11.2.2 — so it now also serves as the primary evidence dataset for the selector-fix mechanism, not only a boundary probe | Verify the redistribution licence and exact official/reported split before conversion; never infer a split from filenames |
+| **Pest24** | 800×600 light-trap images; about 25,000 images and 24 visually similar classes; crowded, adhesive, very small targets | Dense-routing stress test and current strongest positive validation case for the selector mechanism | Use the published 12,701/5,077/7,600 split; distinguish native resolution from HESOD's upsampled working resolution |
 | **GWHD 2021** | Wheat-head detection across global acquisition domains; more than 6,000 1024×1024 images and over 300,000 heads | Cross-task external validation and boundary condition: insects → plant organs, sparse → potentially dense | Use a published official split, preferably GlobalWheat-WILDS for domain-shift claims; do not create a private “small-image” benchmark |
 
 For GWHD, `AP_small` is computed from native-resolution instance area (`area < 32^2` pixels under the COCO convention). Non-small ground truths must be ignored—not converted to background—during small-object evaluation. A predeclared sparse-image diagnostic may be reported separately, but it is never called the official GWHD benchmark.
@@ -66,7 +66,7 @@ The fixed threshold is an inference hyperparameter, not merely an initialization
 
 ### 4.2 Reliability-aware semantic–spectral selector
 
-**2026-08-15 revision.** An earlier draft of this section described the proposed selector as channel-pooled semantic + spectral concatenation. That was a scoping error, not a deliberate simplification: `BCRS-Budget-Constrained-Recall-Safe-Selector-Proposal.md` §5.3C is explicit that concatenation *"只作为容量匹配 baseline，不作为默认主方法"* (only a capacity-matched baseline, not the default main method), because concat has no mechanism forcing the network to learn "trust spectral evidence specifically when semantic confidence is insufficient" — it can just as easily learn "spectral always dominates" or "spectral gets pulled toward texture-rich background," neither of which is the intended behavior. This revision replaces concat as the proposed method with BCRS's actual headline mechanism.
+**2026-08-15 revision.** An earlier draft described channel-pooled semantic + spectral concatenation as the proposed selector. That was a scoping error: concat is only the capacity-matched F1 control because it does not enforce "trust spectral evidence specifically when semantic confidence is insufficient." The proposed method is the reliability-aware gate below.
 
 **Evidence.** Two branches feed the selector for region $i$:
 
@@ -79,9 +79,11 @@ A third, lightweight head estimates texture-contamination risk $t_i^{bg} \in [0,
 
 $$h_i = \frac{-q_i\log(q_i+\varepsilon) - (1-q_i)\log(1-q_i+\varepsilon)}{\log 2}.$$
 
-A gate MLP combines all three signals plus the routing budget embedding $e_B$:
+A gate MLP combines the four signals implemented in the current F5/F6 model:
 
-$$a_i = \sigma\big(\mathrm{MLP}[q_i, h_i, c_i^{spec}, t_i^{bg}, e_B]\big),$$
+$$a_i = \sigma\big(\mathrm{MLP}[q_i, h_i, c_i^{spec}, t_i^{bg}]\big),$$
+
+Budget conditioning $e_B$ is not implemented and is outside the current study. If added later, it is a separately named extension rather than part of F5/F6.
 
 and the final routing priority is a **residual fusion in logit space**, not a weighted sum in probability space:
 
@@ -153,37 +155,33 @@ R2/R3 use the gate (F5, or F6 once its losses validate), not concat — concat i
 
 ### 5.1 Cross-dataset baseline strategy
 
-No verified paper was found that reports AgriPest, Pest24, and GWHD 2021 together under one split and metric contract. This is unsurprising: the first two are multi-class pest benchmarks, whereas GWHD is a one-class cross-domain wheat-head benchmark. The paper must not imply that unrelated published tables form a unified leaderboard.
+No verified paper reports AgriPest, Pest24, and GWHD 2021 under one metric contract. The paper therefore uses two explicitly separate tables:
 
-The audited coverage of the papers currently in `reference/` is:
+1. **controlled reruns** on frozen manifests with the common evaluator;
+2. **original-protocol literature anchors**, which are contextual and never form a shared leaderboard.
 
-| Paper | Datasets actually evaluated | Coverage of the three target datasets |
-|---|---|---|
-| AgriPest dataset paper | AgriPest | AgriPest only |
-| Pest-PVT | Pest24 | Pest24 only |
-| TP-YOLO | Pest24 (listed as a supported training dataset, 450-epoch recipe), own 3-class Khapra-beetle set (only dataset with published numbers) | Pest24 architecturally only — trains on it, publishes no Pest24-specific AP/mAP numbers; verified by reading the repo directly (2026-08-16), not citable as a comparison point |
-| QueryDet | COCO, VisDrone | None |
-| SSABNet | VisDrone, UAVDT | None |
-| GWHD 2021 dataset paper | GWHD 2021 | GWHD only |
+Primary-source auditing found five numerical Pest24 methods:
 
-Consequently, existing values can pre-populate only dataset-specific original-protocol tables. The unified three-dataset table remains empty until A0/X1-X4 and HESOD are rerun under the common evaluator.
-
-Instead, the core comparison uses the **same public implementations rerun by us on all three datasets**:
-
-| ID | Baseline | Why it is included | Three-dataset policy |
+| Paper | Pest24 accuracy reported | Efficiency reported | Protocol status and role |
 |---|---|---|---|
-| A0 | Dense YOLOv5m | Architecture-matched control for the HESOD detector | Train/evaluate on all three |
-| X1 | Faster R-CNN R50-FPN | The closest common literature anchor: a Faster R-CNN family baseline appears in the source/official evaluations of all three datasets | Rerun on all three; additionally reproduce each dataset's original metric where exact protocol is available |
-| X2a | YOLOv5m + SAHI inference | Exhaustive uniform slicing control; directly tests whether learned patch selection is preferable to processing regular overlapping tiles | Mandatory on all three using the A0 checkpoint |
-| X2b | YOLOv5m + SAHI sliced fine-tuning + inference | Stronger uniform-tile baseline | Run on all three if training budget permits; keep separate from X2a |
-| X3 | QueryDet R50-FPN | Closest external learned sparse high-resolution detector | Run on all three if the official implementation can be ported without semantic changes; AgriPest is the minimum admission dataset |
-| X4 | RTMDet-m | Strong modern dense detector and accuracy/efficiency control | Train/evaluate on all three with the common evaluator |
+| AgriPest-YOLO | AP50 71.3; AP@[.50:.95] 46.9 | 7.35 M params; 16.2 GFLOPs; 8.8 ms/image | Clear 12,701/5,077/7,600, 640 px protocol, but no public official code found: reported anchor only |
+| Pest-YOLO | IoU-0.5 mAP 69.59; recall 77.71 | 46 FPS | Public legacy code, but random 70/20/10 split and incomplete reproducibility artifacts; optional controlled port |
+| Pest-PVT | VOC07 11-point AP50 77.24; recall 81.27 | 24.74 M params; 7.82 GFLOPs | Public config, but split lists, class patch, and private pretraining checkpoint are missing; priority controlled rerun |
+| TP-YOLO | AP 42.0; AP50 66.8 | 4.3 M params; 9.1 GFLOPs; 81.3 FPS | Paper §3.3 Table 4; public code/checkpoint but no Pest24 split YAML or result log; priority controlled rerun |
+| DAMI-YOLOv8l | AP50 74.8; AP@[.50:.95] 53.7 | 41.86 MB; 128.4 FPS | Public module fragments, but no complete training stack, Pest24 split, or checkpoint; optional reconstruction |
+| AC-YOLO; AgriPest dataset paper; PestDet | — | — | no Pest24 experiment in the collected paper; exclude from the Pest24 numerical table |
 
-This design gives us a publishable three-dataset table even though the original papers did not create one. Direct comparison comes from rerunning their public code with our frozen data manifests and evaluator, not from copying incompatible numbers.
+The core comparison is intentionally small:
 
-Dataset-specific agriculture methods remain secondary anchors. Pest-PVT and Pest-YOLO may be rerun on Pest24, but they do not replace X1–X4 because they have no reported AgriPest/GWHD results. Likewise, the AgriPest and GWHD official baselines remain protocol sanity checks rather than rows in a fabricated cross-dataset leaderboard.
+| Priority | Baseline | Role |
+|---|---|---|
+| Mandatory | A0 Dense YOLOv5m | Architecture-matched no-routing control |
+| Mandatory | X1 Faster R-CNN R50-FPN | Common two-stage localization control |
+| Mandatory | X2a YOLOv5m + SAHI inference | Exhaustive uniform-slicing control using A0 |
+| Mandatory | X4 RTMDet-m | Modern dense accuracy/efficiency control |
+| Optional | X2b SAHI fine-tuning; X3 QueryDet | Stronger tiling and learned sparse-routing controls, only if official code ports cleanly |
 
-Every external baseline must use a documented official split and a resolution that does not erase the tiny targets. Published values are called **directly comparable** only when dataset version, image IDs, class map, resizing, metric definition, and test-time policy match. Otherwise they appear in a separately labelled “published under original protocol” table.
+For Pest24-specific controlled reruns, prioritize TP-YOLO and Pest-PVT. Pest-YOLO and DAMI are optional because their releases require substantial reconstruction; AgriPest-YOLO is not reconstructed without official code. A value is called **directly comparable** only after matching dataset IDs, class map, resize, evaluator, and test-time policy.
 
 ## 6. Evaluation contract
 
@@ -290,6 +288,8 @@ Journal quartiles change annually and sometimes differ by category. The bands be
 - [Pest-YOLO evaluation on the 24-class light-trap dataset](https://pmc.ncbi.nlm.nih.gov/articles/PMC9783619/)
 - [Pest-PVT paper and public implementation](https://www.sciencedirect.com/science/article/pii/S0168169924012559)
 - [AgriPest-YOLO evaluation on the 24-class light-trap dataset](https://www.frontiersin.org/journals/plant-science/articles/10.3389/fpls.2022.1079384/full)
+- [DAMI-YOLOv8l evaluation on Pest24 and public implementation](https://doi.org/10.1016/j.ecoinf.2025.103067)
+- [TP-YOLO paper](https://ieeexplore.ieee.org/document/10222202) and [official repository](https://github.com/yangdi-cv/TP-YOLO)
 - [GWHD 2021 dataset paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC8548052/)
 - [GWHD 2021 official Zenodo record](https://zenodo.org/records/5092309)
 - [Global Wheat Head Dataset project](https://www.global-wheat.com/gwhd.html)
@@ -300,7 +300,7 @@ Journal quartiles change annually and sometimes differ by category. The bands be
 - [SAHI: Slicing Aided Hyper Inference and Fine-tuning](https://arxiv.org/abs/2202.06934)
 - [QueryDet: Cascaded Sparse Query](https://openaccess.thecvf.com/content/CVPR2022/html/Yang_QueryDet_Cascaded_Sparse_Query_for_Accelerating_High-Resolution_Small_Object_Detection_CVPR_2022_paper.html)
 - [RTMDet](https://arxiv.org/abs/2212.07784)
-- [TP-YOLO (context only — architecture/training-recipe reference, not a citable Pest24 comparison point)](https://github.com/yangdi-cv/TP-YOLO)
+- [TP-YOLO official implementation](https://github.com/yangdi-cv/TP-YOLO)
 
 ### Journal scope and metrics
 
