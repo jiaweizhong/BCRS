@@ -89,6 +89,7 @@ def test(data,
          hm_metric=False,
          top_k=None,
          hm_threshold=None,
+         save_regions=False,
          opt=None):
     # Initialize/load model and set device
     training = model is not None
@@ -174,6 +175,7 @@ def test(data,
     loss = torch.zeros(6, device=device)
     statistic_items = torch.zeros(3, device=device, dtype=torch.float32)
     jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
+    selected_regions = {}  # image_id -> [[x1,y1,x2,y2], ...] in P3 (stride-8) feature-pixel space
     sp_r, m_p, m_r, attr = [], [], [], []
     gflops, infer_times = [], []
     for batch_i, (img, targets, masks, m_weights, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
@@ -228,6 +230,16 @@ def test(data,
             statistic_items += cluster_recall(clusters, targets, imgsz=(width, height), mode='bbox')
             if not training and opt.task == 'measure':
                 lbucket.add(len(clusters[0]), gflops[-1], infer_times[-1])
+            if save_regions:
+                # TFR audit (HESOD-Agri-Experiment-Plan.md SS1.3.1): the exact
+                # routing decision, not reconstructed post-hoc from a heatmap.
+                # Coordinates are P3 (stride-8) feature-pixel space, matching
+                # the space HeatMapParser actually sliced -- multiply by 8 to
+                # map into the 1024x768/1024x1024 model-input tensor space.
+                for si in range(nb):
+                    img_path = Path(paths[si])
+                    image_id = int(img_path.stem) if img_path.stem.isnumeric() else img_path.stem
+                    selected_regions[image_id] = clusters[si].detach().cpu().round().to(torch.int32).tolist()
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         if out is not None:
             if isinstance(out, torch.Tensor):
@@ -380,6 +392,14 @@ def test(data,
     if wandb_images:
         wandb_logger.log({"Bounding Box Debugger/Images": wandb_images})
 
+    # Save selected routing regions (HESOD-Agri-Experiment-Plan.md SS1.3.1 TFR audit)
+    if save_regions:
+        w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''
+        regions_json = str(save_dir / f"{w}_selected_regions.json")
+        print('\nSaving %s...' % regions_json)
+        with open(regions_json, 'w') as f:
+            json.dump({'stride': 8, 'img_size': imgsz, 'regions': selected_regions}, f)
+
     # Save JSON
     if save_json and len(jdict):
         w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
@@ -462,6 +482,9 @@ if __name__ == '__main__':
     parser.add_argument('--save-hybrid', action='store_true', help='save label+prediction hybrid results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
     parser.add_argument('--save-json', action='store_true', help='save a cocoapi-compatible JSON results file')
+    parser.add_argument('--save-regions', action='store_true',
+                         help='dump the exact selected routing regions per image, for TFR audits '
+                              '(HESOD-Agri-Experiment-Plan.md SS1.3.1) -- not reconstructed from a heatmap')
     parser.add_argument('--project', default='runs/test', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
@@ -502,6 +525,7 @@ if __name__ == '__main__':
              hm_metric=opt.hm_metric,
              top_k=opt.top_k,
              hm_threshold=opt.hm_threshold,
+             save_regions=opt.save_regions,
              opt=opt
              )
 
