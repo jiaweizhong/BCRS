@@ -250,7 +250,7 @@ def train(hyp, opt, device, tb_writer=None):
             optimizer.load_state_dict(ckpt['optimizer'])
             best_fitness = ckpt['best_fitness']
             if rank in [-1, 0]:
-                print('loaded optimizer, best_fitness = %.2f' % best_fitness)
+                print('loaded optimizer, best_fitness = %.2f' % float(best_fitness))
 
         # EMA
         if opt.resume and ema and ckpt.get('ema'):
