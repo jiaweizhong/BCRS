@@ -3,7 +3,7 @@
 > **Working title:** HESOD-Agri: Budget-Adaptive Semantic–Spectral Routing for Tiny Agricultural Object Detection  
 > **Scope lock:** AgriPest, Pest24, and GWHD 2021 only  
 > **Primary target:** *Computers and Electronics in Agriculture*  
-> **Status:** prospective study; no unverified result in this document is a claim
+> **Status:** prospective study; no unverified result in this document is a claim. Live progress (Pest24 preliminary, single-seed results as of 2026-08-16) is tracked in the companion [HESOD-Agri-Experiment-Plan.md](HESOD-Agri-Experiment-Plan.md), not here
 
 ## 1. Research problem
 
@@ -26,7 +26,7 @@ This is not a proposal for one universal model trained on merged agriculture lab
 | Dataset | Task and scale | Role in the paper | Required protocol |
 |---|---|---|---|
 | **AgriPest** | Field pest detection; 49,700 images, 264,700 boxes, 14 species on four crops; severe density, illumination, and background variation | Primary mechanism dataset. Tests whether routing adapts between sparse and dense field scenes | Preserve the official split and the dataset's dense/sparse, illumination, and clutter analyses where available |
-| **Pest24** | High-resolution light-trap pest detection; about 25,000 images and 24 visually similar classes; crowded, adhesive, very small targets | Dense high-resolution stress test. Tests the failure boundary of sparse routing | Verify the redistribution licence and exact official/reported split before conversion; never infer a split from filenames |
+| **Pest24** | High-resolution light-trap pest detection; about 25,000 images and 24 visually similar classes; crowded, adhesive, very small targets | Originally scoped as a dense-routing stress test / failure-boundary probe. In practice (2026-08-16) it has become the strongest positive validation case for H1 found anywhere in this project so far — see companion Experiment Plan §11.2.1/§11.2.2 — so it now also serves as the primary evidence dataset for the selector-fix mechanism, not only a boundary probe | Verify the redistribution licence and exact official/reported split before conversion; never infer a split from filenames |
 | **GWHD 2021** | Wheat-head detection across global acquisition domains; more than 6,000 1024×1024 images and over 300,000 heads | Cross-task external validation and boundary condition: insects → plant organs, sparse → potentially dense | Use a published official split, preferably GlobalWheat-WILDS for domain-shift claims; do not create a private “small-image” benchmark |
 
 For GWHD, `AP_small` is computed from native-resolution instance area (`area < 32^2` pixels under the COCO convention). Non-small ground truths must be ignored—not converted to background—during small-object evaluation. A predeclared sparse-image diagnostic may be reported separately, but it is never called the official GWHD benchmark.
@@ -93,7 +93,7 @@ $u_i$ is a ranking score, not a probability, so it is not clamped to $[0,1]$; $z
 
 ### 4.2.1 Fusion ablation ladder
 
-Because the gate's value proposition rests on doing *better than* simpler alternatives, not merely *differently*, the following ladder is run parameter/latency-matched (BCRS §7.4), primary validation on AgriPest before promoting to Pest24/GWHD (BCRS §11.2 Phase 2 gate):
+Because the gate's value proposition rests on doing *better than* simpler alternatives, not merely *differently*, the following ladder is run parameter/latency-matched (BCRS §7.4). The intended order is AgriPest first, promoting to Pest24/GWHD only once F5/F6 shows the expected pattern there (BCRS §11.2 Phase 2 gate). **Execution deviated from this in practice**: Pest24's data pipeline was ready first and AgriPest preparation has not started (companion Experiment Plan §2.2 vs. §2.3), so F1 was already run and validated on Pest24 (§5.1 below; Experiment Plan §11.2.2), and F5/F6 will follow there next. This does not relax the gate itself — F5/F6 must still clear the ladder before promotion into R2/R3 on whichever dataset it is tested on first — but the three-dataset claim in §9 still requires AgriPest and GWHD results, not Pest24 alone:
 
 | ID | Fusion | Definition | Role |
 |---|---|---|---|
@@ -161,6 +161,7 @@ The audited coverage of the papers currently in `reference/` is:
 |---|---|---|
 | AgriPest dataset paper | AgriPest | AgriPest only |
 | Pest-PVT | Pest24 | Pest24 only |
+| TP-YOLO | Pest24 (listed as a supported training dataset, 450-epoch recipe), own 3-class Khapra-beetle set (only dataset with published numbers) | Pest24 architecturally only — trains on it, publishes no Pest24-specific AP/mAP numbers; verified by reading the repo directly (2026-08-16), not citable as a comparison point |
 | QueryDet | COCO, VisDrone | None |
 | SSABNet | VisDrone, UAVDT | None |
 | GWHD 2021 dataset paper | GWHD 2021 | GWHD only |
@@ -299,6 +300,7 @@ Journal quartiles change annually and sometimes differ by category. The bands be
 - [SAHI: Slicing Aided Hyper Inference and Fine-tuning](https://arxiv.org/abs/2202.06934)
 - [QueryDet: Cascaded Sparse Query](https://openaccess.thecvf.com/content/CVPR2022/html/Yang_QueryDet_Cascaded_Sparse_Query_for_Accelerating_High-Resolution_Small_Object_Detection_CVPR_2022_paper.html)
 - [RTMDet](https://arxiv.org/abs/2212.07784)
+- [TP-YOLO (context only — architecture/training-recipe reference, not a citable Pest24 comparison point)](https://github.com/yangdi-cv/TP-YOLO)
 
 ### Journal scope and metrics
 
