@@ -414,7 +414,16 @@ class ComputeLoss:
 
             # Append
             a = t[:, 6].long()  # anchor indices
-            indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1)))  # image, anchor, grid indices
+            # int(...) not gain[3]-1 directly: gain is float32 (see gain[2:6]
+            # assignment above), and newer PyTorch's Tensor.clamp_ raises
+            # "result type Float can't be cast to the desired output type
+            # long int" when an in-place clamp on a long tensor is given a
+            # float-tensor bound -- this line was never exercised by any
+            # arm before A0 (every prior arm routes through
+            # build_patch_targets, not build_targets, for its sparse/patched
+            # detection head), so the dtype mismatch was previously latent,
+            # not something this session's changes introduced.
+            indices.append((b, a, gj.clamp_(0, int(gain[3]) - 1), gi.clamp_(0, int(gain[2]) - 1)))  # image, anchor, grid indices
             tbox.append(torch.cat((gxy - gij, gwh), 1))  # box
             anch.append(anchors[a])  # anchors
             tcls.append(c)  # class
