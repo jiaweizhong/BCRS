@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 # Threshold sweep (HESOD-Agri-Experiment-Plan.md SS8.1's grid, never run for
-# Pest24 before now): for each of our four already-trained fusion arms,
-# re-evaluate the SAME checkpoint at 7 different HeatMapParser thresholds.
+# Pest24 before now): for concat+SABL (R3) and gate+SABL (Gate+SABL), our
+# two best-performing arms (SS11.2.6's final comparison table), re-evaluate
+# the SAME checkpoint at 7 different HeatMapParser thresholds. Deliberately
+# the SABL variants, not the CIoU-only base arms (R2/F5): the question this
+# sweep answers is practical/deployment ("can we save compute on the models
+# we'd actually operate with, without losing accuracy"), not the separate
+# mechanistic question of whether gate vs. concat responds differently to
+# threshold in isolation -- a threshold tuned on R2/F5 wouldn't necessarily
+# transfer to R3/Gate+SABL, since SABL changes the population of boxes near
+# the decision boundary (SS11.2.3's head-localization-failure reduction).
 # No retraining -- threshold is purely an inference-time parameter
 # (models/common.py, HeatMapParser.threshold), so this only costs eval time.
 #
@@ -34,13 +42,9 @@ SWEEP_ROOT="$RUN_ROOT/sweep"
 # HESOD-Agri-Experiment-Plan.md SS8.1's exact predeclared grid
 THRESHOLDS=(0.10 0.20 0.30 0.40 0.50 0.60 0.70)
 
-# The four fusion arms this session's TP-YOLO/A0 discussion is actually
-# about -- R0 omitted (semantic-only baseline, not part of the "does the
-# fusion mechanism's routing cost its keep" question this sweep targets).
+# Our two best-performing arms, per SS11.2.6's final six-arm table.
 ARMS=(
-  "pest24_yolov5m_channel_pooled_concat"
   "pest24_yolov5m_channel_pooled_concat_sabl"
-  "pest24_yolov5m_reliability_gate"
   "pest24_yolov5m_reliability_gate_sabl"
 )
 
