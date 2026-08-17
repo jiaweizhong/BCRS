@@ -195,8 +195,17 @@ class ReliabilityGateEvidenceSegmenter(nn.Module):
         self.texture_risk_heads = nn.ModuleList(TextureRiskHead(x) for x in ch)
         self.gates = nn.ModuleList(ReliabilityGateMLP() for _ in ch)
 
-    def forward(self, x):
+    def forward(self, x, return_extras=False):
+        """return_extras=False (default) is unchanged from the original
+        contract: a list of fused priority maps, one per level. F6's
+        rescue-ranking/conditional-gate-regularization losses (HESOD-Agri-
+        Proposal.md SS4.2.2) need the intermediates that used to be computed
+        and discarded here (q/h/a/z_spec/c_spectral/t_bg) -- return_extras=True
+        additionally returns a per-level list of dicts holding them, without
+        changing what's in `res` or how any existing caller unpacks it.
+        """
         res = []
+        extras = [] if return_extras else None
         for i in range(len(x)):
             p_semantic = self.m[i](x[i])
             p_spectral, _, c_spectral = self.spectral_branches[i](x[i])
@@ -207,4 +216,7 @@ class ReliabilityGateEvidenceSegmenter(nn.Module):
             a = self.gates[i](torch.cat([q, h, c_spectral, t_bg], dim=1))
 
             res.append(p_semantic + self.alpha * a * p_spectral)
-        return res
+            if return_extras:
+                extras.append({'q': q, 'h': h, 'a': a, 'z_spec': p_spectral,
+                                'c_spectral': c_spectral, 't_bg': t_bg})
+        return (res, extras) if return_extras else res

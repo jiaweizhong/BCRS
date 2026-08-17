@@ -73,6 +73,34 @@ def sabl_loss(pbox, tbox, stride, scale=32.0, beta=6.0, normalizer=12.0, eps=1e-
     return 1.0 - iou + hybrid_penalty + alpha * v
 
 
+class FixedTextureFilter(nn.Module):
+    """Non-trainable Sobel-magnitude filter defining B_tex for F6's
+    rescue-ranking/conditional-gate-regularization losses (HESOD-Agri-
+    Proposal.md SS4.2.2). Runs on the raw input image, NOT on the model's own
+    learned t_bg output or any other learned quantity -- t_bg is itself being
+    trained via L_cond's penalty on B_tex membership, so B_tex must not
+    depend on it (would be circular: the target would move with the model).
+
+    Mirrors the offline `tfr_diagnose.py` diagnostic's Sobel-magnitude
+    definition, but per-batch rather than a full-test-set pass (a training
+    batch's background-pixel population is far smaller/noisier than a full
+    dataset pass, so the quantile threshold is computed fresh per batch, not
+    reused as a fixed constant).
+    """
+    def __init__(self):
+        super().__init__()
+        sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]])
+        sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]])
+        weight = torch.stack([sobel_x, sobel_y], dim=0).unsqueeze(1)  # (2,1,3,3)
+        self.conv = nn.Conv2d(1, 2, kernel_size=3, padding=1, bias=False)
+        self.conv.weight = nn.Parameter(weight, requires_grad=False)
+
+    @torch.no_grad()
+    def forward(self, gray):  # gray: (bs,1,H,W), full input resolution
+        g = self.conv(gray)
+        return torch.sqrt(g[:, 0:1].pow(2) + g[:, 1:2].pow(2) + 1e-12)  # (bs,1,H,W)
+
+
 class BCEBlurWithLogitsLoss(nn.Module):
     # BCEwithLogitLoss() with reduced missing label effects.
     def __init__(self, alpha=0.05):
@@ -149,7 +177,9 @@ class QFocalLoss(nn.Module):
 class ComputeLoss:
     # Compute losses
     def __init__(self, model, autobalance=False, selector_loss='upstream', lambda_cov=0.5, pos_weight=2.0,
-                 box_loss='upstream', box_weight_ref_area=4.0, box_weight_max=5.0):
+                 box_loss='upstream', box_weight_ref_area=4.0, box_weight_max=5.0,
+                 lambda_rescue=0.0, lambda_cond=0.0, tau_low=0.3, tau_high=None,
+                 rescue_margin=1.0, btex_quantile=0.75):
         super(ComputeLoss, self).__init__()
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
@@ -208,12 +238,44 @@ class ComputeLoss:
         self.pos_anchor_num = 4
         self.lpixl_critreia = None
 
-    def __call__(self, p, targets, imgsz=None, masks=None, m_weights=None):  # predictions, targets, model
-        p_det, p_seg = p
+        # F6 rescue-ranking + conditional-gate regularization (HESOD-Agri-
+        # Proposal.md SS4.2.2). lambda_rescue=lambda_cond=0.0 (default) keeps
+        # every other arm (F0/F1/F5/etc.) byte-identical -- need_gate_extras
+        # in the forward call is gated on these two being nonzero (train.py),
+        # so this whole code path never executes unless explicitly enabled.
+        if lambda_rescue < 0 or lambda_cond < 0:
+            raise ValueError(f'lambda_rescue and lambda_cond must be >= 0, got {lambda_rescue!r}, {lambda_cond!r}')
+        if not (0.0 < tau_low < 1.0):
+            raise ValueError(f'tau_low must be in (0,1), got {tau_low!r}')
+        self.lambda_rescue, self.lambda_cond = lambda_rescue, lambda_cond
+        self.tau_low = tau_low
+        # tau_high gates C_sem = "already confidently correct" positives (SS4.2.2);
+        # defaults to a symmetric confidence band around the 0.5 decision boundary
+        # since the design doc only pre-registers tau_low, not a separate tau_high.
+        self.tau_high = tau_high if tau_high is not None else (1.0 - tau_low)
+        if not (0.0 < self.tau_high < 1.0):
+            raise ValueError(f'tau_high must be in (0,1), got {self.tau_high!r}')
+        if rescue_margin < 0:
+            raise ValueError(f'rescue_margin must be >= 0, got {rescue_margin!r}')
+        if not (0.0 < btex_quantile < 1.0):
+            raise ValueError(f'btex_quantile must be in (0,1), got {btex_quantile!r}')
+        self.rescue_margin, self.btex_quantile = rescue_margin, btex_quantile
+        self._rescue_max_pairs, self._btex_min_bg_cells = 2048, 16
+        self.texture_filter = FixedTextureFilter().to(device)
+        self.last_lrescue = self.last_lcond = torch.zeros(1, device=device)
+        self.last_b_tex_frac = self.last_c_sem_frac = torch.zeros(1, device=device)
+
+    def __call__(self, p, targets, imgsz=None, masks=None, m_weights=None, imgs=None):  # predictions, targets, model
+        if len(p) == 3:
+            p_det, p_seg, gate_extras = p
+        else:
+            p_det, p_seg = p
+            gate_extras = None
         offsets = []
         device = targets.device
         lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         lpixl, larea, ldist = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
+        lrescue, lcond = torch.zeros(1, device=device), torch.zeros(1, device=device)
         
         if p_det is not None and p_det[0] is not None and p_det[1] is not None:  # stupid
             # ta = time_synchronized()
@@ -278,8 +340,29 @@ class ComputeLoss:
         if masks is not None and p_seg is not None:
             assert len(p_seg) == 1
             lpixl, larea, ldist = self.compute_loss_seg(p_seg[0], masks, targets, weight=m_weights)
-        
-        loss = (lbox + lobj + lcls) * 1.0 + (lpixl + larea + ldist) * 0.2
+
+            if (self.lambda_rescue > 0 or self.lambda_cond > 0) and gate_extras is not None:
+                # gate_extras is None whenever this call didn't request it --
+                # notably train.py's own per-epoch validation pass (test.test()
+                # -> test.py's model(...) call, which never sets
+                # need_gate_extras=True) reuses this same ComputeLoss instance
+                # but only ever reads loss_items[:6] (box..dist), never index 6
+                # (the "total" that would include lrescue/lcond) -- so skipping
+                # here is correct, not a silently-missing training signal.
+                #
+                # += (not reassignment): compute_gate_losses' pieces are 0-dim
+                # .mean() results, matching every other loss term in this
+                # method -- += against the pre-initialized shape-(1,) zeros
+                # broadcasts correctly; a direct reassignment would leave
+                # lrescue/lcond 0-dim and break the final torch.cat below.
+                lr, lc = self.compute_gate_losses(p_seg[0], gate_extras[0], targets, imgs)
+                lrescue += lr
+                lcond += lc
+
+        # lrescue/lcond already ARE the intended weights (lambda_rescue/lambda_cond),
+        # applied here directly -- NOT folded into the *0.2 selector-loss group above.
+        loss = (lbox + lobj + lcls) * 1.0 + (lpixl + larea + ldist) * 0.2 \
+            + lrescue * self.lambda_rescue + lcond * self.lambda_cond
         loss_items = torch.cat((lbox, lobj, lcls, lpixl, larea, ldist, loss)).detach()
         return loss * bs, loss_items
 
@@ -488,6 +571,124 @@ class ComputeLoss:
         if not losses:
             return torch.zeros(1, device=device)
         return torch.stack(losses).mean()
+
+    def _positive_cell_mask(self, targets, bs, ny, nx):
+        """Binary y_i grid (bs,ny,nx): True where a GT box footprint covers
+        cell (row,col). Reuses compute_coverage_loss's exact floor/ceil
+        box-to-cell arithmetic (SS6.2.1) so the rescue-ranking/conditional-
+        gate-reg losses' y_i=1 set matches the coverage loss's own notion of
+        "covered by this object", not a separately-invented definition.
+        """
+        device = targets.device
+        y = torch.zeros(bs, ny, nx, dtype=torch.bool, device=device)
+        for bi in range(bs):
+            obj = targets[targets[:, 0] == bi]
+            if obj.shape[0] == 0:
+                continue
+            xc, yc = obj[:, 2] * nx, obj[:, 3] * ny
+            w, h = (obj[:, 4] * nx).clamp(min=1e-3), (obj[:, 5] * ny).clamp(min=1e-3)
+            x1 = (xc - w / 2).floor().clamp(0, nx - 1).long()
+            y1 = (yc - h / 2).floor().clamp(0, ny - 1).long()
+            x2 = torch.maximum((xc + w / 2).ceil().clamp(0, nx).long(), x1 + 1)
+            y2 = torch.maximum((yc + h / 2).ceil().clamp(0, ny).long(), y1 + 1)
+            for j in range(obj.shape[0]):
+                y[bi, y1[j]:y2[j], x1[j]:x2[j]] = True
+        return y
+
+    def _texture_hard_negative_mask(self, imgs, bg_mask, ny, nx):
+        """B_tex (bs,ny,nx): background cells (bg_mask, i.e. ~y_i) whose
+        texture score is at/above this batch's btex_quantile of the
+        background-cell score distribution. `imgs` is the raw model-input
+        tensor (bs,3,H,W) -- content-only, independent of every learned
+        quantity (see FixedTextureFilter's docstring).
+        """
+        with torch.no_grad():
+            gray = imgs.float().mean(dim=1, keepdim=True)
+            stride = imgs.shape[-1] // nx
+            texture = self.texture_filter(gray)
+            texture_score = F.avg_pool2d(texture, kernel_size=stride, stride=stride)[:, 0]
+            # avg_pool2d's output grid can be off by a cell from (ny,nx) if
+            # H/W isn't an exact multiple of stride; crop defensively rather
+            # than assume exact divisibility.
+            texture_score = texture_score[:, :ny, :nx]
+            bg_scores = texture_score[bg_mask]
+            if bg_scores.numel() < self._btex_min_bg_cells:
+                return torch.zeros_like(bg_mask)
+            thresh = torch.quantile(bg_scores, self.btex_quantile)
+            return bg_mask & (texture_score >= thresh)
+
+    def compute_rescue_loss(self, u, q, y_mask, b_tex):
+        """L_rescue (HESOD-Agri-Proposal.md SS4.2.2): pairs real GT-positive,
+        low-semantic-confidence cells (P_rescue's i) against texture
+        hard-negative cells (P_rescue's j) within the same image, and trains
+        the gate so real rescued targets outrank texture background:
+        L = mean over (i,j) in P_rescue of softplus(margin - u_i + u_j).
+        Mining is per-image (pairs never cross images); pooled into one flat
+        mean across the batch (a single P_rescue set, matching the design
+        doc's literal wording, not a mean of per-image means).
+        `self._rescue_max_pairs` caps the O(n_i * n_j) pair count per image --
+        a fixed internal constant for this pre-registered pilot, not a swept
+        hyperparameter.
+        """
+        device = u.device
+        losses = []
+        for bi in range(u.shape[0]):
+            i_idx = (y_mask[bi] & (q[bi] < self.tau_low)).nonzero(as_tuple=False)
+            j_idx = b_tex[bi].nonzero(as_tuple=False)
+            n_i, n_j = i_idx.shape[0], j_idx.shape[0]
+            if n_i == 0 or n_j == 0:
+                continue
+            ii = i_idx.repeat_interleave(n_j, dim=0)
+            jj = j_idx.repeat(n_i, 1)
+            if ii.shape[0] > self._rescue_max_pairs:
+                sel = torch.randperm(ii.shape[0], device=device)[:self._rescue_max_pairs]
+                ii, jj = ii[sel], jj[sel]
+            u_i = u[bi][ii[:, 0], ii[:, 1]]
+            u_j = u[bi][jj[:, 0], jj[:, 1]]
+            losses.append(F.softplus(self.rescue_margin - u_i + u_j))
+        if not losses:
+            return torch.zeros(1, device=device)
+        return torch.cat(losses).mean()
+
+    def compute_cond_loss(self, a, c_sem_mask, b_tex_mask):
+        """L_cond = mean_{C_sem}(a_i) + mean_{B_tex}(a_i) -- two separate
+        means summed, not a mean over their union (matches the design doc
+        formula literally; C_sem subset of {y_i=1}, B_tex subset of {y_i=0}
+        are disjoint by construction, so this never double-counts a cell)."""
+        device = a.device
+        terms = []
+        if c_sem_mask.any():
+            terms.append(a[c_sem_mask].mean())
+        if b_tex_mask.any():
+            terms.append(a[b_tex_mask].mean())
+        if not terms:
+            return torch.zeros(1, device=device)
+        return sum(terms)
+
+    def compute_gate_losses(self, p_fused, extras, targets, imgs):
+        """Assembles P_rescue/C_sem/B_tex for this batch and returns
+        (lrescue, lcond), each 0-dim, meant to be accumulated via `+=`
+        against a pre-initialized shape-(1,) zero tensor by the caller (see
+        __call__) -- matching every other loss term in this class.
+        """
+        if imgs is None:
+            raise RuntimeError('compute_gate_losses requires imgs (raw model input) to build B_tex')
+        bs, _, ny, nx = p_fused.shape
+        u, q, a = p_fused[:, 0], extras['q'][:, 0], extras['a'][:, 0]
+
+        y_mask = self._positive_cell_mask(targets, bs, ny, nx)
+        b_tex = self._texture_hard_negative_mask(imgs, ~y_mask, ny, nx)
+        c_sem = y_mask & (q > self.tau_high)
+
+        lrescue = self.compute_rescue_loss(u, q, y_mask, b_tex) if self.lambda_rescue > 0 \
+            else torch.zeros(1, device=u.device)
+        lcond = self.compute_cond_loss(a, c_sem, b_tex) if self.lambda_cond > 0 \
+            else torch.zeros(1, device=u.device)
+
+        self.last_lrescue, self.last_lcond = lrescue.detach(), lcond.detach()
+        self.last_b_tex_frac = b_tex.float().mean().detach()
+        self.last_c_sem_frac = c_sem.float().mean().detach()
+        return lrescue, lcond
 
     @staticmethod
     def dice_loss(inputs, targets):

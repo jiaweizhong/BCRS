@@ -411,11 +411,11 @@ class Model(nn.Module):
             logger.info('Failed to capture the model info')
         logger.info('')
 
-    def forward(self, x, augment=False, profile=False, hm_only=False):
+    def forward(self, x, augment=False, profile=False, hm_only=False, need_gate_extras=False):
         if augment:
             return self.forward_augment(x)  # augmented inference, None
         else:
-            return self.forward_once(x, profile, hm_only=hm_only)  # single-scale inference, train
+            return self.forward_once(x, profile, hm_only=hm_only, need_gate_extras=need_gate_extras)  # single-scale inference, train
 
     def forward_augment(self, x):
         img_size = x.shape[-2:]  # height, width
@@ -430,10 +430,11 @@ class Model(nn.Module):
             y.append(yi)
         return torch.cat(y, 1), None  # augmented inference, train
 
-    def forward_once(self, x, profile=False, hm_only=False):
+    def forward_once(self, x, profile=False, hm_only=False, need_gate_extras=False):
+        assert not (need_gate_extras and hm_only), 'need_gate_extras + hm_only debug mode unsupported'
         y, dt = [], []  # outputs
-        
-        masks, pred_masks, offsets = None, None, None
+
+        masks, pred_masks, offsets, gate_extras = None, None, None, None
         heatmap = None
         if isinstance(x, tuple):
             x, masks = x  # ground-truth masks
@@ -462,8 +463,11 @@ class Model(nn.Module):
                 x = (x, heatmap)
             elif isinstance(m, Token2Image):
                 x = [x, (H, W)]
-            
-            x = m(x)  # run
+
+            if isinstance(m, ReliabilityGateEvidenceSegmenter) and need_gate_extras:
+                x, gate_extras = m(x, return_extras=True)  # x becomes exactly the plain `res` list again
+            else:
+                x = m(x)  # run
 
             if isinstance(m, (
                 Segmenter,
@@ -484,11 +488,11 @@ class Model(nn.Module):
                 if isinstance(x, torch.Tensor):
                     offsets = x
                     if offsets.size(0) == 0:
-                        return (None, None), pred_masks
+                        return ((None, None), pred_masks, gate_extras) if need_gate_extras else ((None, None), pred_masks)
                 elif isinstance(x[1], torch.Tensor):
                     x, offsets = x
                     if len(x) == 0:
-                        return (None, None), pred_masks
+                        return ((None, None), pred_masks, gate_extras) if need_gate_extras else ((None, None), pred_masks)
                 else:
                     x, thresh = x
                     heatmap = pred_masks[0].detach().sigmoid()
@@ -497,8 +501,8 @@ class Model(nn.Module):
 
         if profile:
             logger.info('%.1fms total' % sum(dt))
-            
-        return x, pred_masks
+
+        return (x, pred_masks, gate_extras) if need_gate_extras else (x, pred_masks)
 
     def _descale_pred(self, p, flips, scale, img_size):
         # de-scale predictions following augmented inference (inverse operation)

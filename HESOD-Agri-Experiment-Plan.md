@@ -4,7 +4,7 @@
 > **Method source:** [HESOD-Agri-Proposal.md](HESOD-Agri-Proposal.md) SS4.2 (reliability-aware residual gate)
 > **Datasets in scope:** AgriPest, Pest24, GWHD 2021 only  
 > **Primary question:** Does a reliability-aware semantic–spectral gate improve the detection accuracy–compute Pareto frontier, and does it do so *specifically* by conditioning spectral evidence on semantic uncertainty rather than treating it as a co-equal signal (plain concat)?  
-> **Status (2026-08-17):** Pest24 R0–R3 and F5 are all audited single-seed preliminary results (SS11.2.1–SS11.2.5); F5 beats the F1 control modestly but the SS9 win condition is only half-checked (TFR unmeasured, gate+SABL not run); AgriPest and GWHD 2021 have not started. No result is claim-bearing until it meets the three-seed rule in SS7.
+> **Status (2026-08-17):** All six Pest24 arms (R0–R3, F5, Gate+SABL) are complete and audited, single-seed preliminary results (SS11.2.1–SS11.2.6). **Final fusion-ladder verdict: the reliability gate does not convincingly beat the capacity-matched concat control** -- R3 (concat+SABL) holds the best AP/AP50/Very-Tiny-recall of any arm; F5's only clear edge (best total recall) is undercut by having the worst TFR of the six arms. AgriPest and GWHD 2021 have not started. No result is claim-bearing until it meets the three-seed rule in SS7.
 
 ## 1. Non-negotiable protocol
 
@@ -519,8 +519,9 @@ Repeat the identical schema for Pest24 and admitted GWHD arms. Do not paste AP50
 | R2 (F1 concat control, CIoU) | 0.348 | 0.592 | 0.597 | 0.6276 | 0.9416 | 0.158 | 49.3 | 115.1 |
 | R3 (F1 concat control, SABL) | 0.349 | 0.594 | 0.572 | 0.6686 | 0.925 | 0.157 | 49.0 | 110.5 |
 | F5 (reliability gate, CIoU) | 0.348 | 0.593 | 0.576 | 0.6403 | 0.929 | 0.167 | 50.2 | 109.0 |
+| Gate+SABL (reliability gate, SABL) | 0.346 | 0.592 | 0.575 | 0.6650 | 0.923 | 0.163 | 50.0 | 109.7 |
 
-R2's and R3's rows are labeled "F1 concat control" per SS6.1/SS6.2 -- fusion-ablation controls. F5 is the proposed reliability gate (SS4.2 of the Proposal), CIoU only so far -- gate+SABL has not been run. **All rows above are single-seed** (seed 0 only) -- SS7's minimum-three-seeds-for-claim-bearing-arms bar has not been met, so none of these numbers are yet an accepted result outside this working document; they are the current best evidence, not a validated finding.
+R2's and R3's rows are labeled "F1 concat control" per SS6.1/SS6.2 -- fusion-ablation controls. F5 and Gate+SABL are the proposed reliability gate (SS4.2 of the Proposal). **All six arms are now complete and audited (SS11.2.1-SS11.2.6).** All rows above are single-seed (seed 0 only) -- SS7's minimum-three-seeds-for-claim-bearing-arms bar has not been met, so none of these numbers are yet an accepted result outside this working document; they are the current best evidence, not a validated finding.
 
 Evaluated on the official 7599/7600-image test split (`--task test`; one image dropped, see SS11.2.1's gotcha entry). Input resolution is **not** uniformly 1024x1024 -- training uses a square 1024x1024 canvas, but test/measure use rect=True and actually run at 1024x768; see SS11.2.4 for the full mechanism. `hyp.pest24.yaml` (unmodified `hyp.uavdt.yaml`, not tuned for Pest24), `pest24_yolov5m.yaml` anchors carried over from `uavdt_yolov5m_nc3.yaml`, HeatMapParser threshold=0.5 (project default, not swept for Pest24's density).
 
@@ -619,9 +620,40 @@ Coverage-vs-miss confirms the mechanism is real, not noise: selector-dropped Ver
 
 **F5 is not yet the single best Very-Tiny arm.** Its Very Tiny recall (64.03%) sits between R2 (62.76%) and R3/concat+SABL (66.86%) -- R3 still holds that number, on the strength of SABL, not a better selector. F5's actual edge is breadth (best *total* recall across all buckets) rather than depth on the one bucket the gate was specifically designed for.
 
-**The Proposal SS9 win condition is only half-checked.** Low-objectness-tiny-recall: met, modestly (above). Textured-background false-routing rate (TFR, SS1.3.1) has never been computed for any arm -- `B_tex` was never defined for Pest24. Until TFR is measured for both F1 and F5, "F5 beats F1" is not yet a fully licensed claim under the Proposal's own bar, only half of one.
+**2026-08-17 update: TFR is now measured, and F5 fails this half of the Proposal SS9 win condition.** `B_tex` was defined image-content-only (no model output involved, avoiding circularity): a P3-resolution pixel is background if no GT box covers it, texture-heavy if its Sobel edge magnitude is at/above the 75th percentile of all background pixels' scores test-set-wide; a selected region counts as "in B_tex" if more than half its area falls in that mask (`tfr_diagnose.py`, exact selected regions from `test.py --save-regions`, not reconstructed from a heatmap).
 
-Gate+SABL has not been run, so the gate's own selector x loss interaction (parallel to SS11.2.3's `(R3-R2)-(R1-R0)`) is unmeasured -- it is a natural next arm, but lower priority than closing the TFR gap above.
+| | F1 (concat) | F5 (gate) | Delta |
+|---|---:|---:|---:|
+| Total selected regions | 77088 | 81050 | +5.1% |
+| Regions in B_tex | 6736 | 7373 | +9.5% |
+| **TFR** | **8.74%** | **9.10%** | **+0.36pp (+4.1% relative, worse)** |
+
+F5's TFR is *higher* than F1's, not lower. Per Proposal SS9's exact wording -- "F5/F6 does not beat parameter/latency-matched F1 on low-objectness-tiny-recall **or** on textured-background false-routing rate" -- this is an OR condition, and F5 fails the TFR half even though it passed the recall half above. With ~77-81k selected regions in each arm, a 0.36pp gap is unlikely to be sampling noise, though it remains single-seed. This is exactly the failure mode BCRS's own design rationale warned an unconstrained gate could fall into: F5 selects 5.1% more regions overall (consistent with rescuing more real low-objectness targets, matching the recall gain), but the B_tex-flagged share grows faster (+9.5%) than total selections -- some of what the gate is rescuing is textured background, not just real tiny targets.
+
+**Verdict: F5's win over F1 is mixed, not clean.** It broadly improves recall (SS11.2.5 above) but does so partly by routing more into texture-heavy background. Under the Proposal's own two-part bar this does not yet license "the gate beats the capacity-matched control" as a supported claim -- one axis improved, the other regressed.
+
+Gate+SABL is training (SS12); its own selector x loss interaction (parallel to SS11.2.3's `(R3-R2)-(R1-R0)`) remains to be measured, but will not change this TFR finding since SABL never touches the selector.
+
+### 11.2.6 Gate+SABL results and the final fusion-ladder verdict
+
+**Gate+SABL: AP 0.346, AP50 0.592, Very Tiny recall 66.50% (audit) / 66.57% (`vt_diagnose.py`, 1-box difference between the two independently-implemented matchers -- expected, not a bug), total recall 94.14%, GFLOPs 50.0, FPS 109.7, TFR 8.69%.**
+
+SABL's effect on the gate family replicates the concat family's pattern exactly: Very Tiny recall +2.54pp (64.03%->66.57%), head-localization-failure -20.2% relative (198->158), selector-dropped essentially flat (216->224, a small uptick plausibly from full-retrain noise rather than a real selector change, since SABL's loss term never touches selector parameters). The gate's own selector x loss interaction, `(Gate+SABL - F5) - (R1-R0)` on Very Tiny recall = 2.54pp - 0.71pp = **+1.83pp** -- real and positive, but about half the size of concat's interaction (+3.39pp, SS11.2.3). TFR moved slightly (9.10%->8.69%) despite SABL not touching routing -- within the same small-effect-size range as the F1-vs-F5 TFR gap itself, most plausibly retraining noise rather than a causal SABL-on-TFR effect.
+
+**All six arms, final comparison:**
+
+| Arm | AP@.5:.95 | AP@.5 | Very Tiny recall | Total recall | GFLOPs | FPS | TFR |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| R0 baseline | 0.286 | 0.477 | 28.34% | 82.61% | 40.6 | 122.2 | -- |
+| R1 +SABL | 0.286 | 0.476 | 29.05% | 82.22% | 40.6 | 120.2 | -- |
+| R2 concat (F1) | 0.348 | 0.592 | 62.76% | 94.16% | 49.3 | 115.1 | 8.74% |
+| R3 concat+SABL | **0.349** | **0.594** | **66.86%** | 94.21% | 49.0 | 110.5 | -- |
+| F5 gate | 0.348 | 0.593 | 64.03% | **94.46%** | 50.2 | 109.0 | 9.10% |
+| Gate+SABL | 0.346 | 0.592 | 66.50% | 94.14% | 50.0 | **109.7** | **8.69%** |
+
+**Verdict: across the full ladder, the reliability gate does not convincingly beat the capacity-matched concat control.** R3 (concat+SABL) holds the best AP@.5:.95, AP50, and Very Tiny recall of any arm. R2 (concat, CIoU) is the cheapest and fastest of the four fusion arms and has a lower TFR than F5. F5's only clear win is total recall (94.46%, the highest of all six arms), at a modest cost (+1.8% GFLOPs over R2) -- and even that is undercut by F5 having the *worst* TFR of the six arms. Gate+SABL's TFR recovers to competitive with concat (8.69%, actually the best of all four fusion arms), but its AP@.5:.95 (0.346) is the lowest of the four fusion arms, and it does not overtake R3 on Very Tiny recall.
+
+This is the exact scenario Proposal SS9's falsification conditions were written to catch, and it is a legitimate negative-leaning finding, not an experiment failure: the reliability gate's added architectural complexity (extra confidence head, texture-risk head, gate MLP) is not yet earning its keep over the simpler, capacity-matched concat control on Pest24. Two things this does *not* settle: whether F6's additional rescue-ranking/conditional-gate-regularization losses (SS4.2.2 of the Proposal, not yet implemented or trained) would change this picture, since F5 here is the bare gate architecture without those losses; and whether the result replicates across seeds, since every number in this table is single-seed.
 
 ### 11.3 Required plots
 
@@ -649,7 +681,9 @@ Gate+SABL has not been run, so the gate's own selector x loss interaction (paral
 | 2026-08-16 | F5/F6 gate has four implemented inputs; $e_B$ is future work | Aligns Proposal, plan, and `ReliabilityGateMLP` |
 | 2026-08-16 | Pest24 uses 1024-long-side: 1024×1024 train, 1024×768 test/measure | Preserves the 8×8 grid; 640 is not a clean switch; see §4/§11.2.4 |
 | 2026-08-16 | Pest24 baseline policy: TP-YOLO/Pest-PVT priority reruns; Pest-YOLO/DAMI optional; AgriPest-YOLO reported-only | Reflects actual public-code completeness and avoids speculative reconstruction |
-| 2026-08-17 | F5 (gate, CIoU) beats F1/R2 across every size bucket, modestly (+0.30pp total recall, +1.27pp Very Tiny, +1.8% GFLOPs); still trails R3/concat+SABL on Very Tiny alone (66.86%) | See SS11.2.5. TFR is unmeasured for every arm and gate+SABL hasn't been run, so Proposal SS9's two-part win condition is only half-checked |
+| 2026-08-17 | F5 (gate, CIoU) beats F1/R2 across every size bucket, modestly (+0.30pp total recall, +1.27pp Very Tiny, +1.8% GFLOPs); still trails R3/concat+SABL on Very Tiny alone (66.86%) | See SS11.2.5. At the time of this entry TFR was unmeasured and gate+SABL hadn't run, so Proposal SS9's two-part win condition was only half-checked |
+| 2026-08-17 | TFR measured for F1 and F5 via a content-only `B_tex` definition and a new `test.py --save-regions` audit trail; F5's TFR (9.10%) is *higher* than F1's (8.74%), not lower -- F5 fails this half of Proposal SS9's win condition even though it passed the recall half | `tfr_diagnose.py` on ~77-81k selected regions per arm; see SS11.2.5. F5 selects 5.1% more regions than F1 but its B_tex-flagged share grows 9.5% -- consistent with the gate rescuing real low-objectness targets and texture-background noise together, the exact failure mode BCRS's design rationale warned about. Verdict: F5's win over F1 is mixed, not a clean pass |
+| 2026-08-17 | Gate+SABL complete; final six-arm fusion-ladder verdict: the reliability gate does not convincingly beat the capacity-matched concat control | R3 (concat+SABL) holds the best AP@.5:.95 (0.349), AP50 (0.594), and Very Tiny recall (66.86%) of any of the six arms; F5's only clear edge (total recall 94.46%) is undercut by the worst TFR of the six (9.10%); Gate+SABL's TFR recovers (8.69%, best of the four fusion arms) but its AP@.5:.95 (0.346) is the lowest of the four. See SS11.2.6. This is Proposal SS9's falsification scenario, not an experiment failure -- F6's unimplemented rescue-ranking/conditional-gate-regularization losses and three-seed replication remain open, unresolved by this result |
 
 ## 13. Publication-facing additions
 

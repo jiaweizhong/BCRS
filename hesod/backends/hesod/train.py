@@ -354,7 +354,14 @@ def train(hyp, opt, device, tb_writer=None):
     compute_loss = ComputeLoss(model, selector_loss=opt.selector_loss, lambda_cov=opt.lambda_cov,
                                 pos_weight=opt.pos_weight, box_loss=opt.box_loss,
                                 box_weight_ref_area=opt.box_weight_ref_area,
-                                box_weight_max=opt.box_weight_max)  # init loss class
+                                box_weight_max=opt.box_weight_max,
+                                lambda_rescue=opt.lambda_rescue, lambda_cond=opt.lambda_cond,
+                                tau_low=opt.tau_low, tau_high=opt.tau_high,
+                                rescue_margin=opt.rescue_margin, btex_quantile=opt.btex_quantile)  # init loss class
+    # F6 (HESOD-Agri-Proposal.md SS4.2.2): only request the segmenter's raw
+    # gate intermediates when a rescue/cond loss is actually active -- every
+    # other arm's forward pass is untouched (need_gate_extras=False default).
+    need_gate_extras = compute_loss.lambda_rescue > 0 or compute_loss.lambda_cond > 0
     logger.info(f'Image sizes {imgsz} train, {imgsz_test} test\n'
                 f'Using {dataloader.num_workers} dataloader workers\n'
                 f'Logging results to {save_dir}\n'
@@ -425,8 +432,10 @@ def train(hyp, opt, device, tb_writer=None):
             # Forward
             with amp.autocast(enabled=cuda and half_precision):
                 targets = targets.to(device)
-                pred = model((imgs, [masks]) if (use_gt and warmup_flag) else imgs, hm_only=opt.hm_only)  # forward
-                loss, loss_items = compute_loss(pred, targets, imgsz=imgs.shape, masks=masks, m_weights=m_weights)  # loss scaled by batch_size
+                pred = model((imgs, [masks]) if (use_gt and warmup_flag) else imgs,
+                             hm_only=opt.hm_only, need_gate_extras=need_gate_extras)  # forward
+                loss, loss_items = compute_loss(pred, targets, imgsz=imgs.shape, masks=masks,
+                                                 m_weights=m_weights, imgs=imgs)  # loss scaled by batch_size
                 if rank != -1:
                     loss *= opt.world_size  # gradient averaged between devices in DDP mode
                 if opt.quad:
@@ -640,6 +649,18 @@ if __name__ == '__main__':
                          help='reference GT area (grid cells, per detection layer) below which the box_loss=size_weighted weight saturates')
     parser.add_argument('--box-weight-max', type=float, default=5.0,
                          help='cap on the box_loss=size_weighted per-instance weight')
+    parser.add_argument('--lambda-rescue', type=float, default=0.0,
+                         help='F6 rescue-ranking hinge loss weight (0 disables; HESOD-Agri-Proposal.md SS4.2.2)')
+    parser.add_argument('--lambda-cond', type=float, default=0.0,
+                         help='F6 conditional-gate regularization loss weight (0 disables; SS4.2.2)')
+    parser.add_argument('--tau-low', type=float, default=0.3,
+                         help='F6: semantic-confidence threshold below which a GT-positive cell is rescue-eligible')
+    parser.add_argument('--tau-high', type=float, default=None,
+                         help='F6: confidence threshold for C_sem ("already confidently correct"). '
+                              'Default: derived as 1 - tau_low.')
+    parser.add_argument('--rescue-margin', type=float, default=1.0, help='F6 rescue-ranking hinge margin (logit units)')
+    parser.add_argument('--btex-quantile', type=float, default=0.75,
+                         help='F6: per-batch background-cell texture-score quantile defining B_tex')
     opt = parser.parse_args()
 
     # Set DDP variables
