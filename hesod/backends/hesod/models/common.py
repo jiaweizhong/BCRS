@@ -588,7 +588,28 @@ class HeatMapParser(nn.Module):
             # else:
             #     b, h, w = x.shape
             #     return x.view(b, ratio, h//ratio, ratio, w//ratio).transpose(2,3).contiguous().view(b*ratio*ratio, h//ratio, w//ratio)
-        
+
+            # Pad up to an exact ratio*cluster_wh multiple before chunking, so
+            # torch.chunk's ratio equal-sized pieces actually equal cluster_wh
+            # (the size grid_off's coordinate math below assumes) -- needed
+            # whenever width/ratio isn't already a multiple of 4 (e.g. 640:
+            # P3=80, width/ratio=10, cluster_wh rounds up to 12). At 1024
+            # (P3=128, cluster_wh=16, already exact) this pad is a no-op.
+            # Mirrors ada_slicer_fast's pad-then-tile pattern (models/common.py,
+            # HeatMapParser.ada_slicer_fast), except here the padding is
+            # applied to the real routed feature map, not a helper occupancy
+            # map -- uni_slicer exhaustively routes every one of the ratio*ratio
+            # cells (no "valid cells only" step to fall back on), so the last
+            # row/column of patches can genuinely contain zero-padded content
+            # along the image's far edge. Benign, conv-border-like effect, not
+            # a coordinate-correctness bug: real GT boxes are always within
+            # the true (unpadded) width/height, so no target ever falls inside
+            # the padded region -- see HESOD-Agri-Experiment-Plan.md SS4/SS11.
+            pad_h = ratio * cluster_wh - x.shape[-2]
+            pad_w = ratio * cluster_wh - x.shape[-1]
+            if pad_h or pad_w:
+                x = F.pad(x, (0, pad_w, 0, pad_h))
+
             x_list = torch.chunk(x, ratio, dim=-2)  # [shape(bs,c,h//8,w)] * 8
             y = []
             for x in x_list:
@@ -597,7 +618,18 @@ class HeatMapParser(nn.Module):
 
         bs, height, width = mask_pred.shape
         assert height == width
-        assert width % (ratio * 4) == 0 and height % (ratio * 4) == 0, f'{width}, {height}'
+        # Only a clean ratio*ratio grid is required now (was ratio*4=32) --
+        # the padding in _slice() above makes cluster_wh a real invariant
+        # instead of an unchecked assumption, so cluster_wh no longer needs
+        # to equal width/ratio exactly. See HESOD-Agri-Experiment-Plan.md
+        # SS4/SS11 for why cluster_wh itself must still be a multiple of 4
+        # (patches pass through two more internal stride-2 convs before
+        # Detect, and Detect.forward divides offsets by up to 4 for the P5
+        # level) -- that constraint is unchanged and still enforced by
+        # make_divisible(..., 4) below, just no longer conflated with the
+        # separate (and not architecturally required) "chunk size happens to
+        # equal cluster_wh" assumption the old assert was actually guarding.
+        assert width % ratio == 0 and height % ratio == 0, f'{width}, {height}'
         cluster_wh = max(make_divisible(width / ratio, 4), make_divisible(height / ratio, 4))  # 保证正方形
 
         if not hasattr(self, 'grid_off') or len(self.grid_off) != bs * ratio * ratio or self.grid_off.device != device:
