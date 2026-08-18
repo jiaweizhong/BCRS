@@ -121,6 +121,20 @@ run_arm() {
       2>&1 | tee "$results_dir/${run_name}_train.log"
   fi
 
+  # Defense in depth alongside `set -euo pipefail`: a GPU dropping mid-training
+  # (e.g. a cloud instance rebooting into a no-GPU state) can make train.py
+  # exit non-zero without writing a checkpoint -- pipefail already stops the
+  # script at that point in the normal case, but this check catches it
+  # explicitly rather than relying on that alone, and gives a clear error
+  # instead of eval/measure/audit cascading into a handful of near-instant,
+  # content-free failure logs (this exact failure mode happened once this
+  # session, on the concat_sabl@640 arm, from a hand-run command that had
+  # `set -e` but not `pipefail`).
+  if [ ! -f "$ckpt" ]; then
+    log "FATAL: $run_name training finished but $ckpt does not exist -- aborting before eval"
+    exit 1
+  fi
+
   log "Evaluating $run_name"
   python test.py \
     --data "$DATA_YAML" --weights "$ckpt" --task test \

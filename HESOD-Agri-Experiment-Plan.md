@@ -4,7 +4,7 @@
 > **Method source:** [HESOD-Agri-Proposal.md](HESOD-Agri-Proposal.md) SS4.2 (reliability-aware residual gate)
 > **Datasets in scope:** AgriPest, Pest24, GWHD 2021 only  
 > **Primary question:** Does a reliability-aware semantic–spectral gate improve the detection accuracy–compute Pareto frontier, and does it do so *specifically* by conditioning spectral evidence on semantic uncertainty rather than treating it as a co-equal signal (plain concat)?  
-> **Status (2026-08-17):** All six Pest24 arms (R0–R3, F5, Gate+SABL) are complete and audited, single-seed preliminary results (SS11.2.1–SS11.2.6). **Final fusion-ladder verdict: the reliability gate does not convincingly beat the capacity-matched concat control** -- R3 (concat+SABL) holds the best AP/AP50/Very-Tiny-recall of any arm; F5's only clear edge (best total recall) is undercut by having the worst TFR of the six arms. AgriPest and GWHD 2021 have not started. No result is claim-bearing until it meets the three-seed rule in SS7.
+> **Status (2026-08-18):** All six core Pest24 arms (R0–R3, F5, Gate+SABL) plus both pre-registered F6 attempts are complete and audited (SS11.2.1–SS11.2.8). **The F6 gate line is closed**: attempt 2 (retry) set new project-best AP/AP50/total-recall/TFR but still fell 1.34pp short of F5's Very Tiny recall, failing the one condition (SS11.2.7/SS11.2.8) the mechanism was pre-registered to satisfy -- per the rule, no further retries. **Pest24's final fusion-ladder answer is R3 (concat+SABL)**: best Very Tiny recall (66.86%) of any of the eight arms tried, second-best AP@.5:.95 (0.349, behind F6 attempt 2's 0.352). A0 (dense, no routing, SS11.2.9 if written up) beat every routed/gated arm on AP/AP50/total-recall AND end-to-end FPS despite higher GFLOPs, on both 1024 and 640 -- a live, unresolved question about whether Pest24 (low native resolution + extreme density) is a favorable testbed for this routing approach at all (see decision log). AgriPest and GWHD 2021 have not started. No result is claim-bearing until it meets the three-seed rule in SS7.
 
 ## 1. Non-negotiable protocol
 
@@ -655,6 +655,81 @@ SABL's effect on the gate family replicates the concat family's pattern exactly:
 
 This is the exact scenario Proposal SS9's falsification conditions were written to catch, and it is a legitimate negative-leaning finding, not an experiment failure: the reliability gate's added architectural complexity (extra confidence head, texture-risk head, gate MLP) is not yet earning its keep over the simpler, capacity-matched concat control on Pest24. Two things this does *not* settle: whether F6's additional rescue-ranking/conditional-gate-regularization losses (SS4.2.2 of the Proposal, not yet implemented or trained) would change this picture, since F5 here is the bare gate architecture without those losses; and whether the result replicates across seeds, since every number in this table is single-seed.
 
+### 11.2.7 F6 pilot (attempt 1) -- best-ever aggregate metrics, but fails its own primary condition
+
+F6 adds the rescue-ranking and conditional-gate-regularization losses (Proposal SS4.2.2) on top of F5's architecture, CIoU only. Pilot config (pre-registered, HESOD-Agri-Proposal.md SS4.2.2's candidate defaults): `tau_low=0.3, margin=1.0, lambda_rescue=0.5, lambda_cond=0.1, alpha=1.0`. Implementation: `models/segmenter.py`/`models/yolo.py` (`return_extras`/`need_gate_extras` plumbing), `utils/loss.py` (`FixedTextureFilter`, `compute_rescue_loss`, `compute_cond_loss`), `scripts/esod_baseline/run_pest24_f6.sh`.
+
+**Result: AP 0.349, AP50 0.608, total recall 95.47%, GFLOPs 54.0, FPS 101.6, TFR 6.84%, Occupy 0.200.**
+
+| Metric | F5 | F6 (attempt 1) | Delta |
+|---|---:|---:|---:|
+| AP@.5:.95 | 0.348 | **0.349** | +0.001 (ties R3, the ladder's best) |
+| AP50 | 0.593 | **0.608** | +1.5pp (**highest of all seven arms measured**) |
+| Total recall | 94.46% | **95.47%** | +1.01pp (highest of all seven arms) |
+| TFR | 9.10% | **6.84%** | -2.26pp relative -25% (lowest of all seven arms) |
+| Occupy | 0.167 | 0.200 | +19.8% relative |
+| GFLOPs / FPS | 50.2 / 109.0 | 54.0 / 101.6 | +7.6% GFLOPs / -6.8% FPS |
+| Very Tiny recall | 64.03% (906/1415) | **59.79% (846/1415)** | **-4.24pp (-60 boxes)** |
+| selector-dropped share of Very Tiny misses | 42.4% (216/509) | 46.0% (262/569) | worse, not better |
+
+**Where the total-recall gain actually came from -- not Very Tiny, the bucket F6 was built to fix:**
+
+| Bucket | F5 recalled | F6 recalled | Delta |
+|---|---:|---:|---:|
+| Very Tiny (<16x16, n=1415) | 906 (64.03%) | 846 (59.79%) | **-60 boxes** |
+| Tiny (16x16-32x32, n=29358) | 27197 (92.64%) | 27516 (93.73%) | +319 boxes |
+| Small (32x32-96x96, n=27420) | 26866 (97.98%) | 27192 (99.17%) | +326 boxes |
+| Medium/Large (n=6) | 6 (100%) | 6 (100%) | flat |
+| **Net** | | | **+585 boxes total, entirely from Tiny+Small (+645) net of a real Very Tiny loss (-60)** |
+
+**Verdict against the four pre-registered stop/go conditions (run_pest24_f6.sh's header comment):**
+
+- **(a) selector-dropped down >=10% relative OR Very Tiny recall up >=1pp vs. F5 -- FAILS, in the wrong direction on both halves.** Very Tiny recall fell 4.24pp; selector-dropped's share of misses rose from 42.4% to 46.0%.
+- **(b) TFR <= 8.74% (F1's baseline) -- PASSES, decisively.** 6.84% is the best TFR of any arm in this project's Pest24 work.
+- **(c) AP not down more than ~0.2-0.3pp vs. F5 -- PASSES, and then some.** AP ties R3's ladder-best; AP50 sets a new high.
+- **(d) gate not saturated -- inconclusive from these artifacts alone**, but Occupy *rising* (not collapsing toward 0) argues against simple `a_i -> 0` saturation; a direct `a_i` histogram was not captured for this checkpoint.
+
+Condition (a) is the one this arm exists to satisfy, and it fails outright despite every aggregate metric improving. The likely mechanism: `P_rescue`'s membership (`y_i=1, q_i<tau_low`) is not size-weighted, and Tiny+Small GT boxes outnumber Very Tiny ones roughly 40:1 (56,778 vs 1,415) -- among cells with genuinely low semantic confidence, far more of them belong to Tiny/Small objects than Very Tiny ones by sheer count, so `L_rescue`'s gradient is plausibly dominated by the much larger Tiny/Small population rather than preferentially lifting the Very Tiny cells the mechanism was motivated by. `compute_coverage_loss` (SS6.2.1) already upweights small objects for exactly this reason (`ref_area_cells / area_cells` clamped weight); `compute_rescue_loss` does not.
+
+**Per the pre-registered rule ("at most ONE retry adjusting lambda_rescue/lambda_cond ... still failing, stop the gate line"), this is attempt 1 of at most 2.** Attempt 2 (SS11.2.8, if run): `lambda_cond` lowered (0.1 -> 0.05, less suppression pressure that may be crowding out the rescue signal) and `lambda_rescue` raised (0.5 -> 1.0, stronger pull for the mechanism attempt 1 shows is real but diluted) -- both within the rule's allowed adjustment scope (`tau_low`/`margin`/architecture unchanged). Flagged honestly: this retry cannot fix the diagnosed size-imbalance in `P_rescue` itself (that would need a coverage-loss-style area weight, out of the pre-registered retry's scope) -- it may shift the balance without resolving the root cause, and should be read as testing whether a cheap reweighting is enough, not as expected to definitely pass.
+
+### 11.2.8 F6 pilot attempt 2 (retry) -- closer, new AP/AP50 records, still fails condition (a): gate line closed
+
+Attempt 2 config: `lambda_cond` 0.1 -> 0.05, `lambda_rescue` 0.5 -> 1.0 (`tau_low`/`margin`/architecture unchanged, per the rule's allowed scope). Script: `scripts/esod_baseline/run_pest24_f6_retry.sh`.
+
+**Result: AP 0.352, AP50 0.617, total recall 96.73%, GFLOPs 56.2, FPS 96.7, TFR 7.29%, Occupy 0.221.**
+
+| Metric | F5 | F6 attempt 1 | F6 attempt 2 (retry) |
+|---|---:|---:|---:|
+| AP@.5:.95 | 0.348 | 0.349 | **0.352 (new best of any Pest24 arm)** |
+| AP50 | 0.593 | 0.608 | **0.617 (new best)** |
+| Total recall | 94.46% | 95.47% | 96.73% (new best) |
+| TFR | 9.10% | 6.84% | 7.29% (still well under F1's 8.74%) |
+| Occupy | 0.167 | 0.200 | 0.221 |
+| GFLOPs / FPS | 50.2 / 109.0 | 54.0 / 101.6 | 56.2 / 96.7 (most expensive/slowest of the family) |
+| Very Tiny recall | 64.03% (906/1415) | 59.79% (846/1415) | 62.69% (887/1415) -- gap narrows from -4.24pp to **-1.34pp** |
+| selector-dropped share of Very Tiny misses | 42.4% (216/509) | 46.0% (262/569) | 42.0% (222/528) -- back to roughly F5's own rate |
+
+**Verdict against the four pre-registered stop/go conditions:**
+
+- **(a) selector-dropped down >=10% relative OR Very Tiny recall up >=1pp vs. F5 -- still FAILS,** though far closer than attempt 1: Very Tiny recall is -1.34pp (needs >=+1pp), selector-dropped's relative change is only -0.9% (needs <=-10%, and this is essentially neutralizing attempt 1's regression rather than a real improvement over F5).
+- **(b) TFR <= 8.74% -- PASSES** (7.29%).
+- **(c) AP not down more than ~0.2-0.3pp vs. F5 -- PASSES, decisively**: AP and AP50 are both new highs for any Pest24 arm in this project.
+- **(d) gate not saturated -- no red flag**: Occupy keeps rising (0.167 -> 0.200 -> 0.221), inconsistent with `a_i` collapsing toward 0.
+
+**Precise bucket-level comparison confirms the SS11.2.7 size-imbalance diagnosis, not just consistent with it:**
+
+| Bucket | attempt 1 vs. F5 | attempt 2 vs. F5 |
+|---|---:|---:|
+| Very Tiny (n=1415) | -60 boxes (-4.24pp) | **-19 boxes (-1.34pp)** -- loss shrank by two-thirds |
+| Tiny (n=29358) | +319 boxes (+1.09pp) | **+948 boxes (+3.23pp)** -- gain roughly tripled |
+| Small (n=27420) | +326 boxes (+1.19pp) | +389 boxes (+1.42pp) |
+| Total (n=58199) | +585 boxes | +1318 boxes |
+
+Doubling `lambda_rescue` did help Very Tiny (its loss shrank meaningfully), but the Tiny bucket's gain grew nearly 3x in the same step -- exactly what a size-unweighted `P_rescue` predicts: scaling the loss's overall pull scales its (already Tiny-dominated) gradient distribution proportionally, rather than preferentially reaching Very Tiny. A real fix would need `compute_rescue_loss` to weight pairs by GT object size (mirroring `compute_coverage_loss`'s `ref_area_cells/area_cells` pattern) -- out of scope for a lambda-only retry.
+
+**Final disposition, per the pre-registered rule ("at most ONE retry ... still failing, stop the gate line and use concat+SABL"): the retry is exhausted and condition (a) is not met. The gate line (F5/F6) is closed for Pest24.** R3 (concat+SABL, SS11.2.6: AP@.5:.95 0.349 -- now second-best behind F6 attempt 2's 0.352 -- AP50 0.594, Very Tiny recall 66.86%, the best Very Tiny recall of any arm in this project) stands as Pest24's answer to the fusion-ladder question. This is a genuinely mixed, not purely negative, result worth stating precisely rather than rounding to "the gate failed": F6's two attempts progressively improved *every aggregate metric* to new project highs (AP, AP50, total recall) and kept TFR well under control, while never closing the one gap (Very Tiny recall parity or better vs. F5) the mechanism was pre-registered to fix -- a diagnosed, size-imbalance-shaped miss, not a directionless one. Whether a size-weighted `L_rescue` would close it is now a well-motivated, out-of-scope-for-this-study open question, not an unexplained failure.
+
 ### 11.3 Required plots
 
 1. AP vs end-to-end latency Pareto plot, with seed uncertainty;
@@ -684,6 +759,8 @@ This is the exact scenario Proposal SS9's falsification conditions were written 
 | 2026-08-17 | F5 (gate, CIoU) beats F1/R2 across every size bucket, modestly (+0.30pp total recall, +1.27pp Very Tiny, +1.8% GFLOPs); still trails R3/concat+SABL on Very Tiny alone (66.86%) | See SS11.2.5. At the time of this entry TFR was unmeasured and gate+SABL hadn't run, so Proposal SS9's two-part win condition was only half-checked |
 | 2026-08-17 | TFR measured for F1 and F5 via a content-only `B_tex` definition and a new `test.py --save-regions` audit trail; F5's TFR (9.10%) is *higher* than F1's (8.74%), not lower -- F5 fails this half of Proposal SS9's win condition even though it passed the recall half | `tfr_diagnose.py` on ~77-81k selected regions per arm; see SS11.2.5. F5 selects 5.1% more regions than F1 but its B_tex-flagged share grows 9.5% -- consistent with the gate rescuing real low-objectness targets and texture-background noise together, the exact failure mode BCRS's design rationale warned about. Verdict: F5's win over F1 is mixed, not a clean pass |
 | 2026-08-17 | Gate+SABL complete; final six-arm fusion-ladder verdict: the reliability gate does not convincingly beat the capacity-matched concat control | R3 (concat+SABL) holds the best AP@.5:.95 (0.349), AP50 (0.594), and Very Tiny recall (66.86%) of any of the six arms; F5's only clear edge (total recall 94.46%) is undercut by the worst TFR of the six (9.10%); Gate+SABL's TFR recovers (8.69%, best of the four fusion arms) but its AP@.5:.95 (0.346) is the lowest of the four. See SS11.2.6. This is Proposal SS9's falsification scenario, not an experiment failure -- F6's unimplemented rescue-ranking/conditional-gate-regularization losses and three-seed replication remain open, unresolved by this result |
+| 2026-08-17 | F6 rescue-ranking + conditional-gate-regularization losses implemented (`models/segmenter.py`/`yolo.py`/`utils/loss.py`, `run_pest24_f6.sh`) and trained (attempt 1, pre-registered config `tau_low=0.3 margin=1.0 lambda_rescue=0.5 lambda_cond=0.1`) | Best-ever aggregate metrics of any Pest24 arm (AP 0.349 ties R3; AP50 0.608 and TFR 6.84% are both the best of any arm), but fails its own primary pre-registered condition: Very Tiny recall fell 4.24pp (64.03%->59.79%) instead of rising, and the +585-box total-recall gain traces entirely to Tiny/Small buckets, not Very Tiny. See SS11.2.7. Likely cause: `P_rescue` membership is not size-weighted and Tiny+Small GT boxes outnumber Very Tiny ~40:1, so `L_rescue`'s gradient is plausibly diluted by the larger population. Per the pre-registered rule, one retry (adjusted lambda_rescue/lambda_cond) remains before closing the gate line |
+| 2026-08-18 | F6 attempt 2 (retry: `lambda_cond` 0.1->0.05, `lambda_rescue` 0.5->1.0) complete; still fails condition (a) -- **gate line closed per the pre-registered rule, R3 (concat+SABL) is Pest24's final fusion-ladder answer** | AP 0.352/AP50 0.617 are new project-best (beating even R3), TFR 7.29% stays well under F1's 8.74%, but Very Tiny recall gap to F5 only narrowed to -1.34pp (needed >=+1pp). Bucket-level deltas confirm the size-imbalance diagnosis precisely: doubling lambda_rescue tripled the Tiny-bucket gain (+319->+948 boxes) while Very Tiny's loss only shrank by two-thirds (-60->-19 boxes) -- the size-unweighted `P_rescue` gradient stays Tiny-dominated at any lambda_rescue scale. See SS11.2.8. A size-weighted `L_rescue` (mirroring `compute_coverage_loss`'s area weight) is a well-motivated but out-of-scope follow-up, not attempted here |
 
 ## 13. Publication-facing additions
 

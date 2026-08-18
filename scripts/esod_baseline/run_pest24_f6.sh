@@ -105,6 +105,17 @@ run_arm() {
       2>&1 | tee "$results_dir/${run_name}_train.log"
   fi
 
+  # Defense in depth alongside `set -euo pipefail`: catches a GPU dropping
+  # mid-training (e.g. a cloud instance rebooting into a no-GPU state)
+  # explicitly, instead of eval/measure/audit cascading into a handful of
+  # near-instant, content-free failure logs if pipefail alone doesn't catch
+  # it. See run_pest24_resolution.sh's identical guard for the incident this
+  # was added after.
+  if [ ! -f "$ckpt" ]; then
+    log "FATAL: $run_name training finished but $ckpt does not exist -- aborting before eval"
+    exit 1
+  fi
+
   log "Evaluating $run_name"
   python test.py \
     --data "$DATA_YAML" --weights "$ckpt" --task test \
