@@ -1,21 +1,32 @@
-"""Very Tiny selector-dropped vs head-missed diagnostic for any Pest24 arm.
-Run on the GPU box: python3 vt_diagnose.py <run_name>
-  e.g. python3 vt_diagnose.py pest24_yolov5m_baseline          (R0)
-       python3 vt_diagnose.py pest24_yolov5m_sabl              (R1)
-       python3 vt_diagnose.py pest24_yolov5m_channel_pooled_concat        (R2)
-       python3 vt_diagnose.py pest24_yolov5m_channel_pooled_concat_sabl   (R3)
-       python3 vt_diagnose.py pest24_yolov5m_reliability_gate   (F5)
-Defaults to pest24_yolov5m_baseline (R0) if no argument given.
+"""Very Tiny selector-dropped vs head-missed diagnostic for any dataset/arm.
+
+Run on the GPU box: python3 vt_diagnose.py <run_name> [options]
+  e.g. python3 vt_diagnose.py pest24_yolov5m_baseline          (Pest24 R0, all defaults --
+           Pest24 is confirmed uniform 800x600 native, so --native-w/--native-h alone is exact)
+       python3 vt_diagnose.py visdrone_yolov5m_channel_pooled_concat_sabl \\
+           --labels-dir /root/autodl-tmp/VisDrone_v2/labels/val \\
+           --images-dir /root/autodl-tmp/VisDrone_v2/images/val \\
+           --classes pedestrian,people,bicycle,car,van,truck,tricycle,awning-tricycle,bus,motor
+
+VisDrone/TinyPerson have genuinely variable per-image native resolution
+(confirmed by direct sampling -- not a single fixed size like Pest24), so a
+single global --native-w/--native-h would silently mis-bucket box sizes for
+every image that doesn't match it. Pass --images-dir to read each image's
+real (width, height) via PIL instead (only the header is read, not the full
+pixel data, so this stays fast even at thousands of images) -- --native-w/
+--native-h are then ignored except as a fallback for label files whose
+matching image can't be found. Defaults reproduce the original Pest24-only
+script's exact behavior when --images-dir is omitted -- no change for any
+existing Pest24 invocation.
 """
-import json, os, sys
+import argparse
+import json
+import os
 from collections import defaultdict
 
-RUN_NAME = sys.argv[1] if len(sys.argv) > 1 else "pest24_yolov5m_baseline"
-PRED_PATH = os.path.expanduser(f"~/esod_baseline_runs/test/{RUN_NAME}/best_predictions.json")
-LABELS_DIR = "/root/autodl-tmp/Pest24_v1/labels/test"
-print(f"=== {RUN_NAME} ===")
+from PIL import Image
 
-CLASS_NAMES = ['Bollworm', 'Meadow borer', 'Gryllotalpa orientalis', 'Little Gecko',
+PEST24_CLASS_NAMES = ['Bollworm', 'Meadow borer', 'Gryllotalpa orientalis', 'Little Gecko',
     'Agriotes fuscicollis Miwa', 'Nematode trench', 'Athetis lepigone',
     'Scotogramma trifolii Rottemberg', 'Armyworm', 'Spodoptera cabbage',
     'Anomala corpulenta', 'Spodoptera exigua', 'Plutella xylostella',
@@ -24,7 +35,6 @@ CLASS_NAMES = ['Bollworm', 'Meadow borer', 'Gryllotalpa orientalis', 'Little Gec
     'Stem borer', 'Striped rice bore', 'Rice Leaf Roller',
     'Spodoptera litura', 'Melahotus']
 
-W, H = 800, 600  # confirmed uniform native resolution across Pest24
 
 def iou_xyxy(a, b):
     ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
@@ -36,106 +46,163 @@ def iou_xyxy(a, b):
     union = area_a + area_b - inter
     return inter / union if union > 0 else 0.0
 
-with open(PRED_PATH, encoding="utf-8") as f:
-    preds_raw = json.load(f)
-print(f"predictions.json: {len(preds_raw)} rows")
 
-preds_by_image = defaultdict(list)
-for row in preds_raw:
-    key = str(int(row["image_id"]))
-    preds_by_image[key].append({
-        "class_id": int(row["category_id"]),
-        "bbox_xyxy": (row["bbox"][0], row["bbox"][1], row["bbox"][0] + row["bbox"][2], row["bbox"][1] + row["bbox"][3]),
-        "score": row.get("score", 1.0),
-    })
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("run_name", nargs="?", default="pest24_yolov5m_baseline",
+                         help="run name under ~/esod_baseline_runs/test/<run_name>/")
+    parser.add_argument("--labels-dir", default="/root/autodl-tmp/Pest24_v1/labels/test",
+                         help="YOLO-format labels directory for the split actually evaluated (test.py's split)")
+    parser.add_argument("--images-dir", default=None,
+                         help="native images directory, same split as --labels-dir -- if given, each image's "
+                              "real (width, height) is read via PIL instead of assuming --native-w/--native-h "
+                              "for every image. Required for datasets with variable native resolution "
+                              "(VisDrone/TinyPerson); optional for Pest24 (confirmed uniform 800x600)")
+    parser.add_argument("--image-ext", default=".jpg", help="image file extension, used with --images-dir")
+    parser.add_argument("--native-w", type=int, default=800,
+                         help="fallback native image width (pixels) when --images-dir is not given, "
+                              "or when a label file's matching image can't be found")
+    parser.add_argument("--native-h", type=int, default=600, help="fallback native image height (pixels), see --native-w")
+    parser.add_argument("--classes", default=",".join(PEST24_CLASS_NAMES),
+                         help="comma-separated class names, index-matched to label file class ids")
+    parser.add_argument("--very-tiny-area", type=float, default=256.0,
+                         help="native-pixel area threshold for the 'Very Tiny' bucket (default 256 = 16x16)")
+    opt = parser.parse_args()
 
-label_files = sorted(f for f in os.listdir(LABELS_DIR) if f.endswith(".txt"))
-print(f"test label files: {len(label_files)}")
+    run_name = opt.run_name
+    labels_dir, images_dir, image_ext = opt.labels_dir, opt.images_dir, opt.image_ext
+    fallback_w, fallback_h = opt.native_w, opt.native_h
+    class_names = opt.classes.split(",")
+    very_tiny_area = opt.very_tiny_area
 
-very_tiny_gt = []
-for fn in label_files:
-    stem = fn[:-4]
-    key = str(int(stem))
-    with open(os.path.join(LABELS_DIR, fn)) as f:
-        for line in f:
-            parts = line.split()
-            if len(parts) < 5:
-                continue
-            cls = int(parts[0])
-            cx, cy, bw, bh = map(float, parts[1:5])
-            pw, ph = bw * W, bh * H
-            x1, y1 = (cx - bw / 2) * W, (cy - bh / 2) * H
-            x2, y2 = x1 + pw, y1 + ph
-            area = pw * ph
-            if area < 256.0:
-                very_tiny_gt.append((key, cls, (x1, y1, x2, y2)))
-
-print(f"Very Tiny GT boxes (area<16x16): {len(very_tiny_gt)}")
-
-targets_by_group = defaultdict(list)
-for i, (key, cls, box) in enumerate(very_tiny_gt):
-    targets_by_group[(key, cls)].append((i, box))
-
-preds_by_group = defaultdict(list)
-for key, plist in preds_by_image.items():
-    for p in plist:
-        preds_by_group[(key, p["class_id"])].append(p)
-
-recalled = set()
-for (key, cls), gtlist in targets_by_group.items():
-    plist = preds_by_group.get((key, cls), [])
-    pairs = []
-    for gi, (idx, gbox) in enumerate(gtlist):
-        for pi, p in enumerate(plist):
-            iouv = iou_xyxy(gbox, p["bbox_xyxy"])
-            if iouv >= 0.5:
-                pairs.append((iouv, gi, pi))
-    pairs.sort(reverse=True)
-    matched_gi, matched_pi = set(), set()
-    for iouv, gi, pi in pairs:
-        if gi in matched_gi or pi in matched_pi:
-            continue
-        matched_gi.add(gi)
-        matched_pi.add(pi)
-        recalled.add(gtlist[gi][0])
-
-print(f"Very Tiny recalled: {len(recalled)} / {len(very_tiny_gt)} = {len(recalled)/len(very_tiny_gt)*100:.2f}%")
-
-outcome_counts = defaultdict(int)
-examples = defaultdict(list)
-for i, (key, cls, gbox) in enumerate(very_tiny_gt):
-    if i in recalled:
-        continue
-    candidates = preds_by_image.get(key, [])
-    best = None
-    for p in candidates:
-        iouv = iou_xyxy(gbox, p["bbox_xyxy"])
-        if iouv > 0.0:
-            if best is None or iouv > best[0]:
-                best = (iouv, p["class_id"] == cls, p["score"], p["class_id"])
-    if best is None:
-        outcome_counts["no_nearby_prediction (selector likely dropped it)"] += 1
+    pred_path = os.path.expanduser(f"~/esod_baseline_runs/test/{run_name}/best_predictions.json")
+    print(f"=== {run_name} ===")
+    if images_dir:
+        print(f"per-image native size from: {images_dir}  labels: {labels_dir}  very-tiny area threshold: {very_tiny_area}")
     else:
-        iouv, class_match, score, pred_cls = best
-        if class_match and iouv >= 0.5:
-            outcome_counts["matched_but_stolen_by_other_gt"] += 1
-        elif class_match:
-            outcome_counts["right_class_low_iou (localization failure)"] += 1
-            if len(examples["right_class_low_iou"]) < 5:
-                examples["right_class_low_iou"].append((key, CLASS_NAMES[cls], round(iouv,3), round(score,3)))
+        print(f"native size (global, no --images-dir given): {fallback_w}x{fallback_h}  "
+              f"labels: {labels_dir}  very-tiny area threshold: {very_tiny_area}")
+
+    with open(pred_path, encoding="utf-8") as f:
+        preds_raw = json.load(f)
+    print(f"predictions.json: {len(preds_raw)} rows")
+
+    preds_by_image = defaultdict(list)
+    for row in preds_raw:
+        key = str(int(row["image_id"]))
+        preds_by_image[key].append({
+            "class_id": int(row["category_id"]),
+            "bbox_xyxy": (row["bbox"][0], row["bbox"][1], row["bbox"][0] + row["bbox"][2], row["bbox"][1] + row["bbox"][3]),
+            "score": row.get("score", 1.0),
+        })
+
+    label_files = sorted(f for f in os.listdir(labels_dir) if f.endswith(".txt"))
+    print(f"label files: {len(label_files)}")
+
+    n_size_fallback = 0
+    very_tiny_gt = []
+    for fn in label_files:
+        stem = fn[:-4]
+        key = str(int(stem)) if stem.isdigit() else stem
+
+        w, h = fallback_w, fallback_h
+        if images_dir:
+            img_path = os.path.join(images_dir, f"{stem}{image_ext}")
+            if os.path.isfile(img_path):
+                w, h = Image.open(img_path).size  # header-only read, not a full decode
+            else:
+                n_size_fallback += 1
+
+        with open(os.path.join(labels_dir, fn)) as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 5:
+                    continue
+                cls = int(parts[0])
+                cx, cy, bw, bh = map(float, parts[1:5])
+                pw, ph = bw * w, bh * h
+                x1, y1 = (cx - bw / 2) * w, (cy - bh / 2) * h
+                x2, y2 = x1 + pw, y1 + ph
+                area = pw * ph
+                if area < very_tiny_area:
+                    very_tiny_gt.append((key, cls, (x1, y1, x2, y2)))
+
+    if images_dir and n_size_fallback:
+        print(f"WARNING: {n_size_fallback}/{len(label_files)} label files had no matching image under "
+              f"{images_dir} -- fell back to {fallback_w}x{fallback_h} for those")
+    print(f"Very Tiny GT boxes (area<{very_tiny_area}): {len(very_tiny_gt)}")
+
+    targets_by_group = defaultdict(list)
+    for i, (key, cls, box) in enumerate(very_tiny_gt):
+        targets_by_group[(key, cls)].append((i, box))
+
+    preds_by_group = defaultdict(list)
+    for key, plist in preds_by_image.items():
+        for p in plist:
+            preds_by_group[(key, p["class_id"])].append(p)
+
+    recalled = set()
+    for (key, cls), gtlist in targets_by_group.items():
+        plist = preds_by_group.get((key, cls), [])
+        pairs = []
+        for gi, (idx, gbox) in enumerate(gtlist):
+            for pi, p in enumerate(plist):
+                iouv = iou_xyxy(gbox, p["bbox_xyxy"])
+                if iouv >= 0.5:
+                    pairs.append((iouv, gi, pi))
+        pairs.sort(reverse=True)
+        matched_gi, matched_pi = set(), set()
+        for iouv, gi, pi in pairs:
+            if gi in matched_gi or pi in matched_pi:
+                continue
+            matched_gi.add(gi)
+            matched_pi.add(pi)
+            recalled.add(gtlist[gi][0])
+
+    if not very_tiny_gt:
+        print("no Very Tiny GT boxes found -- nothing to report")
+        return
+    print(f"Very Tiny recalled: {len(recalled)} / {len(very_tiny_gt)} = {len(recalled)/len(very_tiny_gt)*100:.2f}%")
+
+    outcome_counts = defaultdict(int)
+    examples = defaultdict(list)
+    for i, (key, cls, gbox) in enumerate(very_tiny_gt):
+        if i in recalled:
+            continue
+        candidates = preds_by_image.get(key, [])
+        best = None
+        for p in candidates:
+            iouv = iou_xyxy(gbox, p["bbox_xyxy"])
+            if iouv > 0.0:
+                if best is None or iouv > best[0]:
+                    best = (iouv, p["class_id"] == cls, p["score"], p["class_id"])
+        if best is None:
+            outcome_counts["no_nearby_prediction (selector likely dropped it)"] += 1
         else:
-            outcome_counts["wrong_class_nearby (confusion)"] += 1
-            if len(examples["wrong_class_nearby"]) < 5:
-                examples["wrong_class_nearby"].append((key, CLASS_NAMES[cls], CLASS_NAMES[pred_cls], round(iouv,3), round(score,3)))
+            iouv, class_match, score, pred_cls = best
+            if class_match and iouv >= 0.5:
+                outcome_counts["matched_but_stolen_by_other_gt"] += 1
+            elif class_match:
+                outcome_counts["right_class_low_iou (localization failure)"] += 1
+                if len(examples["right_class_low_iou"]) < 5:
+                    examples["right_class_low_iou"].append((key, class_names[cls], round(iouv, 3), round(score, 3)))
+            else:
+                outcome_counts["wrong_class_nearby (confusion)"] += 1
+                if len(examples["wrong_class_nearby"]) < 5:
+                    examples["wrong_class_nearby"].append((key, class_names[cls], class_names[pred_cls], round(iouv, 3), round(score, 3)))
 
-n_missed = len(very_tiny_gt) - len(recalled)
-print(f"\nMissed Very Tiny GT: {n_missed}")
-for k, v in sorted(outcome_counts.items(), key=lambda x: -x[1]):
-    print(f"  {k}: {v} ({v/n_missed*100:.1f}%)")
+    n_missed = len(very_tiny_gt) - len(recalled)
+    print(f"\nMissed Very Tiny GT: {n_missed}")
+    for k, v in sorted(outcome_counts.items(), key=lambda x: -x[1]):
+        print(f"  {k}: {v} ({v/n_missed*100:.1f}%)" if n_missed else f"  {k}: {v}")
 
-print("\nExamples (right class, low IoU -- localization failure):")
-for ex in examples["right_class_low_iou"]:
-    print(" ", ex)
-print("\nExamples (wrong class nearby -- confusion):")
-for ex in examples["wrong_class_nearby"]:
-    print(" ", ex)
+    print("\nExamples (right class, low IoU -- localization failure):")
+    for ex in examples["right_class_low_iou"]:
+        print(" ", ex)
+    print("\nExamples (wrong class nearby -- confusion):")
+    for ex in examples["wrong_class_nearby"]:
+        print(" ", ex)
+
+
+if __name__ == "__main__":
+    main()
