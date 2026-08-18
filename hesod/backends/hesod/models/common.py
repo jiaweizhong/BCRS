@@ -1199,3 +1199,65 @@ class YOLOv6Head(YOLOXHead):
         self.reg_pred = nn.Conv2d(c, 4 * na, 1)
         self.obj_pred = nn.Conv2d(c, 1 * na, 1)
 
+
+class SharedDWHead(nn.Module):
+    # Channel-reduced decoupled head with one shared depthwise+pointwise
+    # trunk feeding both cls and reg/obj branches (HESOD-Lightweight-
+    # Detector-Review-and-Roadmap.md SS5.2, "H1a"). Unlike YOLOv6Head, which
+    # runs separate full-c1-width cls_conv/reg_conv branches, this reduces
+    # to c_mid first and shares one lightweight trunk between both branches.
+    def __init__(self, c1, nc, na, c_mid=None):
+        super(SharedDWHead, self).__init__()
+        self.nc = nc
+        self.na = na
+        c_mid = c_mid or min(c1, 128)
+        self.reduce = Conv(c1, c_mid, 1)
+        self.dw = DWConv(c_mid, c_mid, 3, 1)
+        self.pw = Conv(c_mid, c_mid, 1)
+        self.cls_pred = nn.Conv2d(c_mid, nc * na, 1)
+        self.reg_pred = nn.Conv2d(c_mid, 4 * na, 1)
+        self.obj_pred = nn.Conv2d(c_mid, 1 * na, 1)
+
+    def forward(self, x):
+        bs, _, ny, nx = x.shape
+        feat = self.pw(self.dw(self.reduce(x)))
+        cls = self.cls_pred(feat).view(bs, self.na, self.nc, ny, nx)
+        reg = self.reg_pred(feat).view(bs, self.na, 4, ny, nx)
+        obj = self.obj_pred(feat).view(bs, self.na, 1, ny, nx)
+        y = torch.cat((reg, obj, cls), 2)
+        return y.view(bs, -1, ny, nx)
+
+
+class ISPPHead(nn.Module):
+    # Shared inverted-residual/partial-conv stem borrowed from ESOD-YOLO's
+    # ISPP module (HESOD-Lightweight-Detector-Review-and-Roadmap.md SS5.1
+    # table, SS5.2, "H1b"). Only the shared feature block is ported; the
+    # predictors keep YOLOv6Head's own full-c1-width shapes -- HESOD's
+    # anchor/obj/loss/decode contract stays untouched, unlike ESOD-YOLO's
+    # anchor-free predictor which is deliberately NOT imported here.
+    def __init__(self, c1, nc, na, c_exp=None, pconv_ratio=0.25):
+        super(ISPPHead, self).__init__()
+        self.nc = nc
+        self.na = na
+        c_exp = c_exp or c1 * 2
+        c_p = max(1, int(c_exp * pconv_ratio))  # channels the 3x3 partial conv actually touches
+        self.c_p = c_p
+        self.expand = Conv(c1, c_exp, 1)
+        self.pconv = Conv(c_p, c_p, 3, 1)
+        self.project = Conv(c_exp, c1, 1, act=False)
+        self.cls_pred = nn.Conv2d(c1, nc * na, 1)
+        self.reg_pred = nn.Conv2d(c1, 4 * na, 1)
+        self.obj_pred = nn.Conv2d(c1, 1 * na, 1)
+
+    def forward(self, x):
+        bs, _, ny, nx = x.shape
+        y = self.expand(x)
+        y1, y2 = y[:, :self.c_p], y[:, self.c_p:]
+        y1 = self.pconv(y1)
+        feat = self.project(torch.cat((y1, y2), 1)) + x  # residual
+        cls = self.cls_pred(feat).view(bs, self.na, self.nc, ny, nx)
+        reg = self.reg_pred(feat).view(bs, self.na, 4, ny, nx)
+        obj = self.obj_pred(feat).view(bs, self.na, 1, ny, nx)
+        y = torch.cat((reg, obj, cls), 2)
+        return y.view(bs, -1, ny, nx)
+

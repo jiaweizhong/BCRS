@@ -334,14 +334,16 @@ failure audit 进一步显示：
 
 ### 5.1 P0：训练与协议修复，不改变推理结构
 
-#### E0：延长当前最佳 selector 的训练
+#### E0：延长当前最佳 selector 的训练（仅限 Pest24）
 
 - 将 channel-pooled concat 从 50 epochs 延长到至少 150、200 或 300 epochs；
 - 保留 50-epoch checkpoint 作为 schedule ablation；
 - 只改变 epochs，不同时更换 head/loss；
 - 使用同一 test split、输入、NMS、checkpoint selection 和审计脚本。
 
-原因：当前 14.83M 的新 Detect head 只训练 50 epochs，欠训练是最便宜且最需要先排除的解释。
+原因：当前 14.83M 的新 Detect head 只训练 50 epochs，且 pretrained yolov5m.pt 只有 428/597 个 state-dict items 成功迁移（§4.1），欠训练是 Pest24 上最便宜且最需要先排除的解释。
+
+**不适用于 VisDrone/TinyPerson/UAVDT。** 核实 `ESOD.pdf` §C Implementation Details（紧接 Table I VisDrone/UAVDT 与 Table II TinyPerson 之后，是覆盖全部数据集的通用协议）：“we equip the novel YOLOv5 with a decoupled detection head [38: YOLOv6]... All the detectors are trained for 50 epochs with the default settings.” 即论文自己在 VisDrone/UAVDT/TinyPerson 上的已发表结果，用的就是同一脉络的 YOLOv6-style decoupled head（与 HESOD 当前 `YOLOv6Head` 同源），训练协议明确是 50 epochs，不是欠训练的简化。HESOD 复现 VisDrone/TinyPerson 时若延长到 200-300 epochs，不是修正欠训练，而是偏离了要对标的参照协议本身，破坏与已建立基线（78.00%/73.20% Very Tiny recall）的可比性。E0 只在 Pest24（原论文未评测的数据集，无对应协议可循）上执行。
 
 #### E1：训练/推理 patch 分布对齐
 
@@ -547,16 +549,18 @@ H1a 与 H1b 先以实际 Params/GFLOPs/latency 决定主候选；ESOD-YOLO 的 i
 
 ## 10. 最终推荐路线
 
-主线建议锁定为：
+主线（Pest24）建议锁定为：
 
 ```text
 Channel-pooled concat selector
--> 200-300 epoch detector training
+-> 200-300 epoch detector training (E0，仅 Pest24，见 §5.1)
 -> selector-aware Stage-2 patch curriculum
 -> lightweight anchor-based decoupled head (H1a or H1b)
 -> Pest24: P2/P3/P4 replace P5
 -> optional SCDown
 ```
+
+VisDrone/TinyPerson/UAVDT 不需要 E0 这一步（§5.1 已说明原因：ESOD.pdf 自身 50-epoch 协议就是这三个数据集已发表结果的依据）；这几个数据集的路线从 selector-aware patch curriculum 或直接从 lightweight head 开始即可。
 
 这条路线保留现有 HESOD 的核心贡献：预算约束下的空间选择和召回审计；同时吸收新论文真正有效的轻量化原则：缩通道、简化重采样、选择适合小目标的尺度，而不是机械堆叠注意力或动态卷积。
 
