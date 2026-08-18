@@ -115,18 +115,31 @@ run_arm() {
     --project "$RUN_ROOT/measure" --name "$run_name" --exist-ok \
     2>&1 | tee "$results_dir/${run_name}_measure.log"
 
-  log "Auditing $run_name"
-  python "$SCRIPT_DIR/audit_buckets.py" \
-    --pred "$results_dir/best_predictions.json" \
-    --labels "$DATA_ROOT/labels/val" --images "$DATA_ROOT/images/val" \
-    --classes "$CLASSES" \
-    2>&1 | tee "$results_dir/${run_name}_audit.log"
+  # SMOKE mode with only 1 epoch: use_gt warmup (train.py's `use_gt = epoch <
+  # epochs*0.6`) is active for epoch 0 regardless of total epoch count, so
+  # in-training validation (GT-routed) can show nonzero signal while this
+  # standalone eval (real selector routing, still essentially untrained after
+  # 1 epoch) legitimately produces zero predictions -- best_predictions.json
+  # then never gets written (test.py only writes it when len(jdict) > 0).
+  # That is an expected SMOKE-mode outcome, not a failure -- don't let it
+  # abort the whole script via pipefail and block the remaining arms.
+  if [ ! -f "$results_dir/best_predictions.json" ]; then
+    log "WARNING: $run_name produced no predictions (expected at 1 epoch under SMOKE -- "
+    log "  real selector routing is still essentially untrained) -- skipping audit/vt_diagnose for this arm"
+  else
+    log "Auditing $run_name"
+    python "$SCRIPT_DIR/audit_buckets.py" \
+      --pred "$results_dir/best_predictions.json" \
+      --labels "$DATA_ROOT/labels/val" --images "$DATA_ROOT/images/val" \
+      --classes "$CLASSES" \
+      2>&1 | tee "$results_dir/${run_name}_audit.log" || log "WARNING: audit_buckets.py failed for $run_name, continuing"
 
-  log "vt_diagnose: $run_name"
-  python "$SCRIPT_DIR/vt_diagnose.py" "$run_name" \
-    --labels-dir "$DATA_ROOT/labels/val" --images-dir "$DATA_ROOT/images/val" \
-    --classes "$CLASSES" \
-    2>&1 | tee "$results_dir/${run_name}_vt_diagnose.log"
+    log "vt_diagnose: $run_name"
+    python "$SCRIPT_DIR/vt_diagnose.py" "$run_name" \
+      --labels-dir "$DATA_ROOT/labels/val" --images-dir "$DATA_ROOT/images/val" \
+      --classes "$CLASSES" \
+      2>&1 | tee "$results_dir/${run_name}_vt_diagnose.log" || log "WARNING: vt_diagnose.py failed for $run_name, continuing"
+  fi
 
   log "TFR skipped for TinyPerson (variable native resolution, see script header) -- not run"
 }
