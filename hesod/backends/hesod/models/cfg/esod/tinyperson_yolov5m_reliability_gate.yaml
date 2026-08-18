@@ -29,7 +29,7 @@ backbone:
 
    [-1, 1, DWConv, [256, 13, 1]],
    [[-1], 1, ReliabilityGateEvidenceSegmenter, [1]],
-   [[4, -1], 1, HeatMapParser, [256, 8, 0.5]],  # 7, from 4 or 5? : 4.
+   [[4, -1], 1, HeatMapParser, [256, 16, 0.5]],  # 7, from 4 or 5? : 4. ratio=16 (1/16 patch grid) per ESOD.pdf's own ablation recommendation for TinyPerson's sparse, extremely-small objects -- 8 (1/8) is the paper's VisDrone choice, not TinyPerson's.
 
    [-1, 1, Conv, [512, 3, 2]],  # 8-P4/16
    [-1, 9, C3, [512]],

@@ -74,7 +74,7 @@ Routing contract:
 |---|---:|---:|---:|
 | VisDrone Gaussian AP / AP50 | 35.7 / 59.5 | 34.7 / 58.5 | -1.0 / -1.0 pp |
 | VisDrone released SAM hybrid AP / AP50 | 36.0 / 59.7 | 34.6 / 58.4 | -1.4 / -1.3 pp |
-| TinyPerson APt50 / APs50 | 61.3 / 74.4 | 55.46 / 71.04 | -5.84 / -3.36 pp |
+| TinyPerson APt50 / APs50 | 61.3 / 74.4 | 55.26 / 71.23 | -6.04 / -3.17 pp |
 | UAVDT nc=3 AP / AP50 | 22.5 / 40.7 | 20.1 / 37.0 | -2.4 / -3.7 pp |
 
 Interpretation is intentionally narrow:
@@ -93,7 +93,7 @@ Retained bundles under `results/`:
 |---|---|
 | `visdrone_yolov5m_baseline` | Valid Gaussian protocol; predictions/plots only, original logs absent |
 | `visdrone_yolov5m_sam_masks` | Valid released-code SAM hybrid control |
-| `tinyperson_yolov5m_baseline` | Valid canonical-hyp artifacts; generic metrics require fixed-evaluator re-test |
+| `tinyperson_yolov5m_baseline` | Valid canonical-hyp artifacts; fixed-evaluator (`scripts/esod_baseline/tinyperson_eval/eval_tinyperson_official.py`, official APt50/APs50 protocol) applied 2026-08-18 to an independently retrained checkpoint on a re-provisioned GPU host -- 55.26/71.23, within 0.2pp of the prior Audited value (opposite-signed on APt50 vs APs50, consistent with single-seed training noise). This is a different checkpoint from the one that produced 55.46/71.04, not a re-eval of it, so it does not yet isolate evaluator-pipeline stability from run-to-run training variance; a true reproduction check would re-run this evaluator against the original checkpoint's predictions if still available |
 | `uavdt_yolov5m_baseline` | Valid official-source, three-class artifacts |
 
 Empty `buckets.json` is never evidence. Accept compute data only from a
