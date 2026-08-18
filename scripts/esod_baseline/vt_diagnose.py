@@ -89,7 +89,8 @@ def main():
 
     preds_by_image = defaultdict(list)
     for row in preds_raw:
-        key = str(int(row["image_id"]))
+        image_id = row["image_id"]
+        key = str(int(image_id)) if str(image_id).isdigit() else str(image_id)
         preds_by_image[key].append({
             "class_id": int(row["category_id"]),
             "bbox_xyxy": (row["bbox"][0], row["bbox"][1], row["bbox"][0] + row["bbox"][2], row["bbox"][1] + row["bbox"][3]),
