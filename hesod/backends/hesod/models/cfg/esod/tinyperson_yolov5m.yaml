@@ -27,7 +27,7 @@ backbone:
 
    [-1, 1, DWConv, [256, 13, 1]],
    [[-1], 1, Segmenter, [1]],
-   [[4, -1], 1, HeatMapParser, [256, 16, 0.5]],  # 7, from 4 or 5? : 4. ratio=16 (1/16 patch grid) per ESOD.pdf's own ablation recommendation for TinyPerson's sparse, extremely-small objects -- 8 (1/8) is the paper's VisDrone choice, not TinyPerson's.
+   [[4, -1], 1, HeatMapParser, [256, 8, 0.5]],  # 7, from 4 or 5? : 4. ratio=16 was tried (ESOD.pdf's own ablation suggests 1/16 for TinyPerson's sparse, extremely-small objects) and measured WORSE on every metric (APt50 55.26->54.47, APs50 71.23->70.55, Very Tiny recall 72.06%->71.26%, 2026-08-18) -- reverted to 8. GFLOPs did drop (147.0->120.7, the paper's efficiency claim held) but accuracy did not; the paper's own text frames 1/16 as an efficiency choice, not a guaranteed accuracy win.
 
    [-1, 1, Conv, [512, 3, 2]],  # 8-P4/16
    [-1, 9, C3, [512]],
