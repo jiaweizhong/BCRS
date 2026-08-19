@@ -438,8 +438,8 @@ def test(data,
                 anno_json = './datasets/TinyPerson/test.json'  # annotations json
                 format_tinyperson(jdict)
             elif 'seadrones' in opt.data.lower():
-                anno_json = '/root/autodl-tmp/CompressedVersion/annotations/instances_val.json'
-                format_seadronesseev2(jdict, gt_json=anno_json)
+                anno_json = format_seadronesseev2(
+                    jdict, gt_json='/root/autodl-tmp/CompressedVersion/annotations/instances_val.json')
             else:
                 raise NotImplementedError(f'Ground-Truth file for {os.path.basename(opt.data)} not found.')
 
@@ -493,6 +493,19 @@ def format_seadronesseev2(jdict, gt_json='/root/autodl-tmp/CompressedVersion/ann
     for item in jdict:
         item['image_id'] = image_id_dict[str(item['image_id'])]
         item['category_id'] += 1
+
+    # This dataset's own annotation schema has no iscrowd field at all
+    # (confirmed 2026-08-xx diagnostic: keys are only bbox/image_id/id/area/
+    # category_id) -- pycocotools' COCOeval unconditionally reads
+    # ann['iscrowd'] with no default, so loading the raw GT file directly
+    # crashes with KeyError('iscrowd'). Patch a copy (never the source file)
+    # rather than mutate the original on disk.
+    for ann in anno['annotations']:
+        ann.setdefault('iscrowd', 0)
+    patched_gt = os.path.join(os.path.dirname(gt_json), '.instances_val_iscrowd_patched.json')
+    with open(patched_gt, 'w') as f:
+        json.dump(anno, f)
+    return patched_gt
 
 
 if __name__ == '__main__':
