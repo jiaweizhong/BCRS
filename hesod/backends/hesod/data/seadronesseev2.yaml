@@ -1,0 +1,18 @@
+# SeaDronesSeeV2 (CompressedVersion download), COCO-format source converted
+# via scripts/data_prepare.py::prepare_seadronesseev2(). No labelled test
+# split exists (images/test/ has no instances_test.json -- ground truth is
+# held by the benchmark server, confirmed 2026-08-xx), so test: intentionally
+# points at the same split/val.txt as val: -- this keeps run scripts'
+# `--task test` convention working without a special case, but it means
+# "test" here is really val-again, not a held-out third split.
+train: ./split/train.txt
+val: ./split/val.txt
+test: ./split/val.txt
+
+# number of classes
+nc: 5
+
+# class names (category_id 1-5 -> yolo 0-4; category_id 0 'ignored' is
+# defined in the taxonomy but never used in any annotation, confirmed
+# 2026-08-xx diagnostic)
+names: ['swimmer', 'boat', 'jetski', 'life_saving_appliances', 'buoy']

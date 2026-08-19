@@ -405,9 +405,67 @@ def prepare_tinyperson():
                 f.writelines(paths)
                 
 
+def prepare_seadronesseev2():
+    # SeaDronesSeeV2 "CompressedVersion" download: already COCO-format JSON
+    # (annotations/instances_{train,val}.json), flat images/{split}/*.jpg,
+    # no ignore/uncertain annotation fields (confirmed 2026-08-xx diagnostic --
+    # annotation keys are only bbox/image_id/id/area/category_id). category_id
+    # 0 ('ignored') is defined in the taxonomy but never actually used in any
+    # annotation, so no filtering is needed there either -- every annotation
+    # converts directly. category_id 1-5 -> yolo class 0-4
+    # (swimmer/boat/jetski/life_saving_appliances/buoy, matching nc=5 in
+    # seadronesseev2_yolov5m*.yaml). images/test/ has no instances_test.json
+    # (ground truth is held by the SeaDronesSee benchmark server, per the
+    # paper) -- only train/val are converted; data yaml's test: key points at
+    # the same split/val.txt as val: so --task test still works unmodified.
+    root = opt.dataset
+    cat_id_to_yolo = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4}
+    split_dict = {'train': 'instances_train.json', 'val': 'instances_val.json'}
+    split_dir = join(root, 'split')
+    os.makedirs(split_dir, exist_ok=True)
+
+    for mode, ann_file in split_dict.items():
+        with open(join(root, 'annotations', ann_file), 'r') as f:
+            anno = json.load(f)
+
+        image_dir = join(root, 'images', mode)
+        label_dir = join(root, 'labels', mode)
+        os.makedirs(label_dir, exist_ok=True)
+
+        image_dict = {}
+        for item in anno['images']:
+            file_name, width, height = item['file_name'], item['width'], item['height']
+            image_dict[item['id']] = {
+                'shape': [width, height],
+                'bboxes': [],
+                'image_path': join(image_dir, file_name),
+                'label_path': join(label_dir, osp.splitext(file_name)[0] + '.txt'),
+            }
+
+        for item in anno['annotations']:
+            _id, (x1, y1, w, h) = item['image_id'], item['bbox']
+            cls = cat_id_to_yolo[item['category_id']]
+            width, height = image_dict[_id]['shape']
+            xc, yc = (x1 + w / 2.) / width, (y1 + h / 2.) / height
+            image_dict[_id]['bboxes'].append(
+                ('%d' + ' %.6f' * 4 + '\n') % (cls, xc, yc, w / width, h / height))
+
+        paths = []
+        for item in tqdm(image_dict.values(), desc=f'seadronesseev2/{mode}'):
+            with open(item['label_path'], 'w+') as f:
+                f.writelines(item['bboxes'])
+
+            image = cv2.imread(item['image_path'])
+            gen_mask(item['label_path'], image)
+            paths.append(item['image_path'] + '\n')
+
+        with open(join(split_dir, f'{mode}.txt'), 'w+') as f:
+            f.writelines(paths)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='VisDrone', help='dataset, e.g., VisDrone, UAVDT, and TinyPerson')
+    parser.add_argument('--dataset', type=str, default='VisDrone', help='dataset, e.g., VisDrone, UAVDT, TinyPerson, and SeaDronesSeeV2')
     opt = parser.parse_args()
 
     assert exists(opt.dataset)
@@ -418,5 +476,7 @@ if __name__ == '__main__':
         prepare_uavdt()
     elif 'tinyperson' in dataset:
         prepare_tinyperson()
+    elif 'seadrones' in dataset:
+        prepare_seadronesseev2()
     else:
         print('%s is coming soon.' % opt.dataset)

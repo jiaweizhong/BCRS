@@ -34,8 +34,28 @@ Metric contract:
 - Patch-center coverage is a separate routing diagnostic and must never be
   reported as BPRctr. The released `--hm-metric` path is a tolerant pyramid
   proxy; use the artifact audit for paper-defined BPRctr.
-- Method comparisons use exact K, SparseHead, and measured end-to-end
-  latency/GFLOPs. Fixed-threshold routing is a reproduction diagnostic only.
+- Exact K is a HESOD/BCRS-only construct (`HESOD-Proposal.md` SS5.6 Action
+  Space A: fixed-cost patch top-k, chosen specifically because ESOD's own
+  fixed threshold gives an input-dependent, unpredictable patch count and
+  BCRS wants a guaranteed compute budget). Confirmed absent from the paper's
+  own released code: `grep -n "top.k\|top_k" esod/test.py esod/models/yolo.py`
+  returns zero hits, and `esod/test.py --sparse-head` calls
+  `model.model[-1].set_sparse()` standalone, with no companion top-K flag.
+  Efficiency/method comparisons BETWEEN HESOD ARMS use exact K + SparseHead +
+  measured end-to-end latency/GFLOPs, so every arm gets the same fixed patch
+  budget. For accuracy AND efficiency reproduction AGAINST THE PAPER'S OWN
+  reported numbers (AP/AP50 and GFLOPs/FPS alike), fixed-threshold routing is
+  the paper-matching choice -- `esod/models/yolo.py`'s `get_indices(...,
+  thresh=0.3)` applies the same hardcoded second threshold inside each
+  fixed-threshold-selected patch with no override, exactly matching upstream.
+  HESOD adds a `sparse_all_selected` flag (absent from `esod/`) specifically
+  to stop that same 0.3 threshold from re-filtering positions inside an
+  exact-K-selected patch, which would otherwise silently break exact K's own
+  "select K patches, evaluate each fully" semantics; `test.py` enables it only
+  when `--top-k` and `--sparse-head` are passed together. So `--sparse-head`
+  alone (no `--top-k`) is the paper-comparable SparseHead test; `--sparse-head
+  --top-k N` measures HESOD's own corrected exact-K mode, a different setup.
+  See the Routing contract below for the full Algorithm 1/2 description.
 - Box-regression comparisons additionally report AP75, APs, and size-bin
   detector recall at IoU 0.50 and 0.75. An AP50-only gain is insufficient.
 
@@ -72,7 +92,7 @@ Routing contract:
 
 | Dataset / setting | Paper | Audited | Residual |
 |---|---:|---:|---:|
-| VisDrone Gaussian AP / AP50 | 35.7 / 59.5 | 34.7 / 58.5 | -1.0 / -1.0 pp |
+| VisDrone Gaussian AP / AP50 | 35.7 / 59.5 | 34.9 / 58.6 | -0.8 / -0.9 pp |
 | VisDrone released SAM hybrid AP / AP50 | 36.0 / 59.7 | 34.6 / 58.4 | -1.4 / -1.3 pp |
 | TinyPerson APt50 / APs50 | 61.3 / 74.4 | 55.26 / 71.23 | -6.04 / -3.17 pp |
 | UAVDT nc=3 AP / AP50 | 22.5 / 40.7 | 20.1 / 37.0 | -2.4 / -3.7 pp |
@@ -91,7 +111,7 @@ Retained bundles under `results/`:
 
 | Bundle | Status |
 |---|---|
-| `visdrone_yolov5m_baseline` | Valid Gaussian protocol; predictions/plots only, original logs absent |
+| `visdrone_yolov5m_baseline` | Valid Gaussian protocol; retrained 2026-08-18 on a re-provisioned GPU host (full train/test/measure/audit logs retained, see `results/visdrone/visdrone_yolov5m_baseline/`) -- 34.9/58.6, within 0.1-0.2pp of the prior Audited value and the smallest residual-to-paper of all four rows in this table |
 | `visdrone_yolov5m_sam_masks` | Valid released-code SAM hybrid control |
 | `tinyperson_yolov5m_baseline` | Valid canonical-hyp artifacts; fixed-evaluator (`scripts/esod_baseline/tinyperson_eval/eval_tinyperson_official.py`, official APt50/APs50 protocol) applied 2026-08-18 to an independently retrained checkpoint on a re-provisioned GPU host -- 55.26/71.23, within 0.2pp of the prior Audited value (opposite-signed on APt50 vs APs50, consistent with single-seed training noise). This is a different checkpoint from the one that produced 55.46/71.04, not a re-eval of it, so it does not yet isolate evaluator-pipeline stability from run-to-run training variance; a true reproduction check would re-run this evaluator against the original checkpoint's predictions if still available |
 | `uavdt_yolov5m_baseline` | Valid official-source, three-class artifacts |
