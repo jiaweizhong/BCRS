@@ -199,6 +199,16 @@ def test(data,
                 from fvcore.nn import FlopCountAnalysis
                 fca = FlopCountAnalysis(model, inputs=(img,))
                 fca.unsupported_ops_warnings(False)
+                # HESOD's patch-routing forward pass calls neck/head layers via
+                # direct Python calls, not the standard nn.Sequential chain, so
+                # fvcore's per-submodule call tracer always flags them as
+                # "never called" even though they ran (fvcore's own warning
+                # text confirms: "accessed by direct calls to .forward()...
+                # their statistics will still contribute to their parent
+                # calling module"). Only fca.total() (aggregate GFLOPs) is
+                # used below, which is unaffected -- this is cosmetic noise
+                # on every --task measure run, not a real issue.
+                fca.uncalled_modules_warnings(False)
                 gflop = fca.total() / 1E9 * 2
             except:
                 gflop = model_info(model, inputs=(img,))
