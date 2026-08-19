@@ -97,18 +97,29 @@ def main():
             "score": row.get("score", 1.0),
         })
 
-    label_files = sorted(f for f in os.listdir(labels_dir) if f.endswith(".txt"))
+    # Recursive: some datasets (TinyPerson's raw with_dense tree, UAVDT's
+    # per-video UAV-benchmark-M/ folders) nest labels under category/video
+    # subdirectories rather than one flat split directory.
+    label_files = []
+    for dirpath, _, filenames in os.walk(labels_dir):
+        for f in filenames:
+            if f.endswith(".txt"):
+                label_files.append(os.path.relpath(os.path.join(dirpath, f), labels_dir))
+    label_files.sort()
     print(f"label files: {len(label_files)}")
 
     n_size_fallback = 0
     very_tiny_gt = []
     for fn in label_files:
-        stem = fn[:-4]
+        # basename only for the match key -- test.py's own image_id is
+        # `Path(path).stem`, which discards any subdirectory prefix, so a
+        # nested label path's key must match on basename alone.
+        stem = os.path.splitext(os.path.basename(fn))[0]
         key = str(int(stem)) if stem.isdigit() else stem
 
         w, h = fallback_w, fallback_h
         if images_dir:
-            img_path = os.path.join(images_dir, f"{stem}{image_ext}")
+            img_path = os.path.join(images_dir, os.path.splitext(fn)[0] + image_ext)
             if os.path.isfile(img_path):
                 w, h = Image.open(img_path).size  # header-only read, not a full decode
             else:

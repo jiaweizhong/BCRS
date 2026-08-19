@@ -106,7 +106,12 @@ def _image_index(images_dir: Path) -> dict[str, Path]:
     if not images_dir.is_dir():
         raise ValueError(f"Images directory is not a directory: {images_dir}")
     result: dict[str, Path] = {}
-    for path in sorted(images_dir.iterdir()):
+    # Recursive: some datasets (TinyPerson's raw with_dense tree, UAVDT's
+    # per-video UAV-benchmark-M/ folders) nest images under category/video
+    # subdirectories rather than one flat split directory. The explicit
+    # ambiguous-id check below still catches same-stem collisions across
+    # subdirectories loudly rather than silently picking one.
+    for path in sorted(images_dir.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
             continue
         for key in {path.stem, _canonical_key(path.stem)}:
@@ -126,7 +131,7 @@ def load_ground_truth(
 ) -> list[GroundTruth]:
     if not labels_dir.is_dir():
         raise ValueError(f"Labels directory is not a directory: {labels_dir}")
-    label_files = sorted(labels_dir.glob("*.txt"))
+    label_files = sorted(labels_dir.glob("**/*.txt"))  # recursive, see _image_index
     if not label_files:
         raise ValueError(f"No YOLO label files found in {labels_dir}")
     images = _image_index(images_dir)

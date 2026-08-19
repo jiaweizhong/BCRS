@@ -99,13 +99,13 @@ else
   log "Auditing $run_name"
   python "$SCRIPT_DIR/audit_buckets.py" \
     --pred "$results_dir/best_predictions.json" \
-    --labels "$DATA_ROOT/erase_with_uncertain_dataset/test" --images "$DATA_ROOT/erase_with_uncertain_dataset/test" \
+    --labels "$DATA_ROOT/test" --images "$DATA_ROOT/test" \
     --classes "$CLASSES" \
     2>&1 | tee "$results_dir/${run_name}_audit.log" || log "WARNING: audit_buckets.py failed, continuing"
 
   log "vt_diagnose: $run_name"
   python "$SCRIPT_DIR/vt_diagnose.py" "$run_name" \
-    --labels-dir "$DATA_ROOT/erase_with_uncertain_dataset/test" --images-dir "$DATA_ROOT/erase_with_uncertain_dataset/test" \
+    --labels-dir "$DATA_ROOT/test" --images-dir "$DATA_ROOT/test" \
     --classes "$CLASSES" \
     2>&1 | tee "$results_dir/${run_name}_vt_diagnose.log" || log "WARNING: vt_diagnose.py failed, continuing"
 
@@ -113,9 +113,12 @@ else
     log "Skipping official TinyPerson evaluator under SMOKE"
   else
     log "Official TinyPerson evaluator (APt50/APs50, paper-comparable protocol): $run_name"
+    # Uses tiny_set_test_with_dense.json (816 images) to match what's
+    # actually being tested on now, not the old 786-image tiny_set_test_all.json
+    # -- predictions now cover all 816 test images (HESOD-Experiment-Plan.md SS6).
     python "$SCRIPT_DIR/tinyperson_eval/eval_tinyperson_official.py" \
       --pred "$results_dir/best_predictions.json" \
-      --gt "$(find / -iname 'tiny_set_test_all.json' -path '*mini_annotations*' 2>/dev/null | head -1)" \
+      --gt "$DATA_ROOT/annotations/tiny_set_test_with_dense.json" \
       2>&1 | tee "$results_dir/${run_name}_official_eval.log" || log "WARNING: official evaluator failed, continuing"
   fi
 fi
