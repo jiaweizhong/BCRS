@@ -354,33 +354,32 @@ def prepare_uavdt():
 
 
 def prepare_tinyperson():
-    # Train: paper-comparable "with_dense" set (794 images -- includes the 48
-    # labeled_dense_images/ crowd scenes ESOD's own text describes but this
-    # project's original mini_annotations/*_erase pipeline silently excluded).
-    # Confirmed 2026-08-19: mini_annotations gave 745/786 vs. the paper's
-    # stated 794/816; tiny_set_train_with_dense.json matches 794 exactly. Its
-    # file_name entries (e.g. 'labeled_images/xxx.jpg') resolve against the
-    # RAW train/ tree from train.tar.gz, not erase_with_uncertain_dataset/ --
-    # this download has no erased version of the dense images, so train now
-    # runs on raw (unerased) images throughout, not just the 48 dense ones.
-    # ignore/uncertain box-level filtering (below) is unaffected by this --
-    # it drops the same boxes either way; erasure only additionally blanks
-    # those pixels in the input image itself.
+    # Paper-comparable "with_dense" sets for BOTH splits (794 train / 816
+    # test -- exact match to the paper's stated counts). This project's
+    # original mini_annotations/*_erase pipeline silently excluded the
+    # "dense" crowd-scene images (745/786 instead), confirmed 2026-08-19.
+    # The test-side dense images were initially missing from the first
+    # TinyPerson download package used this session (checked every tar:
+    # annotations.tar, erase_with_uncertain_dataset.tar, left.tar,
+    # train.tar.gz) but were later sourced via a separate test.tar.gz and
+    # extracted to {root}/test/ (2026-08-20), so both splits can now use the
+    # full with_dense counts symmetrically.
     #
-    # Test: UNCHANGED (mini_annotations/tiny_set_test_all.json, 786 images,
-    # erase_with_uncertain_dataset/test/) -- the corresponding ~30 test-side
-    # dense images are not present anywhere in this download (checked every
-    # tar: annotations.tar, erase_with_uncertain_dataset.tar, left.tar,
-    # train.tar.gz), so eval stays on the existing, already-established test
-    # set for continuity with every prior TinyPerson result. Train and test
-    # therefore use different image preprocessing (raw vs erased) -- a
-    # deliberate, acknowledged tradeoff (train on as much labeled data as
-    # possible; hold eval fixed), not an oversight.
+    # file_name entries (e.g. 'labeled_images/xxx.jpg') resolve against the
+    # RAW {root}/train/ and {root}/test/ trees, not erase_with_uncertain_dataset/
+    # -- this download has no erased version of the dense images, so both
+    # splits now run on raw (unerased) images throughout. This is a clean,
+    # symmetric choice (train and test share the same preprocessing),
+    # avoiding the raw-train/erased-test mismatch an earlier, test-image-
+    # incomplete version of this function would have introduced.
+    # ignore/uncertain box-level filtering (below) is unaffected by
+    # raw-vs-erased -- it drops the same boxes either way; erasure only
+    # additionally blanks those pixels in the input image itself.
     root = opt.dataset
     label_file_dict = {'train': join(root, 'annotations', 'tiny_set_train_with_dense.json'),
-                       'test': join(root, 'mini_annotations', 'tiny_set_test_all.json')}
+                       'test': join(root, 'annotations', 'tiny_set_test_with_dense.json')}
     image_dir_dict = {'train': join(root, 'train'),
-                      'test': join(root, 'erase_with_uncertain_dataset', 'test')}
+                      'test': join(root, 'test')}
     split_dir = join(root, 'split')
 
     os.makedirs(split_dir, exist_ok=True)
