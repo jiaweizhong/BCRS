@@ -437,6 +437,9 @@ def test(data,
             elif 'tinyperson' in opt.data.lower():
                 anno_json = './datasets/TinyPerson/test.json'  # annotations json
                 format_tinyperson(jdict)
+            elif 'seadrones' in opt.data.lower():
+                anno_json = '/root/autodl-tmp/CompressedVersion/annotations/instances_val.json'
+                format_seadronesseev2(jdict, gt_json=anno_json)
             else:
                 raise NotImplementedError(f'Ground-Truth file for {os.path.basename(opt.data)} not found.')
 
@@ -472,6 +475,23 @@ def format_tinyperson(jdict):
 
     for item in jdict:
         item['image_id'] = image_id_dict[item['image_id']]
+        item['category_id'] += 1
+
+
+def format_seadronesseev2(jdict, gt_json='/root/autodl-tmp/CompressedVersion/annotations/instances_val.json'):
+    # Ground truth is already genuine COCO JSON (category_id 1-5, image_id per
+    # the original SeaDronesSeeV2 release) -- unlike TinyPerson/VisDrone this
+    # needs no filesystem path guessing, but jdict's image_id (test.py's own
+    # `int(path.stem) if path.stem.isnumeric() else path.stem`, HESOD-
+    # Experiment-Plan.md SS6) is derived from the output filename, not
+    # necessarily the source id, so build an explicit file_name -> id lookup
+    # rather than assume they coincide (same pattern as format_tinyperson()).
+    with open(gt_json, 'r') as f:
+        anno = json.load(f)
+    image_id_dict = {os.path.splitext(item['file_name'])[0]: item['id'] for item in anno['images']}
+
+    for item in jdict:
+        item['image_id'] = image_id_dict[str(item['image_id'])]
         item['category_id'] += 1
 
 

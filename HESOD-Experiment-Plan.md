@@ -302,3 +302,110 @@ Decision order:
    spectral-only arm demonstrates value.
 
 No deleted exploratory result meets the bar for a publishable claim.
+
+## 6. SeaDronesSeeV2 reference literature (reported-only, non-reproduction)
+
+No YOLOv5m-based, common-protocol baseline exists for SeaDronesSeeV2 within
+this project or in the original SeaDronesSeeV2 paper (its own Table 4
+baselines are Faster R-CNN/CenterNet/EfficientDet, non-YOLO, and its class
+taxonomy predates the V2 revision our `CompressedVersion` download uses --
+confirmed 2026-08-xx: category_id 1-5 = swimmer/boat/jetski/
+life_saving_appliances/buoy, category_id 0 'ignored' never used in any
+annotation). The numbers below are drawn from four papers in
+`reference/HighResolution/` (reviewed for resolution-protocol guidance;
+`run_seadronesseev2.sh`'s img-size=1536 choice cites this section). Per the
+reported-only discipline already established in
+`HESOD-Lightweight-Detector-Review-and-Roadmap.md` SS8: these are
+context/orientation only, never to be mixed into a common-protocol sortable
+column with our own `results/seadronesseev2/*` runs. Confounds that break
+direct comparability, all four papers:
+
+- **Backbone/scale mismatch**: EUAVDet.pdf and SeaLSOD-YOLO.pdf compare
+  against YOLOv5-nano/YOLOv5s; "Maritime Small Object Detection.pdf" uses
+  YOLOv5s. Our own runs use YOLOv5m.
+- **Resolution mismatch**: see SS6.1; none match our chosen 1536.
+- **Metric-definition mismatch**: all four report standard COCO-style
+  mAP/AP50/AP75 (area-based small/medium/large bins per COCO convention). Our
+  own `audit_buckets.py`/`vt_diagnose.py` report plain recall over a
+  different, codebase-specific pixel-side-length bucket scheme (Very Tiny
+  <16x16, Tiny 16-32, Small 32-96, Medium/Large >96) -- not the same
+  statistic.
+- **Class-taxonomy alignment unverified**: whether each paper's
+  SeaDronesSee(V2) instance uses the same 5-class V2 taxonomy as our
+  `CompressedVersion` download has not been independently confirmed
+  per-paper.
+- **FPS hardware mismatch**: EUAVDet.pdf measures FPS on Jetson Nano/Orin
+  (embedded boards); SeaLSOD-YOLO.pdf's FPS hardware is unstated in the
+  extracted table; our own FPS is measured on an RTX 5090 desktop GPU. None of
+  these FPS numbers are comparable to each other or to ours -- same class of
+  issue as the V100-vs-RTX5090 TinyPerson/VisDrone FPS gap already discussed
+  in SS1.
+
+### 6.1 Resolution protocol (why SeaDronesSeeV2 runs at img-size=1536)
+
+| Paper | Protocol | Rationale (as stated) |
+|---|---|---|
+| EUAVDet.pdf | 640x640, P3/P4/P5 at 80/40/20 | Standard YOLOv5 default, no dataset-specific tuning stated |
+| SeaLSOD-YOLO.pdf | 640x640 | "determin[es] the resolution of training samples" -- no further justification given |
+| Maritime Small Object Detection.pdf | 640x640 SAHI tiles (altitude-aware dynamic tiling effectively reaches ~1280p via 2x2 tiling) | Fixed-tile SAHI baseline; their own altitude-aware ScaledV1/V2 vary effective resolution by flight altitude |
+| YOLOv7-sea.pdf | ~2400 side length (large, no fixed grid stated) | "For small targets, the larger the input image scale, the better the detection performance" -- explicit resolution-accuracy argument, the opposite framing from the other three |
+
+Three of four papers converge on 640 (matched to plain YOLOv5 defaults, no
+dataset-specific reasoning given); YOLOv7-sea.pdf is the outlier, arguing
+explicitly for much higher resolution specifically because these targets are
+small. img-size=1536 for our own runs was chosen as a deliberate middle
+ground -- citing VisDrone's own in-project precedent (same 8x8-patch-grid
+architecture) rather than either literature extreme, since 640 is the same
+order of magnitude as Pest24 (where SS11.2.9-equivalent routing already lost
+to dense) and would risk re-testing nothing new. Not yet validated against a
+2400 run.
+
+### 6.2 Reported accuracy/efficiency (reported-only, not a reproduction target)
+
+**EUAVDet.pdf Table 5** (SeaDronesSeeV2 validation, YOLOv5/7/8/10-nano/tiny
+family, 640) -- only the YOLOv5-lineage row is reproduced here; the full table
+also has YOLOv7-tiny/YOLOv8-n/YOLOv10-n + their own EUAVDet variants and
+AP_S/AP_M/AP_L breakdowns:
+
+| Method | Params (M) | GFLOPs | AP50 | AP75 | mAP | FPS (Jetson Nano) | FPS (Jetson Orin) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| YOLOv5-n | 1.77 | 4.2 | 70.2 | 36.0 | 38.4 | 24.5 | 92.0 |
+| EUAVDet-nv5 (their method) | 1.03 | 4.0 | 74.6 | 39.7 | 40.9 | 24.8 | 94.5 |
+
+**SeaLSOD-YOLO.pdf Tables 3+4** (SeaDroneSee validation, 640) -- only the
+plain-YOLOv5s row is reproduced here as the closest architecture-family
+anchor; the full table also has Faster R-CNN/SSD/YOLOv3/v6/v8/v9/v10/v11/v12/
+RT-DETR/three other recent small-object YOLO variants:
+
+| Method | P | R | mAP@.5 | mAP@.5:.95 | Params (MB) | GFLOPs | FPS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| YOLOv5s | 75.1 | 61.5 | 66.7 | 40.2 | 17.6 | 24.1 | 344 |
+| SeaLSOD-YOLO (their method) | 81.9 | 73.5 | 77.0 | 44.9 | 30.8 | 33.9 | 256 |
+
+**Maritime Small Object Detection.pdf Table III** (SeaDronesSee, YOLOv5s):
+
+| Setup | mAP | mAP50 | mAP50-small | mAP50-medium | mAP50-large | FPS |
+|---|---:|---:|---:|---:|---:|---:|
+| Original image (640px, no tiling) | 0.16 | 0.35 | 0.34 | 0.88 | 1.00 | 7.00 |
+| Tiled (static SAHI) | 0.34 | 0.62 | 0.42 | 0.75 | 0.91 | 0.60 |
+| ScaledV1 (altitude-aware, their method) | 0.25 | 0.48 | 0.45 | 0.68 | 0.97 | 2.60 |
+| ScaledV2 (altitude-aware, their method) | 0.27 | 0.52 | 0.47 | 0.73 | 0.97 | 1.87 |
+| Full-resolution, no size restriction (side-mention only, not in their main table, no FPS reported) | -- | -- | 0.21 | -- | -- | not reported |
+
+**YOLOv7-sea.pdf Table 1** (SeaDronesSee test-set challenge, ~2400; no
+GFLOPs/FPS reported anywhere in this paper):
+
+| Method | AP | AP50 | AP75 | AR1 | AR10 |
+|---|---:|---:|---:|---:|---:|
+| Baseline | 41.81 | 72.33 | 41.25 | 36.33 | 48.91 |
+| YOLOv7 | 53.61 | 83.12 | 56.72 | 43.79 | 60.41 |
+| Ours (final, their method) | 59.00 | 90.72 | 64.15 | 46.41 | 67.98 |
+
+Matches the paper's own headline claim (3rd place on the SeaDronesSee
+benchmark-server leaderboard, 59% mAP; they cite the then-current top
+leaderboard entry at 36% mAP for context). A separate ablation table
+(their Table 2, ADD-one-module-at-a-time on an internal validation set) also
+exists in this paper but had an internally inconsistent-looking AP50 value at
+one intermediate row during extraction (AP50 dropping from 87.8 to 45.2 then
+recovering to 92.3 while AP moved smoothly) -- not reproduced here; verify
+against the source PDF directly if that specific ablation is needed.

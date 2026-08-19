@@ -134,20 +134,27 @@ run_arm() {
 run_arm "seadronesseev2_yolov5m_baseline${SUFFIX}" \
   "models/cfg/esod/seadronesseev2_yolov5m.yaml"
 
-# Concat+SABL: our best Pest24/VisDrone/TinyPerson Very-Tiny-recall arm
-run_arm "seadronesseev2_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
-  "models/cfg/esod/seadronesseev2_yolov5m_channel_pooled_concat.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
+# Concat+SABL (plain, no head swap) SKIPPED 2026-08-19: R0 already landed
+# near-ceiling (mAP@.5 ~0.89, R ~0.86 at epoch 44/49, real non-warmup
+# routing) -- little accuracy headroom left for the selector alone to show a
+# gain, so the concat+SABL-vs-R0 accuracy question isn't very informative
+# here. Going straight to the head-swap comparison instead, which is a
+# different question (does ISPPHead hold accuracy while cutting compute) that
+# doesn't need headroom to be meaningful. Re-add this arm manually if the
+# plain-selector question becomes relevant later:
+#   run_arm "seadronesseev2_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
+#     "models/cfg/esod/seadronesseev2_yolov5m_channel_pooled_concat.yaml" \
+#     --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
 
 # Concat+SABL+ISPPHead: H1b lightweight Detect head (HESOD-Lightweight-
-# Detector-Review-and-Roadmap.md SS5.2) on top of the concat+SABL arm above.
-# On TinyPerson this held accuracy flat while cutting GFLOPs ~21% -- testing
-# whether that holds on a third, structurally different dataset.
+# Detector-Review-and-Roadmap.md SS5.2). On TinyPerson this held accuracy
+# flat while cutting GFLOPs ~21% -- testing whether that holds on a third,
+# structurally different dataset, independent of whether concat+SABL alone
+# beats R0 on accuracy.
 run_arm "seadronesseev2_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/seadronesseev2_yolov5m_channel_pooled_concat_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
 
 log "===== ALL DONE ====="
 log "  R0:                   $RUN_ROOT/test/seadronesseev2_yolov5m_baseline${SUFFIX}/"
-log "  Concat+SABL:           $RUN_ROOT/test/seadronesseev2_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
 log "  Concat+SABL+ISPPHead:  $RUN_ROOT/test/seadronesseev2_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}/"
