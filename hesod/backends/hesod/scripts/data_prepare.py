@@ -476,7 +476,7 @@ if __name__ == '__main__':
         prepare_uavdt()
     elif 'tinyperson' in dataset:
         prepare_tinyperson()
-    elif 'seadrones' in dataset:
+    elif 'seadrones' in dataset or 'compressedversion' in dataset:
         prepare_seadronesseev2()
     else:
         print('%s is coming soon.' % opt.dataset)
