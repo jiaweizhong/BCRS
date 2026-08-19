@@ -5,9 +5,17 @@
 # points at the same split/val.txt as val: -- this keeps run scripts'
 # `--task test` convention working without a special case, but it means
 # "test" here is really val-again, not a held-out third split.
-train: ./split/train.txt
-val: ./split/val.txt
-test: ./split/val.txt
+#
+# Paths are absolute, matching visdrone.yaml/tinyperson.yaml's own on-disk
+# convention (/root/autodl-tmp/VisDrone_v2.yaml, /root/autodl-tmp/TinyPerson_v1.yaml) --
+# NOT a repo-relative convention. check_dataset() (utils/general.py:264)
+# resolves data-yaml paths against the process's cwd (train.py's launch dir,
+# $ESOD_REPO), not the yaml file's own location, so a relative path here
+# resolves wrong. Update this if CompressedVersion/ is moved to a different
+# mount/disk.
+train: /root/autodl-tmp/CompressedVersion/split/train.txt
+val: /root/autodl-tmp/CompressedVersion/split/val.txt
+test: /root/autodl-tmp/CompressedVersion/split/val.txt
 
 # number of classes
 nc: 5
