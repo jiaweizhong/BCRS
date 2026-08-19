@@ -42,8 +42,8 @@ RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
 BATCH="${BATCH:-8}"
 IMG_SIZE="${IMG_SIZE:-1280}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
-DATA_ROOT="/root/autodl-tmp/UAVDT_v3"
-DATA_YAML="/root/autodl-tmp/UAVDT_v3.yaml"
+DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/UAVDT_v3}"
+DATA_YAML="${DATA_YAML:-/root/autodl-tmp/UAVDT_v3.yaml}"
 HYP="data/hyps/hyp.uavdt.yaml"
 CLASSES="car,truck,bus"
 VAL_SPLIT="test"
@@ -132,7 +132,17 @@ run_arm() {
 run_arm "uavdt_yolov5m_baseline${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m.yaml"
 
+# Concat+SABL+ISPPHead: the project's best-known lightweight recipe, first
+# time run on UAVDT (no plain concat+SABL arm -- same skip-the-middle-arm
+# reasoning as SeaDronesSeeV2/fresh-TinyPerson). Preserves UAVDT's own SPP
+# layer + threshold=0.3 architecture deltas exactly (see the config's own
+# header comment).
+run_arm "uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
+
 log "===== ALL DONE ====="
-log "  R0: $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
-log "  Compare AP/AP50 against the existing accepted-evidence value (20.1/37.0 audited, HESOD-Experiment-Plan.md SS2) --"
+log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
+log "  Concat+SABL+ISPPHead:  $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}/"
+log "  Compare R0's AP/AP50 against the existing accepted-evidence value (20.1/37.0 audited, HESOD-Experiment-Plan.md SS2) --"
 log "  a meaningfully different number here would indicate that value's provenance (frozen-tree run_baseline.sh, possibly pre-re-provisioning) matters."
