@@ -47,14 +47,17 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GPU="${1:-0}"
-RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
+MASK_MODE="${MASK_MODE:-paper-hybrid}"
+RUN_ROOT="${RUN_ROOT:-$HOME/hesod_tinyperson_paper_${MASK_MODE}}"
 BATCH="${BATCH:-8}"
 IMG_SIZE="${IMG_SIZE:-2048}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
 DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/TinyPerson_v1}"
 DATA_YAML="${DATA_YAML:-/root/autodl-tmp/TinyPerson_v1.yaml}"
+GT_JSON="${GT_JSON:-/root/autodl-tmp/tiny_set/mini_annotations/tiny_set_test_all.json}"
 HYP="data/hyps/hyp.tinyperson.yaml"
 CLASSES="person"
+REUSE_CHECKPOINTS="${REUSE_CHECKPOINTS:-0}"
 
 SMOKE="${SMOKE:-0}"
 if [ "$SMOKE" = "1" ]; then
@@ -69,7 +72,10 @@ fi
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$log_prefix] $*"; }
 
-log "epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML"
+python "$SCRIPT_DIR/audit_tinyperson_protocol.py" \
+  --data-root "$DATA_ROOT" --gt "$GT_JSON" --expected-mask-mode "$MASK_MODE"
+
+log "protocol=paper-text mask=$MASK_MODE epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML"
 
 run_arm() {
   local run_name="$1" model_cfg="$2"
@@ -82,7 +88,12 @@ run_arm() {
 
   local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
   if [ -f "$ckpt" ]; then
-    log "===== $run_name already trained (found $ckpt), skipping training ====="
+    if [ "$REUSE_CHECKPOINTS" = "1" ]; then
+      log "===== explicitly reusing $ckpt ====="
+    else
+      log "FATAL: $ckpt already exists; refusing silent checkpoint reuse"
+      exit 1
+    fi
   else
     log "===== Training $run_name ====="
     python train.py \
@@ -127,6 +138,11 @@ run_arm() {
     log "WARNING: $run_name produced no predictions (expected at 1 epoch under SMOKE -- "
     log "  real selector routing is still essentially untrained) -- skipping audit/vt_diagnose for this arm"
   else
+    log "Official TinyPerson evaluator: $run_name"
+    python "$SCRIPT_DIR/tinyperson_eval/eval_tinyperson_official.py" \
+      --pred "$results_dir/best_predictions.json" --gt "$GT_JSON" \
+      2>&1 | tee "$results_dir/${run_name}_official_eval.log"
+
     log "Auditing $run_name"
     python "$SCRIPT_DIR/audit_buckets.py" \
       --pred "$results_dir/best_predictions.json" \
@@ -145,22 +161,23 @@ run_arm() {
 }
 
 # R0: semantic-only selector, CIoU box loss (baseline)
-run_arm "tinyperson_yolov5m_baseline${SUFFIX}" \
-  "models/cfg/esod/tinyperson_yolov5m.yaml"
+run_arm "tinyperson_paper_r0_ratio8_${MASK_MODE}${SUFFIX}" \
+  "models/cfg/esod/tinyperson_yolov5m.yaml" \
+  --selector-loss paper
 
 # Concat+SABL: our best Pest24 Very-Tiny-recall arm (R3-equivalent)
-run_arm "tinyperson_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
+run_arm "tinyperson_paper_channel_pooled_concat_sabl_ratio8_${MASK_MODE}${SUFFIX}" \
   "models/cfg/esod/tinyperson_yolov5m_channel_pooled_concat.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
 
 # Gate+SABL: re-tests whether the reliability gate beats concat here,
 # since it did not beat concat on Pest24 (HESOD-Agri-Experiment-Plan.md
 # SS11.2.6/SS11.2.8)
-run_arm "tinyperson_yolov5m_reliability_gate_sabl${SUFFIX}" \
+run_arm "tinyperson_paper_reliability_gate_sabl_ratio8_${MASK_MODE}${SUFFIX}" \
   "models/cfg/esod/tinyperson_yolov5m_reliability_gate.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
 
 log "===== ALL DONE ====="
-log "  R0:              $RUN_ROOT/test/tinyperson_yolov5m_baseline${SUFFIX}/"
-log "  Concat+SABL:     $RUN_ROOT/test/tinyperson_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
-log "  Gate+SABL:       $RUN_ROOT/test/tinyperson_yolov5m_reliability_gate_sabl${SUFFIX}/"
+log "  Paper R0:        $RUN_ROOT/test/tinyperson_paper_r0_ratio8_${MASK_MODE}${SUFFIX}/"
+log "  Concat+SABL:     $RUN_ROOT/test/tinyperson_paper_channel_pooled_concat_sabl_ratio8_${MASK_MODE}${SUFFIX}/"
+log "  Gate+SABL:       $RUN_ROOT/test/tinyperson_paper_reliability_gate_sabl_ratio8_${MASK_MODE}${SUFFIX}/"

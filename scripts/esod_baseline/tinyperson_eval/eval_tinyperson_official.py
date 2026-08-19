@@ -37,7 +37,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tinyperson_cocoeval import COCOeval, Params  # noqa: E402
@@ -46,7 +46,12 @@ from tinyperson_cocoeval import COCOeval, Params  # noqa: E402
 def remap_to_official(pred_path: Path, gt_path: Path) -> Path:
     with open(gt_path, encoding="utf-8") as f:
         anno = json.load(f)
-    image_id_dict = {item["file_name"].split("/")[1][:-4]: item["id"] for item in anno["images"]}
+    image_id_dict = {
+        PurePosixPath(item["file_name"].replace("\\", "/")).stem: item["id"]
+        for item in anno["images"]
+    }
+    if len(image_id_dict) != len(anno["images"]):
+        raise SystemExit("official GT contains duplicate filename stems; image-id remapping is ambiguous")
 
     with open(pred_path, encoding="utf-8") as f:
         jdict = json.load(f)
@@ -73,6 +78,22 @@ def remap_to_official(pred_path: Path, gt_path: Path) -> Path:
     return out_path
 
 
+def validate_official_gt(gt_path: Path) -> None:
+    if gt_path.name != "tiny_set_test_all.json":
+        raise SystemExit(
+            f"paper-comparable TinyPerson evaluation requires tiny_set_test_all.json, got {gt_path.name!r}"
+        )
+    with open(gt_path, encoding="utf-8") as f:
+        anno = json.load(f)
+    if len(anno.get("images", [])) != 786:
+        raise SystemExit(
+            f"TinyPerson official no-dense test must contain 786 images, got {len(anno.get('images', []))}"
+        )
+    dense = sum(bool(item.get("in_dense_image", False)) for item in anno.get("annotations", []))
+    if dense:
+        raise SystemExit(f"TinyPerson official test GT unexpectedly contains {dense} dense annotations")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--pred", required=True, help="raw best_predictions.json from test.py --save-json")
@@ -97,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"--pred not found: {pred_path}")
     if not gt_path.is_file():
         raise SystemExit(f"--gt not found: {gt_path}")
+    validate_official_gt(gt_path)
 
     remapped_path = remap_to_official(pred_path, gt_path)
 

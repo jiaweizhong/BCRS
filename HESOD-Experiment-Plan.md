@@ -9,13 +9,15 @@ belong in Git history or `ESOD-Baseline-Patches.md`.
 | Dataset | Data | Classes | Model | Hyp | Input | Evaluation split |
 |---|---|---:|---|---|---:|---|
 | VisDrone | `/root/autodl-tmp/VisDrone_v2.yaml` | 10 | `visdrone_yolov5m.yaml` | `hyp.visdrone.yaml` | 1536 | val: 548 images, 38,759 GT |
-| TinyPerson | `/root/autodl-tmp/TinyPerson_v1.yaml` | 1 | `tinyperson_yolov5m.yaml` | `hyp.tinyperson.yaml` | 2048 | val: 786 images, 13,687 GT |
+| TinyPerson | protocol-specific audited YAML | 1 | `tinyperson_yolov5m.yaml` | paper: `hyp.tinyperson.yaml`; released: `hyp.tinyperson.released.yaml` | 2048 | official test: 786 images, no dense images |
 | UAVDT | `/root/autodl-tmp/UAVDT_v3.yaml` | 3 | `uavdt_yolov5m.yaml` | `hyp.uavdt.yaml` | 1280 | test: car/truck/bus |
 
 Common training protocol: YOLOv5m, 50 epochs, SGD, global batch 8, cosine
-scheduling, and weight decay 0.0005. TinyPerson alone uses the canonical
-dataset-specific `lr0=0.005`, `pixl=0.4` profile. No alternate TinyPerson hyp
-or UAVDT class protocol is valid.
+scheduling, and weight decay 0.0005. TinyPerson's paper-text profile uses
+`lr0=0.01`, `pixl=0.4`, and focal:dice 20:1. The separate released-code
+control uses `lr0=0.005` and weighted BCE; the two profiles must not share a
+run name, output directory, or protocol claim. No alternate UAVDT class
+protocol is valid.
 
 Metric contract:
 
@@ -61,16 +63,21 @@ Metric contract:
 
 The paper text and public code define distinct label controls. These masks are
 offline pseudo-label preprocessing (`masks/<split>/<stem>.npy`), not changes to
-the YOLO bbox labels, and the protocol applies to VisDrone, UAVDT, and
-TinyPerson:
+the YOLO bbox labels. For TinyPerson, the supported audited controls are:
 
-1. **Released-code baseline:** weighted BCE selector loss plus explicitly
-   generated Gaussian masks (`--mask-mode gaussian`).
-2. **Paper-text loss control:** focal:dice 20:1 (`--selector-loss paper`).
+1. **Paper-text protocol:** focal:dice 20:1 (`--selector-loss paper`) plus the
+   literal RGB-SAM Eq. 4 mask (`--tinyperson-mask-mode paper-hybrid`), with no
+   extra union term.
+2. **Released-code control:** weighted BCE (`--selector-loss upstream`) plus
+   the public implementation's hybrid behavior
+   (`--tinyperson-mask-mode released-hybrid`).
+3. **Gaussian diagnostic:** `--tinyperson-mask-mode gaussian`; this is an
+   explicit ablation, not either hybrid protocol.
 
-A literal paper-mask control (RGB SAM plus Eq. 4, without the public code's
-extra `SAM*0.5` union) remains pending. Do not label a released-code run as a
-bit-exact paper implementation.
+Every prepared TinyPerson dataset carries `tinyperson_protocol.json`, including
+annotation hashes and mask mode. Hybrid preprocessing fails if SAM is missing;
+it never silently falls back to Gaussian. Do not label a released-code run as
+a paper-text reproduction.
 
 Routing contract:
 
@@ -94,18 +101,20 @@ Routing contract:
 |---|---:|---:|---:|
 | VisDrone Gaussian AP / AP50 | 35.7 / 59.5 | 34.9 / 58.6 | -0.8 / -0.9 pp |
 | VisDrone released SAM hybrid AP / AP50 | 36.0 / 59.7 | 34.6 / 58.4 | -1.4 / -1.3 pp |
-| TinyPerson APt50 / APs50 | 61.3 / 74.4 | 55.26 / 71.23 | -6.04 / -3.17 pp |
+| TinyPerson APt50 / APs50 | 61.3 / 74.4 | pending audited rerun | -- |
 | UAVDT nc=3 AP / AP50 | 22.5 / 40.7 | 20.1 / 37.0 | -2.4 / -3.7 pp |
 
 Interpretation is intentionally narrow:
 
 - VisDrone's former large gap came mainly from the wrong conversion; the
   audited released-code reproduction is now within 1.0 pp.
-- TinyPerson improved with its dataset hyp but retains the largest APt50 gap.
+- TinyPerson's historical 55.26/71.23 result is not accepted as a current
+  reproduction: its retained training log identifies ratio 16 while the
+  current source is ratio 8, and no matching official-evaluation log remains.
 - UAVDT nc=3 is paper-comparable; the released nc=1 collapse is another task.
-- The next shared causal test is focal+dice versus weighted BCE, followed only
-  if necessary by the isolated paper-mask control. Single-GPU BatchNorm versus
-  the paper's two-GPU/global-batch-8 setup is a secondary unproven variable.
+- TinyPerson must first rerun the now-separated paper-text and released-code
+  protocols. Only after that comparison is hardware topology (one GPU versus
+  the paper's two V100s at global batch 8) a useful remaining variable.
 
 Retained bundles under `results/`:
 
@@ -113,7 +122,7 @@ Retained bundles under `results/`:
 |---|---|
 | `visdrone_yolov5m_baseline` | Valid Gaussian protocol; retrained 2026-08-18 on a re-provisioned GPU host (full train/test/measure/audit logs retained, see `results/visdrone/visdrone_yolov5m_baseline/`) -- 34.9/58.6, within 0.1-0.2pp of the prior Audited value and the smallest residual-to-paper of all four rows in this table |
 | `visdrone_yolov5m_sam_masks` | Valid released-code SAM hybrid control |
-| `tinyperson_yolov5m_baseline` | Valid canonical-hyp artifacts; fixed-evaluator (`scripts/esod_baseline/tinyperson_eval/eval_tinyperson_official.py`, official APt50/APs50 protocol) applied 2026-08-18 to an independently retrained checkpoint on a re-provisioned GPU host -- 55.26/71.23, within 0.2pp of the prior Audited value (opposite-signed on APt50 vs APs50, consistent with single-seed training noise). This is a different checkpoint from the one that produced 55.46/71.04, not a re-eval of it, so it does not yet isolate evaluator-pipeline stability from run-to-run training variance; a true reproduction check would re-run this evaluator against the original checkpoint's predictions if still available |
+| `tinyperson_yolov5m_baseline` | Legacy evidence only, not a canonical reproduction. The retained training log records code commit `cbbbc86` with ratio 16, the current source uses ratio 8, and the claimed 55.26/71.23 score has no matching retained `official_eval` log. Do not reuse this checkpoint as R0 for the corrected protocol. |
 | `uavdt_yolov5m_baseline` | Valid official-source, three-class artifacts |
 
 Empty `buckets.json` is never evidence. Accept compute data only from a
@@ -409,3 +418,39 @@ exists in this paper but had an internally inconsistent-looking AP50 value at
 one intermediate row during extraction (AP50 dropping from 87.8 to 45.2 then
 recovering to 92.3 while AP moved smoothly) -- not reproduced here; verify
 against the source PDF directly if that specific ablation is needed.
+
+### 6.3 Own R0 result and decision to drop the dataset (2026-08-20)
+
+R0 (`seadronesseev2_yolov5m.yaml`, img-size=1536, 50 epochs) trained and
+evaluated cleanly -- no data issues, no pipeline bugs, a legitimate result:
+
+| Size bin | GT Count | Recalled | Recall Rate |
+|---|---:|---:|---:|
+| Very Tiny (<16x16) | 183 | 151 | 82.51% |
+| Tiny (16x16-32x32) | 2784 | 2607 | 93.64% |
+| Small (32x32-96x96) | 4795 | 4637 | 96.70% |
+| Medium/Large (>96x96) | 1868 | 1827 | 97.81% |
+| **Total** | **9630** | **9222** | **95.76%** |
+
+mAP@.5=0.894, mAP@.5:.95=0.533, GFLOPs=76.4, FPS=134.2 (`test.py --task
+measure`, batch=1, RTX 5090).
+
+Very Tiny objects are only **183/9630 ~ 1.9%** of this val split's GT --
+matching the pre-run diagnostic (SS6, above) that already flagged val
+specifically at ~1.9% Very Tiny (train ~5.5%), far below VisDrone's ~31% or
+TinyPerson's ~53%. R0 already recalls 82.5%+ even in the hardest bin, and
+total recall is 95.76% -- there is essentially no accuracy headroom left:
+even a hypothetical 100% Very Tiny recall would only move total recall from
+95.76% to ~96.6% (183 more correct detections out of 9630), since that bin
+is such a small share of the data. This directly confirms the pre-run
+concern raised before any training started -- the dataset's actual object-
+size composition doesn't match the "sparse, genuinely tiny targets" regime
+HESOD's routing thesis needs to show an accuracy advantage, unlike VisDrone/
+TinyPerson.
+
+**Decision: dropped from further HESOD-arm investment.** The queued
+concat+SABL+ISPPHead arm was not run. Same class of finding as Pest24's A0
+result (SS11.2.9 in `HESOD-Agri-Experiment-Plan.md`) -- a legitimate,
+informative negative result about where the routing thesis does and doesn't
+have room to operate, not a data or pipeline failure. Retained here rather
+than silently dropped so the reasoning stays traceable.

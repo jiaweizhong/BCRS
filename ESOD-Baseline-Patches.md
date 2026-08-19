@@ -10,8 +10,8 @@ active behavior only; rejected experiments and execution order live in
   original gitlink at commit `bde3571bd7db697e441eef0278cd425e888ea026`.
 - `esod/` is the standalone baseline; `hesod/backends/esod/` is its runner
   mirror. They are source-identical after line-ending normalization.
-- Against the pinned upstream, the baseline has exactly **11 path deltas**:
-  8 modified, 2 deleted, and 1 added. The other 433 upstream files are
+- Against the pinned upstream, the baseline has exactly **12 path deltas**:
+  8 modified, 2 deleted, and 2 added. The other 432 upstream files are
   unchanged after line-ending normalization.
 - `hesod/backends/hesod/` starts from this patched baseline and adds method-only
   routing, selector, and loss options. Those additions are listed separately.
@@ -28,9 +28,9 @@ without a ledger entry is protocol drift.
 | P02 | `train.py`, `test.py` | Default legacy checkpoint loads to `weights_only=False` on PyTorch 2.6+; explicit caller values win | Restores loading; no math change |
 | P03 | `utils/metrics.py` | Use `np.trapezoid`, falling back to `np.trapz` | Same 101-point AP integration |
 | P04 | `train.py`, `scripts/data_prepare.py` | Replace one-shot `os.mkdir` with recursive `exist_ok` creation | Idempotent reruns only |
-| P05 | `scripts/data_prepare.py` | Move thresholded SAM tensor to CPU before `.numpy()` | Enables released SAM path; mask values unchanged |
+| P05 | `scripts/data_prepare.py` | Move SAM tensors to CPU; make `paper-hybrid`, `released-hybrid`, and `gaussian` explicit; reject silent SAM fallback; pin TinyPerson to no-dense erased data and write a protocol manifest | Makes pseudo-mask and TinyPerson data provenance reproducible |
 | P06 | `models/common.py` | Key HeatMapParser caches by full spatial tuple, not equal-area products | Prevents stale rectangular grids and CUDA index faults |
-| P07 | `data/hyps/hyp.tinyperson.yaml`; delete `hyp.tinyperson.{scratch,finetune}.yaml` | Keep one dataset-specific profile (`lr0=0.005`, `pixl=0.4`) | Removes ambiguous/wrong training protocol |
+| P07 | `data/hyps/hyp.tinyperson.yaml`, `hyp.tinyperson.released.yaml`; delete `hyp.tinyperson.{scratch,finetune}.yaml` | Separate paper-text (`lr0=0.01`) from released-code (`lr0=0.005`) settings | Prevents paper/source protocol conflation |
 | P08 | `scripts/data_prepare.py`, `data/uavdt.yaml`, `models/cfg/esod/uavdt_yolov5m.yaml` | Preserve car/truck/bus as classes 0/1/2 and set `nc: 3` | Paper-comparable task; nc=1 checkpoints are incompatible |
 | P09 | `test.py` | Save raw prediction JSON before optional dataset-specific COCO formatting/evaluation | Prevents missing artifacts; disk JSON stays zero-indexed |
 | P10 | `test.py` | Compute target counts even when there are no true-positive hits | Correct labels/BPR display; AP math unchanged |
@@ -38,13 +38,14 @@ without a ledger entry is protocol drift.
 | P12 | `test.py` | Write `buckets.json` only for `--task measure` | Prevents empty validation artifacts from masquerading as compute evidence |
 | P13 | `utils/metrics.py` | Change BPRbox boundary from `>= 0.5` to the paper Eq. (7) strict `> 0.5`; denominator remains GT area via `box_ios` | Removes boundary-only selector-recall drift; no AP effect |
 
-P07 accounts for three paths, so P01-P13 map to the exact 11-path inventory:
+P07 accounts for four paths, so P01-P13 map to the exact 12-path inventory:
 
 ```text
 M data/uavdt.yaml
 D data/hyps/hyp.tinyperson.finetune.yaml
 D data/hyps/hyp.tinyperson.scratch.yaml
 A data/hyps/hyp.tinyperson.yaml
+A data/hyps/hyp.tinyperson.released.yaml
 M models/cfg/esod/uavdt_yolov5m.yaml
 M models/common.py
 M scripts/data_prepare.py
@@ -92,7 +93,7 @@ including graying ignored/`others` regions. Gaussian and released-hybrid SAM
 masks are selected explicitly by the runner; installed packages cannot choose
 the mask protocol implicitly.
 
-TinyPerson has one hyp file. UAVDT has one three-class dataset/model config and
+TinyPerson has explicit paper-text and released-code hyp files. UAVDT has one three-class dataset/model config and
 one converter behavior (`raw_class - 1`); no nc=1 or `_nc3` alternate remains.
 
 The HeatMapParser cache fix changes neither weights nor the intended grid. It

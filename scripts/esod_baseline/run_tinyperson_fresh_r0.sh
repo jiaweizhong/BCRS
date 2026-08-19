@@ -1,147 +1,154 @@
 #!/usr/bin/env bash
-# TinyPerson on the fresh, paper-comparable dataset (HESOD-Experiment-Plan.md
-# SS6): both train and test now use the "with_dense" sets (794 train / 816
-# test, exact match to the paper's stated counts) -- our original
-# mini_annotations pipeline silently excluded the dense crowd-scene images
-# (745/786 instead). Two arms: R0 (does training-set completeness alone close
-# any of the ~6pp APt50 gap?) and concat+SABL+ISPPHead (does the project's
-# best-known recipe, including the lightweight head, do the same or better?).
-# Plain concat+SABL (no head swap) is skipped here, same reasoning as the
-# SeaDronesSeeV2/UAVDT rosters -- go straight to the more informative
-# comparison rather than the intermediate arm.
+# Audited TinyPerson ESOD R0 reproduction runner.
 #
-# Requires the fresh dataset already converted:
+# Despite the historical filename, "fresh" means a freshly prepared copy of
+# the official no-dense benchmark, not the 794/816 with_dense dataset and not
+# the Roboflow augmented export. Two deliberately distinct protocols exist:
+#
+#   PROTOCOL=paper    lr0=0.01, focal:dice=20:1, paper Eq.(4) hybrid masks
+#   PROTOCOL=released lr0=0.005, weighted BCE, released hybrid-mask code
+#
+# Both use erased ignore/uncertain images, tiny_set_test_all.json, YOLOv5m
+# initialization, ratio=8, 2048 input, 50 epochs, and global batch 8. Run them
+# separately; their names and output roots cannot collide.
+#
+# Prepare a clean dataset first:
 #   cd /root/BCRS/hesod/backends/hesod
-#   python scripts/data_prepare.py --dataset /root/autodl-tmp/TinyPerson_fresh
-# and a data yaml at /root/autodl-tmp/TinyPerson_fresh.yaml.
-#
-# Runs at EPOCHS=50 (paper's own protocol, clean comparison) by default;
-# pass EPOCHS=100 for the extended-training variant. RUN_ROOT auto-suffixes
-# by epoch count so 50 and 100 never collide/skip each other via the
-# checkpoint-exists guard.
+#   python scripts/data_prepare.py \
+#     --dataset /root/autodl-tmp/tiny_set_paper \
+#     --tinyperson-mask-mode paper-hybrid
+#   cd /root/BCRS
+#   python scripts/esod_baseline/reorganize_tinyperson.py \
+#     --raw-root /root/autodl-tmp/tiny_set_paper \
+#     --out-root /root/autodl-tmp/TinyPerson_paper
 #
 # Usage:
-#   SMOKE=1 bash run_tinyperson_fresh_r0.sh
-#   EPOCHS=50  nohup bash run_tinyperson_fresh_r0.sh > /root/tinyperson_fresh_50.log 2>&1 & disown
-#   EPOCHS=100 nohup bash run_tinyperson_fresh_r0.sh > /root/tinyperson_fresh_100.log 2>&1 & disown
+#   SMOKE=1 PROTOCOL=paper bash scripts/esod_baseline/run_tinyperson_fresh_r0.sh
+#   PROTOCOL=paper bash scripts/esod_baseline/run_tinyperson_fresh_r0.sh
+#   PROTOCOL=released MASK_MODE=released-hybrid \
+#     bash scripts/esod_baseline/run_tinyperson_fresh_r0.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GPU="${1:-0}"
+GPU="${1:-${GPU:-0}}"
 BATCH="${BATCH:-8}"
 IMG_SIZE="${IMG_SIZE:-2048}"
+EPOCHS="${EPOCHS:-50}"
+PROTOCOL="${PROTOCOL:-paper}"
+RAW_ROOT="${RAW_ROOT:-/root/autodl-tmp/tiny_set_${PROTOCOL}}"
+DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/TinyPerson_${PROTOCOL}}"
+DATA_YAML="${DATA_YAML:-/root/autodl-tmp/TinyPerson_${PROTOCOL}.yaml}"
+GT_JSON="${GT_JSON:-$RAW_ROOT/mini_annotations/tiny_set_test_all.json}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
-DATA_ROOT="/root/autodl-tmp/TinyPerson_fresh"
-DATA_YAML="/root/autodl-tmp/TinyPerson_fresh.yaml"
-HYP="data/hyps/hyp.tinyperson.yaml"
-CLASSES="person"
+REUSE_CHECKPOINTS="${REUSE_CHECKPOINTS:-0}"
+
+case "$PROTOCOL" in
+  paper)
+    HYP="data/hyps/hyp.tinyperson.yaml"
+    MASK_MODE="${MASK_MODE:-paper-hybrid}"
+    TRAIN_FLAGS=(--selector-loss paper)
+    ;;
+  released)
+    HYP="data/hyps/hyp.tinyperson.released.yaml"
+    MASK_MODE="${MASK_MODE:-released-hybrid}"
+    TRAIN_FLAGS=(--selector-loss upstream)
+    ;;
+  *)
+    echo "FATAL: PROTOCOL must be 'paper' or 'released', got '$PROTOCOL'" >&2
+    exit 2
+    ;;
+esac
 
 SMOKE="${SMOKE:-0}"
 if [ "$SMOKE" = "1" ]; then
   EPOCHS=1
-  SUFFIX="_smoke"
-  log_prefix="SMOKE"
-  RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs_freshtp_smoke}"
+  RUN_KIND="smoke"
 else
-  EPOCHS="${EPOCHS:-50}"
-  SUFFIX=""
-  log_prefix="REAL"
-  RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs_freshtp_${EPOCHS}ep}"
+  RUN_KIND="real"
 fi
 
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$log_prefix] $*"; }
+RUN_ROOT="${RUN_ROOT:-$HOME/esod_tinyperson_${PROTOCOL}_${MASK_MODE}_${EPOCHS}ep}"
+RUN_NAME="tinyperson_esod_${PROTOCOL}_r0_ratio8_${MASK_MODE}_${EPOCHS}ep_${RUN_KIND}"
+RESULTS_DIR="$RUN_ROOT/test/$RUN_NAME"
+CKPT="$RUN_ROOT/train/$RUN_NAME/weights/best.pt"
 
-log "epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML run_root=$RUN_ROOT"
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$PROTOCOL/$RUN_KIND] $*"; }
 
-run_arm() {
-  local run_name="$1" model_cfg="$2"
-  shift 2
-  local extra_flags=("$@")
+if [ "$BATCH" -ne 8 ]; then
+  log "WARNING: paper global batch is 8; requested BATCH=$BATCH"
+fi
+if [[ "$PROTOCOL" == "paper" && "$GPU" != *,* ]]; then
+  log "WARNING: paper trained on two V100 GPUs; this run uses device specification '$GPU'"
+fi
 
-  local results_dir="$RUN_ROOT/test/$run_name"
-  mkdir -p "$results_dir"
-  cd "$ESOD_REPO"
+log "Auditing TinyPerson dataset before training"
+python "$SCRIPT_DIR/audit_tinyperson_protocol.py" \
+  --data-root "$DATA_ROOT" \
+  --gt "$GT_JSON" \
+  --expected-mask-mode "$MASK_MODE"
 
-  local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
-  if [ -f "$ckpt" ]; then
-    log "===== $run_name already trained (found $ckpt), skipping training ====="
+mkdir -p "$RESULTS_DIR"
+cd "$ESOD_REPO"
+
+log "protocol=$PROTOCOL mask=$MASK_MODE epochs=$EPOCHS img=$IMG_SIZE batch=$BATCH device=$GPU"
+log "data=$DATA_YAML gt=$GT_JSON run=$RUN_NAME"
+
+if [ -f "$CKPT" ]; then
+  if [ "$REUSE_CHECKPOINTS" = "1" ]; then
+    log "Reusing explicitly requested checkpoint: $CKPT"
   else
-    log "===== Training $run_name ====="
-    python train.py \
-      --data "$DATA_YAML" \
-      --cfg "$model_cfg" \
-      --weights weights/pretrained/yolov5m.pt \
-      --hyp "$HYP" \
-      --batch-size "$BATCH" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
-      "${extra_flags[@]}" \
-      --project "$RUN_ROOT/train" --name "$run_name" --exist-ok \
-      2>&1 | tee "$results_dir/${run_name}_train.log"
-  fi
-
-  if [ ! -f "$ckpt" ]; then
-    log "FATAL: $run_name training finished but $ckpt does not exist -- aborting before eval"
+    log "FATAL: checkpoint already exists: $CKPT"
+    log "Set REUSE_CHECKPOINTS=1 only after verifying its opt.yaml and protocol manifest."
     exit 1
   fi
+else
+  python train.py \
+    --data "$DATA_YAML" \
+    --cfg models/cfg/esod/tinyperson_yolov5m.yaml \
+    --weights weights/pretrained/yolov5m.pt \
+    --hyp "$HYP" \
+    --batch-size "$BATCH" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
+    "${TRAIN_FLAGS[@]}" \
+    --project "$RUN_ROOT/train" --name "$RUN_NAME" --exist-ok \
+    2>&1 | tee "$RESULTS_DIR/${RUN_NAME}_train.log"
+fi
 
-  log "Evaluating $run_name"
-  python test.py \
-    --data "$DATA_YAML" --weights "$ckpt" --task test \
-    --batch-size "$BATCH" --img-size "$IMG_SIZE" --device "$GPU" --save-json --save-regions \
-    --project "$RUN_ROOT/test" --name "$run_name" --exist-ok \
-    2>&1 | tee "$results_dir/${run_name}_test.log"
+if [ ! -f "$CKPT" ]; then
+  log "FATAL: training completed without $CKPT"
+  exit 1
+fi
 
-  log "Measuring $run_name (GFLOPs/FPS, batch=1)"
-  python test.py \
-    --data "$DATA_YAML" --weights "$ckpt" \
-    --batch-size 1 --img-size "$IMG_SIZE" --device "$GPU" --task measure \
-    --project "$RUN_ROOT/measure" --name "$run_name" --exist-ok \
-    2>&1 | tee "$results_dir/${run_name}_measure.log"
+python test.py \
+  --data "$DATA_YAML" --weights "$CKPT" --task test \
+  --batch-size "$BATCH" --img-size "$IMG_SIZE" --device "$GPU" --save-json --save-regions \
+  --project "$RUN_ROOT/test" --name "$RUN_NAME" --exist-ok \
+  2>&1 | tee "$RESULTS_DIR/${RUN_NAME}_test.log"
 
-  if [ ! -f "$results_dir/best_predictions.json" ]; then
-    log "WARNING: $run_name produced no predictions (expected at 1 epoch under SMOKE) -- skipping audit/vt_diagnose/official-eval"
-  else
-    log "Auditing $run_name"
-    python "$SCRIPT_DIR/audit_buckets.py" \
-      --pred "$results_dir/best_predictions.json" \
-      --labels "$DATA_ROOT/test" --images "$DATA_ROOT/test" \
-      --classes "$CLASSES" \
-      2>&1 | tee "$results_dir/${run_name}_audit.log" || log "WARNING: audit_buckets.py failed, continuing"
+python test.py \
+  --data "$DATA_YAML" --weights "$CKPT" --task measure \
+  --batch-size 1 --img-size "$IMG_SIZE" --device "$GPU" \
+  --project "$RUN_ROOT/measure" --name "$RUN_NAME" --exist-ok \
+  2>&1 | tee "$RESULTS_DIR/${RUN_NAME}_measure.log"
 
-    log "vt_diagnose: $run_name"
-    python "$SCRIPT_DIR/vt_diagnose.py" "$run_name" \
-      --labels-dir "$DATA_ROOT/test" --images-dir "$DATA_ROOT/test" \
-      --classes "$CLASSES" \
-      2>&1 | tee "$results_dir/${run_name}_vt_diagnose.log" || log "WARNING: vt_diagnose.py failed, continuing"
-
-    if [ "$SMOKE" = "1" ]; then
-      log "Skipping official TinyPerson evaluator under SMOKE"
-    else
-      log "Official TinyPerson evaluator (APt50/APs50, paper-comparable protocol): $run_name"
-      # Uses tiny_set_test_with_dense.json (816 images) to match what's
-      # actually being tested on now, not the old 786-image tiny_set_test_all.json.
-      python "$SCRIPT_DIR/tinyperson_eval/eval_tinyperson_official.py" \
-        --pred "$results_dir/best_predictions.json" \
-        --gt "$DATA_ROOT/annotations/tiny_set_test_with_dense.json" \
-        2>&1 | tee "$results_dir/${run_name}_official_eval.log" || log "WARNING: official evaluator failed, continuing"
-    fi
+PRED_JSON="$RESULTS_DIR/best_predictions.json"
+if [ ! -f "$PRED_JSON" ]; then
+  if [ "$SMOKE" = "1" ]; then
+    log "SMOKE produced no predictions; official evaluation skipped"
+    exit 0
   fi
-}
+  log "FATAL: missing predictions: $PRED_JSON"
+  exit 1
+fi
 
-# R0: does training-set completeness alone close any of the ~6pp APt50 gap?
-run_arm "tinyperson_yolov5m_baseline_fresh${SUFFIX}" \
-  "models/cfg/esod/tinyperson_yolov5m.yaml"
+python "$SCRIPT_DIR/tinyperson_eval/eval_tinyperson_official.py" \
+  --pred "$PRED_JSON" --gt "$GT_JSON" \
+  2>&1 | tee "$RESULTS_DIR/${RUN_NAME}_official_eval.log"
 
-# Concat+SABL+ISPPHead: the project's best-known TinyPerson recipe (concat
-# selector + SABL box loss + ISPPHead lightweight Detect head), re-run on
-# the fresh, complete dataset. Reuses the existing config -- head_type
-# selection doesn't depend on which dataset instance is used.
-run_arm "tinyperson_yolov5m_channel_pooled_concat_sabl_isphead_fresh${SUFFIX}" \
-  "models/cfg/esod/tinyperson_yolov5m_channel_pooled_concat_isphead.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
+python "$SCRIPT_DIR/audit_buckets.py" \
+  --pred "$PRED_JSON" \
+  --labels "$DATA_ROOT/labels/val" --images "$DATA_ROOT/images/val" \
+  --classes person \
+  2>&1 | tee "$RESULTS_DIR/${RUN_NAME}_audit.log"
 
-log "===== ALL DONE ====="
-log "  R0 fresh ($EPOCHS epochs):                   $RUN_ROOT/test/tinyperson_yolov5m_baseline_fresh${SUFFIX}/"
-log "  Concat+SABL+ISPPHead fresh ($EPOCHS epochs):  $RUN_ROOT/test/tinyperson_yolov5m_channel_pooled_concat_sabl_isphead_fresh${SUFFIX}/"
-log "  Compare against the original mini_annotations R0 (55.26/71.23 APt50/APs50, HESOD-Experiment-Plan.md SS2)"
-log "  and concat+SABL+ISPPHead's original mAP50:95/Very-Tiny-recall (0.231/76.75%, HESOD-Lightweight-Detector-Review-and-Roadmap.md SS5.2)."
+log "DONE: $RESULTS_DIR"

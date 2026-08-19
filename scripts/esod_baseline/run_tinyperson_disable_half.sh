@@ -43,12 +43,14 @@ GPU="${1:-0}"
 RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
 BATCH="${BATCH:-8}"
 IMG_SIZE="${IMG_SIZE:-2048}"
+MASK_MODE="${MASK_MODE:-paper-hybrid}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
 DATA_ROOT="/root/autodl-tmp/TinyPerson_v1"
 DATA_YAML="/root/autodl-tmp/TinyPerson_v1.yaml"
 HYP="data/hyps/hyp.tinyperson.yaml"
 CLASSES="person"
 TINY_SET_GT="/root/autodl-tmp/tiny_set/mini_annotations/tiny_set_test_all.json"
+REUSE_CHECKPOINTS="${REUSE_CHECKPOINTS:-0}"
 
 SMOKE="${SMOKE:-0}"
 if [ "$SMOKE" = "1" ]; then
@@ -63,7 +65,10 @@ fi
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$log_prefix] $*"; }
 
-log "epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML (--disable-half)"
+python "$SCRIPT_DIR/audit_tinyperson_protocol.py" \
+  --data-root "$DATA_ROOT" --gt "$TINY_SET_GT" --expected-mask-mode "$MASK_MODE"
+
+log "protocol=paper-text mask=$MASK_MODE epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML (--disable-half)"
 
 run_arm() {
   local run_name="$1" model_cfg="$2"
@@ -76,7 +81,12 @@ run_arm() {
 
   local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
   if [ -f "$ckpt" ]; then
-    log "===== $run_name already trained (found $ckpt), skipping training ====="
+    if [ "$REUSE_CHECKPOINTS" = "1" ]; then
+      log "===== explicitly reusing $ckpt ====="
+    else
+      log "FATAL: $ckpt already exists; refusing silent checkpoint reuse"
+      exit 1
+    fi
   else
     log "===== Training $run_name (--disable-half, pure FP32) ====="
     python train.py \
@@ -139,8 +149,9 @@ run_arm() {
 }
 
 # R0: paper-comparable baseline
-run_arm "tinyperson_yolov5m_baseline_fp32${SUFFIX}" \
-  "models/cfg/esod/tinyperson_yolov5m.yaml"
+run_arm "tinyperson_paper_r0_ratio8_${MASK_MODE}_fp32${SUFFIX}" \
+  "models/cfg/esod/tinyperson_yolov5m.yaml" \
+  --selector-loss paper
 
 # Concat+SABL: current best TinyPerson arm
 run_arm "tinyperson_yolov5m_channel_pooled_concat_sabl_fp32${SUFFIX}" \

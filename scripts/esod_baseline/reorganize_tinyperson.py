@@ -111,8 +111,16 @@ def main() -> None:
 
     raw_root = args.raw_root.resolve()
     out_root = args.out_root.resolve()
+    manifest = raw_root / "split" / "tinyperson_protocol.json"
+    if not manifest.is_file():
+        raise SystemExit(
+            f"missing {manifest} -- rerun the audited TinyPerson data_prepare.py; "
+            "legacy/unmanifested data is intentionally rejected"
+        )
     for split, split_file_name in SPLIT_FILES.items():
         reorganize(raw_root, out_root, split, split_file_name)
+    shutil.copyfile(manifest, out_root / "tinyperson_protocol.json")
+    print(f"[manifest] {manifest} -> {out_root / 'tinyperson_protocol.json'}")
 
 
 if __name__ == "__main__":

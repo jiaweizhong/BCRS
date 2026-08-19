@@ -29,11 +29,14 @@ GPU="${1:-0}"
 RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
 BATCH="${BATCH:-8}"
 IMG_SIZE="${IMG_SIZE:-2048}"
+MASK_MODE="${MASK_MODE:-paper-hybrid}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
 DATA_ROOT="/root/autodl-tmp/TinyPerson_v1"
 DATA_YAML="/root/autodl-tmp/TinyPerson_v1.yaml"
 HYP="data/hyps/hyp.tinyperson.yaml"
 CLASSES="person"
+TINY_SET_GT="${TINY_SET_GT:-/root/autodl-tmp/tiny_set/mini_annotations/tiny_set_test_all.json}"
+REUSE_CHECKPOINTS="${REUSE_CHECKPOINTS:-0}"
 
 SMOKE="${SMOKE:-0}"
 if [ "$SMOKE" = "1" ]; then
@@ -48,7 +51,10 @@ fi
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$log_prefix] $*"; }
 
-log "epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML"
+python "$SCRIPT_DIR/audit_tinyperson_protocol.py" \
+  --data-root "$DATA_ROOT" --gt "$TINY_SET_GT" --expected-mask-mode "$MASK_MODE"
+
+log "protocol=paper-data mask=$MASK_MODE epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML"
 
 run_arm() {
   local run_name="$1" model_cfg="$2"
@@ -61,7 +67,12 @@ run_arm() {
 
   local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
   if [ -f "$ckpt" ]; then
-    log "===== $run_name already trained (found $ckpt), skipping training ====="
+    if [ "$REUSE_CHECKPOINTS" = "1" ]; then
+      log "===== explicitly reusing $ckpt ====="
+    else
+      log "FATAL: $ckpt already exists; refusing silent checkpoint reuse"
+      exit 1
+    fi
   else
     log "===== Training $run_name ====="
     python train.py \
@@ -97,6 +108,11 @@ run_arm() {
   if [ ! -f "$results_dir/best_predictions.json" ]; then
     log "WARNING: $run_name produced no predictions (expected at 1 epoch under SMOKE) -- skipping audit/vt_diagnose"
   else
+    log "Official TinyPerson evaluator: $run_name"
+    python "$SCRIPT_DIR/tinyperson_eval/eval_tinyperson_official.py" \
+      --pred "$results_dir/best_predictions.json" --gt "$TINY_SET_GT" \
+      2>&1 | tee "$results_dir/${run_name}_official_eval.log"
+
     log "Auditing $run_name"
     python "$SCRIPT_DIR/audit_buckets.py" \
       --pred "$results_dir/best_predictions.json" \

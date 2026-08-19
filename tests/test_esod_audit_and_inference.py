@@ -259,17 +259,15 @@ def test_every_runner_records_exact_route_and_audits_paper_bprbox():
     assert 'audit_eval "$topk_name" "$ckpt" "$topk_dir" --top-k "$TOP_K"' in roster
 
 
-def test_only_canonical_tinyperson_and_uavdt_configs_remain():
+def test_only_explicit_tinyperson_protocol_configs_remain():
     for root in (
         ROOT / "esod",
         ROOT / "hesod" / "backends" / "esod",
         ROOT / "hesod" / "backends" / "hesod",
     ):
-        assert [p.name for p in root.rglob("hyp.tinyperson*.yaml")] == [
-            "hyp.tinyperson.yaml"
-        ]
-        assert [p.name for p in root.rglob("uavdt_yolov5m*.yaml")] == [
-            "uavdt_yolov5m.yaml"
+        assert sorted(p.name for p in root.rglob("hyp.tinyperson*.yaml")) == [
+            "hyp.tinyperson.released.yaml",
+            "hyp.tinyperson.yaml",
         ]
 
 
@@ -294,6 +292,7 @@ def test_plain_baseline_mirror_and_patch_ledger_stay_in_sync():
         "data/hyps/hyp.tinyperson.finetune.yaml",
         "data/hyps/hyp.tinyperson.scratch.yaml",
         "data/hyps/hyp.tinyperson.yaml",
+        "data/hyps/hyp.tinyperson.released.yaml",
         "models/cfg/esod/uavdt_yolov5m.yaml",
         "models/common.py",
         "scripts/data_prepare.py",
@@ -302,6 +301,6 @@ def test_plain_baseline_mirror_and_patch_ledger_stay_in_sync():
         "utils/general.py",
         "utils/metrics.py",
     }
-    assert "exactly **11 path deltas**" in ledger
+    assert "exactly **12 path deltas**" in ledger
     for path in expected_delta:
         assert path in ledger

@@ -1,5 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import argparse
+import hashlib
 import os
 import os.path as osp
 from os.path import join, exists, isdir, basename, abspath
@@ -18,11 +19,12 @@ import torch.nn.functional as F
 import sys; sys.path.append('./')
 from utils.general import gaussian2D
 
+sam_checkpoint = "./weights/sam_vit_h_4b8939.pth"
+model_type = "vit_h"
+
 try:
     from segment_anything import SamPredictor, sam_model_registry
 
-    sam_checkpoint = "./weights/sam_vit_h_4b8939.pth"
-    model_type = "vit_h"
     device = "cuda"
 
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint).to(device) #.half()  Warning: Precision Drops
@@ -40,6 +42,14 @@ def _readlines(path):
         lines = f.read().splitlines()
     
     return lines
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def check_break(act):
@@ -127,7 +137,15 @@ def segment_image(image, labels, width, height):
     return mask, invalid
 
 
-def gen_mask(label_path, image, cls_ratio=False, thresh=0.5, sam_only=False):
+def gen_mask(label_path, image, cls_ratio=False, thresh=0.5, sam_only=False, sam_mode='auto'):
+    if sam_mode not in ('auto', 'gaussian', 'released-hybrid', 'paper-hybrid'):
+        raise ValueError(f'unsupported sam_mode: {sam_mode}')
+    use_sam = predictor is not None if sam_mode == 'auto' else sam_mode != 'gaussian'
+    if use_sam and predictor is None:
+        raise RuntimeError(
+            f'{sam_mode} pseudo masks require Segment Anything and '
+            f'{sam_checkpoint}; refusing to silently fall back to Gaussian masks'
+        )
     if cls_ratio:
         cls_ratio = [1.83, 5.35, 13.82, 1.00, 5.80, 11.25, 30.11, 44.63, 24.45, 4.89]  # train set
     stride = 1
@@ -146,7 +164,7 @@ def gen_mask(label_path, image, cls_ratio=False, thresh=0.5, sam_only=False):
     mask = np.zeros((ny, nx), dtype=np.float16)
     weight = np.ones_like(mask)
     
-    if predictor is not None:
+    if use_sam:
         sam_res, invalid = segment_image(image, labels, width, height)
         if stride != 1:
             sam_res = F.interpolate(sam_res[None, None, ...].float(), size=(ny, nx), mode='bilinear', align_corners=False)[0, 0]
@@ -170,10 +188,13 @@ def gen_mask(label_path, image, cls_ratio=False, thresh=0.5, sam_only=False):
         w, h = x2 - x1, y2 - y1
         gaussian = gaussian2D((h, w), sigma=None, thresh=thresh).astype(mask.dtype)
         
-        if predictor is not None:
+        if use_sam:
             sam_mask = sam_res[y1:y2, x1:x2].copy()
             if sam_only:
                 gaussian = sam_mask
+            elif sam_mode == 'paper-hybrid':
+                if sam_mask.sum() > 0:
+                    gaussian *= sam_mask
             else:
                 if invalid[i] == 0 and sam_mask.sum() / (w * h) > 0.25:
                     gaussian *= sam_mask
@@ -354,13 +375,24 @@ def prepare_uavdt():
 
 
 def prepare_tinyperson():
+    # Official TinyPerson detection excludes dense images and uses the erased
+    # ignore/uncertain image tree. The paper's 794/816 counts describe the
+    # complete dataset, not the benchmark train/evaluation split.
     root = opt.dataset
     label_file_dict = {'train': join(root, 'mini_annotations', 'tiny_set_train_all_erase.json'),
                        'test': join(root, 'mini_annotations', 'tiny_set_test_all.json')}
     image_dir = join(root, 'erase_with_uncertain_dataset')
     split_dir = join(root, 'split')
+    mask_mode = opt.tinyperson_mask_mode
+
+    if mask_mode != 'gaussian' and predictor is None:
+        raise RuntimeError(
+            f'--tinyperson-mask-mode={mask_mode} requires Segment Anything and '
+            f'{sam_checkpoint}; install/load it or explicitly select gaussian'
+        )
 
     os.makedirs(split_dir, exist_ok=True)
+    split_stats = {}
     for mode in ['train', 'test']:
         with open(label_file_dict[mode], 'r') as f:
             anno = json.load(f)
@@ -372,7 +404,7 @@ def prepare_tinyperson():
             image_dict[item['id']] = {'shape': [width, height], 'bboxes': [], 'image_path': file_path}
         
         for item in anno['annotations']:
-            if item['ignore'] or item['uncertain']:
+            if item.get('ignore', False) or item.get('uncertain', False):
                 continue
             _id, (x1, y1, w, h) = item['image_id'], item['bbox']
             (width, height) = image_dict[_id]['shape']
@@ -387,8 +419,15 @@ def prepare_tinyperson():
                 f.writelines(item['bboxes'])
             
             image = cv2.imread(image_path)
-            gen_mask(label_path, image)
+            if image is None:
+                raise FileNotFoundError(f'failed to read TinyPerson image: {image_path}')
+            gen_mask(label_path, image, sam_mode=mask_mode)
             paths.append(image_path + '\n')
+
+        split_stats[mode] = {
+            'images': len(paths),
+            'positive_boxes': sum(len(item['bboxes']) for item in image_dict.values()),
+        }
         
         if mode == 'train':
             with open(join(split_dir, 'trainval.txt'), 'w+') as f:
@@ -403,11 +442,35 @@ def prepare_tinyperson():
         else:
             with open(join(split_dir, 'test.txt'), 'w+') as f:
                 f.writelines(paths)
+
+    manifest = {
+        'schema_version': 1,
+        'protocol': 'tinyperson-official-no-dense-erased',
+        'dense_images': False,
+        'erased_ignore_uncertain_pixels': True,
+        'mask_mode': mask_mode,
+        'annotations': {
+            mode: {
+                'path': osp.relpath(path, root).replace('\\', '/'),
+                'sha256': _sha256(path),
+            }
+            for mode, path in label_file_dict.items()
+        },
+        'splits': split_stats,
+    }
+    with open(join(split_dir, 'tinyperson_protocol.json'), 'w', encoding='utf-8') as f:
+        json.dump(manifest, f, indent=2, sort_keys=True)
                 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='VisDrone', help='dataset, e.g., VisDrone, UAVDT, and TinyPerson')
+    parser.add_argument(
+        '--tinyperson-mask-mode',
+        choices=('paper-hybrid', 'released-hybrid', 'gaussian'),
+        default='paper-hybrid',
+        help='TinyPerson pseudo-mask protocol; hybrid modes fail if SAM is unavailable',
+    )
     opt = parser.parse_args()
 
     assert exists(opt.dataset)
