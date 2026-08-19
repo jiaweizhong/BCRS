@@ -354,21 +354,44 @@ def prepare_uavdt():
 
 
 def prepare_tinyperson():
+    # Train: paper-comparable "with_dense" set (794 images -- includes the 48
+    # labeled_dense_images/ crowd scenes ESOD's own text describes but this
+    # project's original mini_annotations/*_erase pipeline silently excluded).
+    # Confirmed 2026-08-19: mini_annotations gave 745/786 vs. the paper's
+    # stated 794/816; tiny_set_train_with_dense.json matches 794 exactly. Its
+    # file_name entries (e.g. 'labeled_images/xxx.jpg') resolve against the
+    # RAW train/ tree from train.tar.gz, not erase_with_uncertain_dataset/ --
+    # this download has no erased version of the dense images, so train now
+    # runs on raw (unerased) images throughout, not just the 48 dense ones.
+    # ignore/uncertain box-level filtering (below) is unaffected by this --
+    # it drops the same boxes either way; erasure only additionally blanks
+    # those pixels in the input image itself.
+    #
+    # Test: UNCHANGED (mini_annotations/tiny_set_test_all.json, 786 images,
+    # erase_with_uncertain_dataset/test/) -- the corresponding ~30 test-side
+    # dense images are not present anywhere in this download (checked every
+    # tar: annotations.tar, erase_with_uncertain_dataset.tar, left.tar,
+    # train.tar.gz), so eval stays on the existing, already-established test
+    # set for continuity with every prior TinyPerson result. Train and test
+    # therefore use different image preprocessing (raw vs erased) -- a
+    # deliberate, acknowledged tradeoff (train on as much labeled data as
+    # possible; hold eval fixed), not an oversight.
     root = opt.dataset
-    label_file_dict = {'train': join(root, 'mini_annotations', 'tiny_set_train_all_erase.json'),
+    label_file_dict = {'train': join(root, 'annotations', 'tiny_set_train_with_dense.json'),
                        'test': join(root, 'mini_annotations', 'tiny_set_test_all.json')}
-    image_dir = join(root, 'erase_with_uncertain_dataset')
+    image_dir_dict = {'train': join(root, 'train'),
+                      'test': join(root, 'erase_with_uncertain_dataset', 'test')}
     split_dir = join(root, 'split')
 
     os.makedirs(split_dir, exist_ok=True)
     for mode in ['train', 'test']:
         with open(label_file_dict[mode], 'r') as f:
             anno = json.load(f)
-    
+
         image_dict = {}
         for item in anno['images']:
             file_name, width, height = item['file_name'], item['width'], item['height']
-            file_path = join(image_dir, mode, file_name)
+            file_path = join(image_dir_dict[mode], file_name)
             image_dict[item['id']] = {'shape': [width, height], 'bboxes': [], 'image_path': file_path}
         
         for item in anno['annotations']:
