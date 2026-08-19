@@ -425,6 +425,50 @@ H1b 只借鉴 ESOD-YOLO 的共享 inverse-residual/partial-convolution stem，�
 
 H1a 与 H1b 先以实际 Params/GFLOPs/latency 决定主候选；ESOD-YOLO 的 isolated ISPP 仅减少 0.4M Params/0.1 GFLOPs，不能预设 H1b 必然优于更简单的 H1a。
 
+#### H1a/H1b 实测结果（TinyPerson concat+SABL，2026-08-19，单 seed）
+
+代码中分别实现为 `SharedDWHead`（H1a）与 `ISPPHead`（H1b），`models/common.py`。
+`head_type` 现已可从 yaml 直接选择（`models/yolo.py` 的 `Detect`/
+`get_decoupled_heads`/`parse_model` 已支持 `Detect, [nc, anchors, 'SharedDWHead'|'ISPPHead']`
+写法，向后兼容，旧配置不写第三项时仍默认 `YOLOv6Head`）。基于 TinyPerson 目前
+最佳 arm（channel-pooled concat + SABL）测试，仅替换 Detect head，其余
+（selector、loss、hyp、img-size=2048、50 epochs）完全一致：
+
+| Head | Total params | Detect params | mAP50 | mAP50:95 | R | Very Tiny recall | GFLOPs | FPS | inference ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| YOLOv6Head（baseline） | 35.808M | 14.741M | 0.627 | 0.231 | 0.592 | 76.72% | 242.0 | 80.6 | 12.4 |
+| H1b / ISPPHead | 25.939M | 4.872M | 0.625 | 0.231 | 0.582 | 76.75% | 190.1 | 85.5 | 11.7 |
+| H1a / SharedDWHead | 21.301M | 0.234M | 0.611 | 0.221 | 0.574 | 74.44% | 168.5 | 87.4 | 11.4 |
+
+Params 是用这份实际 yaml（`tinyperson_yolov5m_channel_pooled_concat_{shareddw,isphead}.yaml`）
+实例化模型直接量出的，不是 SS5.2 早先合成 c1=768 的估算值。对照 SS7 的
+promotion gate（原为 Pest24 E0-200 场景设计，这里借用同一套阈值检查跨数据集
+的候选是否成立）：
+
+- **GFLOPs 降幅 ≥20%**：H1b -21.5%（达标），H1a -30.4%（达标）。
+- **AP50:95 不下降超过 0.5pp，或 Very Tiny recall/定位明显提高**：H1b 持平
+  （0.231=0.231，Very Tiny recall 76.75% vs 76.72%，噪声范围内），达标；H1a
+  下降 1.0pp（0.231->0.221）且 Very Tiny recall 下降 2.28pp，不达标。
+- **batch=1 p50 latency 必须实际下降**：两者都下降（12.4ms -> 11.7ms(H1b)/
+  11.4ms(H1a)），达标，不只是 profiler FLOPs 好看。
+- **Detect 参数减少至少 70%**：H1a 98.4%（远超，远比 SS5.2 目标"降到约
+  1-3M"更激进，实际 0.234M）达标；H1b 66.95%（4.872M），**不达标**，也没有
+  落入 SS5.2 目标区间（1-3M）。
+- **整体参数不高于 25M**：H1a 21.301M 达标；H1b 25.939M，**不达标**（超出约
+  4%，也没有落入 SS5.2 目标区间 22-24M）。
+
+**结论：H1b（ISPPHead）在精度和实测延迟上表现最好（唯一一个精度基本无损、
+延迟确实下降的候选），但没有满足这份路线图自己定的参数削减目标**——
+Detect 只降了 67%（目标 70%+/1-3M，实际 4.872M），整体参数还略超 25M 门槛。
+H1a（SharedDWHead）满足所有参数/GFLOPs/latency 目标，但精度损失是真实的、
+超出 0.5pp 容差，c_mid=128 的共享 trunk 可能过度压缩了容量。两者都不是能
+直接晋升主模型的干净结果：H1b 需要要么接受它没打满参数目标、要么进一步
+压缩 predictor 宽度；H1a 需要恢复一部分容量（更大 c_mid，或恢复部分独立分
+支）换回精度。仅单 seed，也还没满足 SS7"若只有单一 seed 小幅提高，不晋升
+主模型"的多 seed 要求。下一步：(a) 若继续走 H1b 路线，尝试缩小其 predictor
+（目前复用 YOLOv6Head 全宽度）；(b) 若继续走 H1a 路线，提高 c_mid 找精度/
+参数平衡点；(c) 两条线都至少再跑 1-2 个 seed 确认当前差距不是运气。
+
 ### 5.3 P2：Pest24 小目标尺度重构
 
 #### H2：P2/P3/P4 替代 P3/P4/P5

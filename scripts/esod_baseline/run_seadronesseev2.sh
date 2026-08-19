@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# SeaDronesSeeV2 (CompressedVersion): R0 baseline + concat+SABL, per the
-# user's plan -- a new dataset chosen for high native resolution (mixed, up
-# to 3840x2160) and small objects, though the diagnostic (2026-08-xx) found
-# only ~5.5% of train boxes are "Very Tiny" (<256px^2) vs VisDrone's ~31% /
-# TinyPerson's ~53% -- so unlike those two, the "routing should win here"
-# premise is only partially supported going in; this is an exploratory run,
-# not a confirmatory one. No YOLOv5 baseline exists in the original
-# SeaDronesSeeV2 paper (different class taxonomy, non-YOLO baselines) --
-# purely internal R0-vs-concat comparison, no external paper-accuracy target.
+# SeaDronesSeeV2 (CompressedVersion): R0 baseline + concat+SABL +
+# concat+SABL+ISPPHead, per the user's plan -- a new dataset chosen for high
+# native resolution (mixed, up to 3840x2160) and small objects, though the
+# diagnostic (2026-08-xx) found only ~5.5% of train boxes are "Very Tiny"
+# (<256px^2) vs VisDrone's ~31% / TinyPerson's ~53% -- so unlike those two,
+# the "routing should win here" premise is only partially supported going in;
+# this is an exploratory run, not a confirmatory one. No YOLOv5 baseline
+# exists in the original SeaDronesSeeV2 paper (different class taxonomy,
+# non-YOLO baselines) -- purely internal comparison, no external
+# paper-accuracy target. The third arm (ISPPHead, HESOD-Lightweight-
+# Detector-Review-and-Roadmap.md SS5.2) tests whether TinyPerson's
+# accuracy-neutral ~21% GFLOPs reduction (SS5.2's "H1a/H1b 实测结果")
+# holds on a third, structurally different dataset.
 #
 # img-size 1536: reference/HighResolution/*.pdf split 640x640 (EUAVDet.pdf,
 # SeaLSOD-YOLO.pdf, and "Maritime Small Object Detection.pdf"'s SAHI tile
@@ -135,6 +139,15 @@ run_arm "seadronesseev2_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
   "models/cfg/esod/seadronesseev2_yolov5m_channel_pooled_concat.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
 
+# Concat+SABL+ISPPHead: H1b lightweight Detect head (HESOD-Lightweight-
+# Detector-Review-and-Roadmap.md SS5.2) on top of the concat+SABL arm above.
+# On TinyPerson this held accuracy flat while cutting GFLOPs ~21% -- testing
+# whether that holds on a third, structurally different dataset.
+run_arm "seadronesseev2_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
+  "models/cfg/esod/seadronesseev2_yolov5m_channel_pooled_concat_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
+
 log "===== ALL DONE ====="
-log "  R0:          $RUN_ROOT/test/seadronesseev2_yolov5m_baseline${SUFFIX}/"
-log "  Concat+SABL: $RUN_ROOT/test/seadronesseev2_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
+log "  R0:                   $RUN_ROOT/test/seadronesseev2_yolov5m_baseline${SUFFIX}/"
+log "  Concat+SABL:           $RUN_ROOT/test/seadronesseev2_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
+log "  Concat+SABL+ISPPHead:  $RUN_ROOT/test/seadronesseev2_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}/"
