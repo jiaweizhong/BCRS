@@ -81,11 +81,11 @@ def test_reorganizer_writes_runner_ready_yaml(tmp_path: Path):
     out_root = tmp_path / "TinyPerson_official_paper"
     yaml_path = tmp_path / "TinyPerson_official_paper.yaml"
     module.write_dataset_yaml(yaml_path, out_root)
-    text = yaml_path.read_text(encoding="utf-8")
-    assert f"path: {out_root.as_posix()}" in text
-    assert "train: images/train" in text
-    assert "val: images/val" in text
-    assert "test: images/val" in text
+    data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    assert data["train"] == (out_root / "images" / "train").resolve().as_posix()
+    assert data["val"] == (out_root / "images" / "val").resolve().as_posix()
+    assert data["test"] == (out_root / "images" / "val").resolve().as_posix()
+    assert "path" not in data
 
 
 def test_two_arm_runner_is_exactly_r0_and_concat_isphead():

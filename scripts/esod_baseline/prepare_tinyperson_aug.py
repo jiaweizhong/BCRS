@@ -269,12 +269,14 @@ def convert_split(
 
 
 def write_yaml(path: Path, output_root: Path) -> None:
+    # The bundled YOLOv5 predates support for the top-level dataset `path:`
+    # key, so relative split paths would be resolved against the backend cwd.
+    output_root = output_root.resolve()
     content = (
         f"# {PROTOCOL}; exploratory only, not the official TinyPerson benchmark.\n"
-        f"path: {output_root.as_posix()}\n"
-        "train: images/train\n"
-        "val: images/valid\n"
-        "test: images/test\n\n"
+        f"train: {(output_root / 'images' / 'train').as_posix()}\n"
+        f"val: {(output_root / 'images' / 'valid').as_posix()}\n"
+        f"test: {(output_root / 'images' / 'test').as_posix()}\n\n"
         "nc: 1\n"
         "names: [person]\n"
     )

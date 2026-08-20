@@ -42,13 +42,16 @@ SPLIT_FILES = {"train": "trainval.txt", "val": "test.txt"}
 
 
 def write_dataset_yaml(path: Path, out_root: Path) -> None:
+    # This backend is based on an older YOLOv5 revision whose check_dataset()
+    # does not resolve the newer top-level `path:` key. Keep split paths
+    # absolute so training works regardless of the current working directory.
+    out_root = out_root.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "# Audited official TinyPerson: full trainval, official no-dense test.\n"
-        f"path: {out_root.as_posix()}\n"
-        "train: images/train\n"
-        "val: images/val\n"
-        "test: images/val\n\n"
+        f"train: {(out_root / 'images' / 'train').as_posix()}\n"
+        f"val: {(out_root / 'images' / 'val').as_posix()}\n"
+        f"test: {(out_root / 'images' / 'val').as_posix()}\n\n"
         "nc: 1\n"
         "names: [person]\n",
         encoding="utf-8",

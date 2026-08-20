@@ -4,6 +4,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,20 @@ def load_audit_module():
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
+
+
+def test_yaml_uses_absolute_paths_for_bundled_yolov5(tmp_path):
+    module = load_module()
+    output_root = tmp_path / "TinyPerson_aug"
+    yaml_path = tmp_path / "TinyPerson_aug.yaml"
+
+    module.write_yaml(yaml_path, output_root)
+    data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+
+    assert data["train"] == (output_root / "images" / "train").resolve().as_posix()
+    assert data["val"] == (output_root / "images" / "valid").resolve().as_posix()
+    assert data["test"] == (output_root / "images" / "test").resolve().as_posix()
+    assert "path" not in data
 
 
 def test_convert_roboflow_coco_merges_categories_and_writes_masks(tmp_path):
