@@ -61,6 +61,15 @@ fi
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$log_prefix] $*"; }
 
+completed_epochs() {
+  local results_file="$1/results.txt"
+  if [ ! -f "$results_file" ]; then
+    echo 0
+    return
+  fi
+  awk 'NF { count++ } END { print count + 0 }' "$results_file"
+}
+
 log "epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML"
 
 run_arm() {
@@ -72,9 +81,21 @@ run_arm() {
   mkdir -p "$results_dir"
   cd "$ESOD_REPO"
 
-  local ckpt="$RUN_ROOT/train/$run_name/weights/best.pt"
-  if [ -f "$ckpt" ]; then
-    log "===== $run_name already trained (found $ckpt), skipping training ====="
+  local train_dir="$RUN_ROOT/train/$run_name"
+  local ckpt="$train_dir/weights/best.pt"
+  local last_ckpt="$train_dir/weights/last.pt"
+  local done_epochs
+  done_epochs="$(completed_epochs "$train_dir")"
+
+  if [ "$done_epochs" -ge "$EPOCHS" ] && [ -f "$ckpt" ]; then
+    log "===== $run_name already completed $done_epochs/$EPOCHS epochs, skipping training ====="
+  elif [ -f "$last_ckpt" ]; then
+    log "===== Resuming $run_name from $last_ckpt ($done_epochs/$EPOCHS epochs completed) ====="
+    python train.py --resume "$last_ckpt" \
+      2>&1 | tee -a "$results_dir/${run_name}_train.log"
+  elif [ -f "$ckpt" ] || [ "$done_epochs" -gt 0 ]; then
+    log "FATAL: $run_name is incomplete ($done_epochs/$EPOCHS epochs) but $last_ckpt is missing"
+    exit 1
   else
     log "===== Training $run_name ====="
     python train.py \
@@ -86,6 +107,12 @@ run_arm() {
       "${extra_flags[@]}" \
       --project "$RUN_ROOT/train" --name "$run_name" --exist-ok \
       2>&1 | tee "$results_dir/${run_name}_train.log"
+  fi
+
+  done_epochs="$(completed_epochs "$train_dir")"
+  if [ "$done_epochs" -lt "$EPOCHS" ]; then
+    log "FATAL: $run_name has only $done_epochs/$EPOCHS completed epochs after training/resume"
+    exit 1
   fi
 
   if [ ! -f "$ckpt" ]; then
