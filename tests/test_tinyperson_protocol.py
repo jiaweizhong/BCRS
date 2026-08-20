@@ -19,15 +19,12 @@ def load_module(path: Path):
     return module
 
 
-def test_tinyperson_hyp_profiles_are_explicit_and_distinct():
+def test_tinyperson_keeps_only_the_paper_hyp_profile():
     for backend in (ROOT / "esod", ROOT / "hesod" / "backends" / "esod", ROOT / "hesod" / "backends" / "hesod"):
-        paper = yaml.safe_load((backend / "data/hyps/hyp.tinyperson.yaml").read_text(encoding="utf-8"))
-        released = yaml.safe_load(
-            (backend / "data/hyps/hyp.tinyperson.released.yaml").read_text(encoding="utf-8")
-        )
+        profiles = sorted((backend / "data/hyps").glob("hyp.tinyperson*.yaml"))
+        assert [profile.name for profile in profiles] == ["hyp.tinyperson.yaml"]
+        paper = yaml.safe_load(profiles[0].read_text(encoding="utf-8"))
         assert paper["lr0"] == pytest.approx(0.01)
-        assert released["lr0"] == pytest.approx(0.005)
-        assert {**paper, "lr0": released["lr0"]} == released
 
 
 def test_tinyperson_converter_pins_no_dense_erased_data_and_explicit_masks():
@@ -44,18 +41,6 @@ def test_tinyperson_converter_pins_no_dense_erased_data_and_explicit_masks():
         assert "tiny_set_test_with_dense.json" not in function
         assert "tinyperson_protocol.json" in function
         assert "sam_mode=mask_mode" in function
-
-
-def test_tinyperson_r0_runner_separates_paper_and_released_protocols():
-    source = (ROOT / "scripts/esod_baseline/run_tinyperson_fresh_r0.sh").read_text(encoding="utf-8")
-    assert 'PROTOCOL="${PROTOCOL:-paper}"' in source
-    assert "hyp.tinyperson.released.yaml" in source
-    assert "TRAIN_FLAGS=(--selector-loss paper)" in source
-    assert "TRAIN_FLAGS=(--selector-loss upstream)" in source
-    assert "audit_tinyperson_protocol.py" in source
-    assert "tiny_set_test_all.json" in source
-    assert "tiny_set_test_with_dense.json" not in source
-    assert "REUSE_CHECKPOINTS" in source
 
 
 def test_tinyperson_official_evaluator_rejects_nonstandard_gt(tmp_path: Path):
@@ -95,7 +80,7 @@ def test_two_arm_runner_is_exactly_r0_and_concat_isphead():
     assert "_r0${SUFFIX}" in calls[0]
     assert "concat_isphead_coverage_sabl" in calls[1]
     assert "tinyperson_yolov5m_channel_pooled_concat_isphead.yaml" in runner
-    assert "DATASET must be official or aug" in runner
+    assert 'DATASET="${DATASET:-' not in runner
+    assert "audit_tinyperson_protocol.py" in runner
     assert 'EVAL_SPLIT="val"' in runner
-    assert 'EVAL_SPLIT="test"' in runner
     assert not any(line.startswith("VAL_SPLIT=") for line in runner.splitlines())

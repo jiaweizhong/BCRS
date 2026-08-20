@@ -266,7 +266,6 @@ def test_only_explicit_tinyperson_protocol_configs_remain():
         ROOT / "hesod" / "backends" / "hesod",
     ):
         assert sorted(p.name for p in root.rglob("hyp.tinyperson*.yaml")) == [
-            "hyp.tinyperson.released.yaml",
             "hyp.tinyperson.yaml",
         ]
 
@@ -292,7 +291,6 @@ def test_plain_baseline_mirror_and_patch_ledger_stay_in_sync():
         "data/hyps/hyp.tinyperson.finetune.yaml",
         "data/hyps/hyp.tinyperson.scratch.yaml",
         "data/hyps/hyp.tinyperson.yaml",
-        "data/hyps/hyp.tinyperson.released.yaml",
         "models/cfg/esod/uavdt_yolov5m.yaml",
         "models/common.py",
         "scripts/data_prepare.py",
@@ -301,6 +299,6 @@ def test_plain_baseline_mirror_and_patch_ledger_stay_in_sync():
         "utils/general.py",
         "utils/metrics.py",
     }
-    assert "exactly **12 path deltas**" in ledger
+    assert "exactly **11 path deltas**" in ledger
     for path in expected_delta:
         assert path in ledger

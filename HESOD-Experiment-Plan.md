@@ -9,14 +9,13 @@ belong in Git history or `ESOD-Baseline-Patches.md`.
 | Dataset | Data | Classes | Model | Hyp | Input | Evaluation split |
 |---|---|---:|---|---|---:|---|
 | VisDrone | `/root/autodl-tmp/VisDrone_v2.yaml` | 10 | `visdrone_yolov5m.yaml` | `hyp.visdrone.yaml` | 1536 | val: 548 images, 38,759 GT |
-| TinyPerson | protocol-specific audited YAML | 1 | `tinyperson_yolov5m.yaml` | paper: `hyp.tinyperson.yaml`; released: `hyp.tinyperson.released.yaml` | 2048 | official test: 786 images, no dense images |
+| TinyPerson | protocol-specific audited YAML | 1 | `tinyperson_yolov5m.yaml` | `hyp.tinyperson.yaml` | 2048 | official test: 786 images, no dense images |
 | UAVDT | `/root/autodl-tmp/UAVDT_v3.yaml` | 3 | `uavdt_yolov5m.yaml` | `hyp.uavdt.yaml` | 1280 | test: car/truck/bus |
 
 Common training protocol: YOLOv5m, 50 epochs, SGD, global batch 8, cosine
 scheduling, and weight decay 0.0005. TinyPerson's paper-text profile uses
-`lr0=0.01`, `pixl=0.4`, and focal:dice 20:1. The separate released-code
-control uses `lr0=0.005` and weighted BCE; the two profiles must not share a
-run name, output directory, or protocol claim. No alternate UAVDT class
+`lr0=0.01`, `pixl=0.4`, and focal:dice 20:1. Alternate TinyPerson
+hyperparameter profiles are no longer retained. No alternate UAVDT class
 protocol is valid.
 
 Metric contract:
@@ -63,21 +62,15 @@ Metric contract:
 
 The paper text and public code define distinct label controls. These masks are
 offline pseudo-label preprocessing (`masks/<split>/<stem>.npy`), not changes to
-the YOLO bbox labels. For TinyPerson, the supported audited controls are:
-
-1. **Paper-text protocol:** focal:dice 20:1 (`--selector-loss paper`) plus the
-   literal RGB-SAM Eq. 4 mask (`--tinyperson-mask-mode paper-hybrid`), with no
-   extra union term.
-2. **Released-code control:** weighted BCE (`--selector-loss upstream`) plus
-   the public implementation's hybrid behavior
-   (`--tinyperson-mask-mode released-hybrid`).
-3. **Gaussian diagnostic:** `--tinyperson-mask-mode gaussian`; this is an
-   explicit ablation, not either hybrid protocol.
+the YOLO bbox labels. TinyPerson experiments use the paper-text protocol:
+focal:dice 20:1 (`--selector-loss paper`) plus the literal RGB-SAM Eq. 4 mask
+(`--tinyperson-mask-mode paper-hybrid`), with no extra union term. Gaussian is
+available only as an explicit preprocessing diagnostic, not as an experiment
+configuration.
 
 Every prepared TinyPerson dataset carries `tinyperson_protocol.json`, including
 annotation hashes and mask mode. Hybrid preprocessing fails if SAM is missing;
-it never silently falls back to Gaussian. Do not label a released-code run as
-a paper-text reproduction.
+it never silently falls back to Gaussian.
 
 Routing contract:
 
@@ -112,9 +105,9 @@ Interpretation is intentionally narrow:
   reproduction: its retained training log identifies ratio 16 while the
   current source is ratio 8, and no matching official-evaluation log remains.
 - UAVDT nc=3 is paper-comparable; the released nc=1 collapse is another task.
-- TinyPerson must first rerun the now-separated paper-text and released-code
-  protocols. Only after that comparison is hardware topology (one GPU versus
-  the paper's two V100s at global batch 8) a useful remaining variable.
+- TinyPerson uses only the retained official paper-text two-arm runner. Hardware
+  topology (one GPU versus the paper's two V100s at global batch 8) remains a
+  documented reproduction variable.
 
 Retained bundles under `results/`:
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Train exactly two arms on either official TinyPerson or TinyPerson-Aug:
+# Train exactly two arms on the official original TinyPerson dataset:
 #   1) paper-loss ESOD R0
 #   2) HESOD channel-pooled concat + ISPHead + coverage/SABL treatment
 #
-# DATASET=official uses the official no-dense/erased protocol and APt50/APs50.
-# DATASET=aug uses the Roboflow splits and ordinary YOLO metrics only.
+# This runner intentionally supports only the official no-dense/erased
+# TinyPerson protocol and reports the official APt50/APs50 metrics.
 
 set -euo pipefail
 
@@ -12,7 +12,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ESOD_REPO="$REPO_ROOT/hesod/backends/hesod"
 
-DATASET="${DATASET:-official}"
 MASK_MODE="${MASK_MODE:-paper-hybrid}"
 GPU="${GPU:-0}"
 BATCH="${BATCH:-8}"
@@ -22,31 +21,11 @@ SMOKE="${SMOKE:-0}"
 REUSE_CHECKPOINTS="${REUSE_CHECKPOINTS:-0}"
 HYP="data/hyps/hyp.tinyperson.yaml"
 CLASSES="${CLASSES:-0}"
-
-case "$DATASET" in
-  official)
-    RAW_ROOT="${RAW_ROOT:-/root/autodl-tmp/tinyperson_raw}"
-    DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/TinyPerson_official_paper}"
-    DATA_YAML="${DATA_YAML:-/root/autodl-tmp/TinyPerson_official_paper.yaml}"
-    GT_JSON="${GT_JSON:-$RAW_ROOT/mini_annotations/tiny_set_test_all.json}"
-    EVAL_SPLIT="val"
-    DATA_TAG="official_paper"
-    ;;
-  aug)
-    RAW_ROOT="${RAW_ROOT:-/root/autodl-tmp/tinyperson-aug}"
-    DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/TinyPerson_aug_${MASK_MODE}}"
-    DATA_YAML="${DATA_YAML:-/root/autodl-tmp/TinyPerson_aug_${MASK_MODE}.yaml}"
-    GT_JSON=""
-    # test.py --task test reads the YAML `test` entry, which is the 65-image
-    # Roboflow test split. Keep the bucket audit on that exact same split.
-    EVAL_SPLIT="test"
-    DATA_TAG="aug_exploratory"
-    ;;
-  *)
-    echo "DATASET must be official or aug, got: $DATASET" >&2
-    exit 2
-    ;;
-esac
+RAW_ROOT="${RAW_ROOT:-/root/autodl-tmp/tinyperson_raw}"
+DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/TinyPerson_official_paper}"
+DATA_YAML="${DATA_YAML:-/root/autodl-tmp/TinyPerson_official_paper.yaml}"
+GT_JSON="${GT_JSON:-$RAW_ROOT/mini_annotations/tiny_set_test_all.json}"
+EVAL_SPLIT="val"
 
 if [[ "$SMOKE" == "1" ]]; then
   EPOCHS=1
@@ -55,8 +34,8 @@ else
   RUN_KIND="full"
 fi
 
-RUN_ROOT="${RUN_ROOT:-$HOME/esod_tinyperson_twoarm_${DATA_TAG}_${MASK_MODE}_${EPOCHS}ep}"
-RESULTS_ROOT="$REPO_ROOT/results/tinyperson_twoarm/$DATA_TAG"
+RUN_ROOT="${RUN_ROOT:-$HOME/esod_tinyperson_twoarm_official_paper_${MASK_MODE}_${EPOCHS}ep}"
+RESULTS_ROOT="$REPO_ROOT/results/tinyperson_twoarm/official_paper"
 mkdir -p "$RUN_ROOT" "$RESULTS_ROOT"
 
 log() {
@@ -65,18 +44,12 @@ log() {
 
 [[ -f "$DATA_YAML" ]] || { log "missing dataset YAML: $DATA_YAML"; exit 1; }
 
-if [[ "$DATASET" == "official" ]]; then
-  python "$SCRIPT_DIR/audit_tinyperson_protocol.py" \
-    --data-root "$DATA_ROOT" \
-    --gt "$GT_JSON" \
-    --expected-mask-mode "$MASK_MODE"
-else
-  python "$SCRIPT_DIR/audit_tinyperson_aug.py" \
-    --data-root "$DATA_ROOT" \
-    --expected-mask-mode "$MASK_MODE"
-fi
+python "$SCRIPT_DIR/audit_tinyperson_protocol.py" \
+  --data-root "$DATA_ROOT" \
+  --gt "$GT_JSON" \
+  --expected-mask-mode "$MASK_MODE"
 
-if [[ "$DATASET" == "official" && "$GPU" != *","* ]]; then
+if [[ "$GPU" != *","* ]]; then
   log "WARNING: paper used two V100 GPUs; current device specification is '$GPU'"
 fi
 if [[ "$BATCH" != "8" ]]; then
@@ -148,11 +121,9 @@ run_arm() {
     --name "$run_name" \
     --exist-ok 2>&1 | tee "$result_dir/${run_name}_measure.log"
 
-  if [[ "$DATASET" == "official" ]]; then
-    python "$SCRIPT_DIR/tinyperson_eval/eval_tinyperson_official.py" \
-      --pred "$result_dir/best_predictions.json" \
-      --gt "$GT_JSON" 2>&1 | tee "$result_dir/${run_name}_official_eval.log"
-  fi
+  python "$SCRIPT_DIR/tinyperson_eval/eval_tinyperson_official.py" \
+    --pred "$result_dir/best_predictions.json" \
+    --gt "$GT_JSON" 2>&1 | tee "$result_dir/${run_name}_official_eval.log"
 
   python "$SCRIPT_DIR/audit_buckets.py" \
     --pred "$result_dir/best_predictions.json" \
@@ -163,11 +134,11 @@ run_arm() {
 
 SUFFIX="_ratio8_${MASK_MODE}_${EPOCHS}ep_${RUN_KIND}"
 
-run_arm "tinyperson_${DATA_TAG}_r0${SUFFIX}" \
+run_arm "tinyperson_official_paper_r0${SUFFIX}" \
   "models/cfg/esod/tinyperson_yolov5m.yaml" \
   --selector-loss paper
 
-run_arm "tinyperson_${DATA_TAG}_concat_isphead_coverage_sabl${SUFFIX}" \
+run_arm "tinyperson_official_paper_concat_isphead_coverage_sabl${SUFFIX}" \
   "models/cfg/esod/tinyperson_yolov5m_channel_pooled_concat_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
 

@@ -1,6 +1,6 @@
 # TinyPerson paper-text protocol: ESOD Sec. IV-C states SGD with lr0=0.01,
 # weight_decay=0.0005 and cosine scheduling. The released-code variant with
-# lr0=0.005 is kept separately as hyp.tinyperson.released.yaml.
+# This is the sole retained TinyPerson training profile.
 lr0: 0.01
 lrf: 0.2
 momentum: 0.937
