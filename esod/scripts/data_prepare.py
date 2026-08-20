@@ -16,11 +16,16 @@ import math
 import torch
 import torch.nn.functional as F
 
-import sys; sys.path.append('./')
+import sys
+
+backend_root = abspath(join(osp.dirname(__file__), '..'))
+if backend_root not in sys.path:
+    sys.path.insert(0, backend_root)
 from utils.general import gaussian2D
 
-sam_checkpoint = "./weights/sam_vit_h_4b8939.pth"
+sam_checkpoint = join(backend_root, "weights", "sam_vit_h_4b8939.pth")
 model_type = "vit_h"
+sam_load_error = None
 
 try:
     from segment_anything import SamPredictor, sam_model_registry
@@ -30,8 +35,12 @@ try:
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint).to(device) #.half()  Warning: Precision Drops
     dtype = next(sam.named_parameters())[1].dtype
     predictor = SamPredictor(sam)
-except:
-    warnings.warn('It is recommended to install segment-anything for better pseudo masks. See instructions in README.md.')
+except Exception as exc:
+    sam_load_error = f'{type(exc).__name__}: {exc}'
+    warnings.warn(
+        'Segment Anything could not be loaded; hybrid pseudo masks are unavailable. '
+        f'Reason: {sam_load_error}'
+    )
     predictor = None
 
 
@@ -388,7 +397,8 @@ def prepare_tinyperson():
     if mask_mode != 'gaussian' and predictor is None:
         raise RuntimeError(
             f'--tinyperson-mask-mode={mask_mode} requires Segment Anything and '
-            f'{sam_checkpoint}; install/load it or explicitly select gaussian'
+            f'{sam_checkpoint}. SAM load error: {sam_load_error}. '
+            'Install/load it or explicitly select gaussian.'
         )
 
     os.makedirs(split_dir, exist_ok=True)
@@ -402,6 +412,22 @@ def prepare_tinyperson():
             file_name, width, height = item['file_name'], item['width'], item['height']
             file_path = join(image_dir, mode, file_name)
             image_dict[item['id']] = {'shape': [width, height], 'bboxes': [], 'image_path': file_path}
+
+        missing_images = [
+            item['image_path'] for item in image_dict.values()
+            if not exists(item['image_path'])
+        ]
+        if missing_images:
+            samples = '\n'.join(f'  - {path}' for path in missing_images[:5])
+            raise FileNotFoundError(
+                f'TinyPerson erased-image layout does not match {label_file_dict[mode]}. '
+                f'Missing {len(missing_images)}/{len(image_dict)} {mode} images. '
+                'Expected paths such as '
+                f'{join(image_dir, mode, "labeled_images", "<file>.jpg")}.\n'
+                f'First missing paths:\n{samples}\n'
+                'Do not substitute the un-erased train/test images: that changes '
+                'the official TinyPerson protocol.'
+            )
         
         for item in anno['annotations']:
             if item.get('ignore', False) or item.get('uncertain', False):
