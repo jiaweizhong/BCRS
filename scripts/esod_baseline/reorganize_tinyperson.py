@@ -28,6 +28,8 @@ Usage:
   python reorganize_tinyperson.py \
     --raw-root /root/autodl-tmp/tiny_set \
     --out-root /root/autodl-tmp/TinyPerson_v1
+
+The dataset YAML defaults to ``OUT_ROOT`` with a ``.yaml`` suffix.
 """
 
 from __future__ import annotations
@@ -37,6 +39,20 @@ import shutil
 from pathlib import Path
 
 SPLIT_FILES = {"train": "trainval.txt", "val": "test.txt"}
+
+
+def write_dataset_yaml(path: Path, out_root: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# Audited official TinyPerson: full trainval, official no-dense test.\n"
+        f"path: {out_root.as_posix()}\n"
+        "train: images/train\n"
+        "val: images/val\n"
+        "test: images/val\n\n"
+        "nc: 1\n"
+        "names: [person]\n",
+        encoding="utf-8",
+    )
 
 
 def _link(src: Path, dst: Path) -> None:
@@ -107,10 +123,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw-root", required=True, type=Path, help="dir containing erase_with_uncertain_dataset/ and split/")
     ap.add_argument("--out-root", required=True, type=Path, help="target dataset root (images/labels/masks per split)")
+    ap.add_argument("--yaml", type=Path, help="dataset YAML path (default: OUT_ROOT with .yaml suffix)")
     args = ap.parse_args()
 
     raw_root = args.raw_root.resolve()
     out_root = args.out_root.resolve()
+    yaml_path = (args.yaml or out_root.with_suffix(".yaml")).resolve()
     manifest = raw_root / "split" / "tinyperson_protocol.json"
     if not manifest.is_file():
         raise SystemExit(
@@ -121,6 +139,8 @@ def main() -> None:
         reorganize(raw_root, out_root, split, split_file_name)
     shutil.copyfile(manifest, out_root / "tinyperson_protocol.json")
     print(f"[manifest] {manifest} -> {out_root / 'tinyperson_protocol.json'}")
+    write_dataset_yaml(yaml_path, out_root)
+    print(f"[yaml] {yaml_path}")
 
 
 if __name__ == "__main__":

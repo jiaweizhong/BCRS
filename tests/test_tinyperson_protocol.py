@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,14 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_module(path: Path):
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_tinyperson_hyp_profiles_are_explicit_and_distinct():
@@ -50,8 +59,6 @@ def test_tinyperson_r0_runner_separates_paper_and_released_protocols():
 
 
 def test_tinyperson_official_evaluator_rejects_nonstandard_gt(tmp_path: Path):
-    import importlib.util
-
     evaluator_path = ROOT / "scripts/esod_baseline/tinyperson_eval/eval_tinyperson_official.py"
     spec = importlib.util.spec_from_file_location("eval_tinyperson_official", evaluator_path)
     assert spec and spec.loader
@@ -67,3 +74,25 @@ def test_tinyperson_official_evaluator_rejects_nonstandard_gt(tmp_path: Path):
     wrong_count.write_text(json.dumps({"images": [{}], "annotations": []}), encoding="utf-8")
     with pytest.raises(SystemExit, match="786"):
         module.validate_official_gt(wrong_count)
+
+
+def test_reorganizer_writes_runner_ready_yaml(tmp_path: Path):
+    module = load_module(ROOT / "scripts/esod_baseline/reorganize_tinyperson.py")
+    out_root = tmp_path / "TinyPerson_official_paper"
+    yaml_path = tmp_path / "TinyPerson_official_paper.yaml"
+    module.write_dataset_yaml(yaml_path, out_root)
+    text = yaml_path.read_text(encoding="utf-8")
+    assert f"path: {out_root.as_posix()}" in text
+    assert "train: images/train" in text
+    assert "val: images/val" in text
+    assert "test: images/val" in text
+
+
+def test_two_arm_runner_is_exactly_r0_and_concat_isphead():
+    runner = (ROOT / "scripts/esod_baseline/run_tinyperson_two_arm.sh").read_text(encoding="utf-8")
+    calls = [line for line in runner.splitlines() if line.startswith('run_arm "')]
+    assert len(calls) == 2
+    assert "_r0${SUFFIX}" in calls[0]
+    assert "concat_isphead_coverage_sabl" in calls[1]
+    assert "tinyperson_yolov5m_channel_pooled_concat_isphead.yaml" in runner
+    assert "DATASET must be official or aug" in runner
