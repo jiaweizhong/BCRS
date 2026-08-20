@@ -96,3 +96,6 @@ def test_two_arm_runner_is_exactly_r0_and_concat_isphead():
     assert "concat_isphead_coverage_sabl" in calls[1]
     assert "tinyperson_yolov5m_channel_pooled_concat_isphead.yaml" in runner
     assert "DATASET must be official or aug" in runner
+    assert 'EVAL_SPLIT="val"' in runner
+    assert 'EVAL_SPLIT="test"' in runner
+    assert not any(line.startswith("VAL_SPLIT=") for line in runner.splitlines())

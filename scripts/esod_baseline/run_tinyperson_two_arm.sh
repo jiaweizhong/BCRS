@@ -29,7 +29,7 @@ case "$DATASET" in
     DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/TinyPerson_official_paper}"
     DATA_YAML="${DATA_YAML:-/root/autodl-tmp/TinyPerson_official_paper.yaml}"
     GT_JSON="${GT_JSON:-$RAW_ROOT/mini_annotations/tiny_set_test_all.json}"
-    VAL_SPLIT="val"
+    EVAL_SPLIT="val"
     DATA_TAG="official_paper"
     ;;
   aug)
@@ -37,7 +37,9 @@ case "$DATASET" in
     DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/TinyPerson_aug_${MASK_MODE}}"
     DATA_YAML="${DATA_YAML:-/root/autodl-tmp/TinyPerson_aug_${MASK_MODE}.yaml}"
     GT_JSON=""
-    VAL_SPLIT="valid"
+    # test.py --task test reads the YAML `test` entry, which is the 65-image
+    # Roboflow test split. Keep the bucket audit on that exact same split.
+    EVAL_SPLIT="test"
     DATA_TAG="aug_exploratory"
     ;;
   *)
@@ -154,8 +156,8 @@ run_arm() {
 
   python "$SCRIPT_DIR/audit_buckets.py" \
     --pred "$result_dir/best_predictions.json" \
-    --labels "$DATA_ROOT/labels/$VAL_SPLIT" \
-    --images "$DATA_ROOT/images/$VAL_SPLIT" \
+    --labels "$DATA_ROOT/labels/$EVAL_SPLIT" \
+    --images "$DATA_ROOT/images/$EVAL_SPLIT" \
     --classes "$CLASSES" 2>&1 | tee "$result_dir/${run_name}_audit.log"
 }
 
