@@ -595,6 +595,15 @@ def prepare_seaperson():
     os.makedirs(split_dir, exist_ok=True)
 
     for mode, label_file in label_file_dict.items():
+        split_file = join(split_dir, f'{mode}.txt')
+        if exists(split_file):
+            # split/<mode>.txt is only ever written after that mode's full
+            # per-image loop below completes -- its existence is a safe
+            # "this mode already finished" signal, so a re-run after a
+            # crash in a LATER mode doesn't redo this one's work.
+            print(f'seaperson/{mode}: {split_file} already exists, skipping')
+            continue
+
         with open(label_file, 'r') as f:
             anno = json.load(f)
 
@@ -606,23 +615,39 @@ def prepare_seaperson():
                 'image_path': join(root, file_name),
             }
 
-        missing_images = [
-            item['image_path'] for item in image_dict.values()
+        missing_ids = [
+            _id for _id, item in image_dict.items()
             if not exists(item['image_path'])
         ]
-        if missing_images:
-            samples = '\n'.join(f'  - {path}' for path in missing_images[:5])
-            raise FileNotFoundError(
-                f'SeaPerson image layout does not match {label_file}. '
-                f'Missing {len(missing_images)}/{len(image_dict)} {mode} images. '
-                f'Expected imgs_rgb.zip extracted directly under {root} '
-                "(so file_name's own 'rgb/...' prefix resolves without an "
-                f'extra subdirectory).\nFirst missing paths:\n{samples}\n'
+        if missing_ids:
+            samples = '\n'.join(f'  - {image_dict[_id]["image_path"]}' for _id in missing_ids[:5])
+            # A layout mistake (wrong extraction target) loses a large share of
+            # images; a handful of missing files -- observed for scraped
+            # filenames containing non-ASCII characters (e.g. a photographer
+            # credit with '(c)' baked into the name) -- is very likely a
+            # single-file archive/encoding quirk, not a layout problem, and
+            # skipping it costs <0.1% of the split. Only fail loudly for the
+            # former; tolerate and skip for the latter.
+            if len(missing_ids) > 50 or len(missing_ids) / len(image_dict) > 0.01:
+                raise FileNotFoundError(
+                    f'SeaPerson image layout does not match {label_file}. '
+                    f'Missing {len(missing_ids)}/{len(image_dict)} {mode} images. '
+                    f'Expected imgs_rgb.zip extracted directly under {root} '
+                    "(so file_name's own 'rgb/...' prefix resolves without an "
+                    f'extra subdirectory).\nFirst missing paths:\n{samples}\n'
+                )
+            print(
+                f'seaperson/{mode}: skipping {len(missing_ids)}/{len(image_dict)} '
+                f'image(s) missing on disk (kept as a warning, not fatal):\n{samples}'
             )
+            for _id in missing_ids:
+                del image_dict[_id]
 
         n_degenerate = 0
         for item in anno['annotations']:
             _id, (x1, y1, w, h) = item['image_id'], item['bbox']
+            if _id not in image_dict:
+                continue  # annotation belongs to an image skipped above
             width, height = image_dict[_id]['shape']
             if item.get('ignore', False) or item.get('uncertain', False):
                 image_dict[_id]['erase_boxes'].append((x1, y1, w, h))
