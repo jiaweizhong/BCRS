@@ -539,7 +539,7 @@ gap (it never touched `test.py`'s own AP computation). Leading candidates
 -- a real data-provenance difference between `UAVDT_v3` and `UAVDT_fresh`,
 or single-seed noise -- are both unconfirmed. Open item.
 
-## 8. SeaPerson (aka TinyPersonV2): pipeline built, roster not yet run (2026-08-20)
+## 8. SeaPerson (aka TinyPersonV2): 6-arm roster, in progress (2026-08-20/21)
 
 A further-validation dataset requested after the TinyPerson protocol rework
 (SS1/SS2) -- same schema lineage as TinyPerson (JSON image/annotation keys
@@ -593,7 +593,73 @@ from the selector-architecture effect. concat-only and concat+SABL likewise
 share one config (`seaperson_yolov5m_channel_pooled_concat.yaml`), differing
 only in `--box-loss`.
 
-**Status: pipeline built (`scripts/data_prepare.py::prepare_seaperson()`,
-`reorganize_seaperson.py`, 4 new model configs, `data/seaperson.yaml`,
-`hyp.seaperson.yaml`, `run_seaperson.sh`), not yet executed.** No results to
-report yet -- this section will be updated once the roster runs.
+**Status (2026-08-21): roster running. R0 and semantic-only complete;
+spectral-only, concat-only, concat+SABL, concat+SABL+ISPPHead in progress.**
+
+### 8.1 `vt_diagnose.py` mixed-image-format bug found and fixed
+
+`vt_diagnose.py --images-dir` matched each label file to its image via a
+single hardcoded `--image-ext` (default `.jpg`). SeaPerson mixes formats --
+most images are `.jpg`, but the `rgb1000/` subfolder ships `.bmp` -- so every
+`.bmp` image failed to match and silently fell back to an assumed native size
+of 800x600 for size-bucket classification. Confirmed systematic, not random:
+exactly 1000/5752 test label files hit the fallback on both R0 and
+semantic-only. Real actual resolution for these images is far from 800x600
+(SeaPerson is 92.9% 1920x1080), so every fallback image's GT boxes were
+bucketed against the wrong denominator.
+
+**Impact, precisely:** this only ever corrupted `vt_diagnose.py`'s own
+standalone Very Tiny/Tiny/etc. bucket counts -- `audit_buckets.py` was never
+affected (it already tries multiple image suffixes) and its numbers below are
+unchanged by the fix. Before the fix, `vt_diagnose.py` reported Very Tiny
+recall of 52.79% (R0) / 53.12% (semantic-only) against 74.03%/75.49% from
+`audit_buckets.py` on the same predictions -- a stark disagreement that was
+the actual tell something was wrong, matching the cross-tool-agreement check
+already established for UAVDT (SS7.2).
+
+**Fix:** `vt_diagnose.py` now tries every common image suffix (`.jpg`,
+`.jpeg`, `.png`, `.bmp`, `.tif`, `.tiff`), `--image-ext` first, before
+falling back to `--native-w`/`--native-h`. Re-run against the existing
+`best_predictions.json` for both completed arms confirmed agreement with
+`audit_buckets.py` to within 0.02pp (Table below) -- exact Very Tiny GT count
+also now matches exactly (82417 both tools, was 113672 vt_diagnose vs 82417
+audit_buckets before the fix, since the wrong denominator also pulled boxes
+into/out of the Very Tiny bucket incorrectly, not just misclassifying which
+image they belonged to).
+
+### 8.2 R0 vs semantic-only (first two arms, test split, SparseHead off)
+
+| | R0 | semantic-only | $\Delta$ |
+|---|---:|---:|---:|
+| mAP@.5 | 0.750 | 0.769 | +1.9pp |
+| mAP@.5:.95 | 0.320 | 0.325 | +0.5pp |
+| Total recall (`audit_buckets.py`) | 84.42% | 87.75% | +3.33pp |
+| Very Tiny recall (`audit_buckets.py`) | 74.03% | 75.49% | +1.46pp |
+| Very Tiny recall (`vt_diagnose.py`, post-fix) | 74.05% | 75.51% | +1.46pp |
+| Occupy (test) | 0.228 | 0.363 | +0.135 |
+| GFLOPs / FPS (measure, valid, batch=1) | 202.4 / 88.9 | 266.8 / 75.4 | -- |
+
+semantic-only (same `Segmenter` architecture as R0, coverage loss instead of
+upstream weighted BCE) improves every accuracy metric, isolating the
+loss-function effect cleanly since the selector architecture is unchanged.
+As with UAVDT's concat comparison (SS7.2), Occupy increased alongside
+accuracy -- the same "smarter selection vs. selecting more area" caveat
+applies here and is not yet isolated.
+
+**Miss-reason breakdown for Very Tiny GT (`vt_diagnose.py`, post-fix)** is
+the more interesting result: for both arms, localization failure
+(`right_class_low_iou`) dominates missed Very Tiny objects, not selector
+drops (`no_nearby_prediction`) --
+
+| | R0 | semantic-only |
+|---|---:|---:|
+| Missed Very Tiny GT | 21388 | 20181 |
+| `right_class_low_iou` (localization failure) | 74.3% | 79.7% |
+| `no_nearby_prediction` (selector-dropped) | 25.6% | 20.1% |
+
+Coverage supervision is doing exactly what SS3.3/H4 predict: it reduces
+selector-caused misses (25.6%->20.1% of a smaller total) and shifts the
+remaining bottleneck further toward detection-head localization precision at
+very tiny scale, not selector recall. This suggests headroom in this roster
+is more likely in box-regression quality (SABL, evaluated in a later arm)
+than in further selector tuning alone.
