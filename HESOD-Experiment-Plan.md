@@ -627,39 +627,72 @@ audit_buckets before the fix, since the wrong denominator also pulled boxes
 into/out of the Very Tiny bucket incorrectly, not just misclassifying which
 image they belonged to).
 
-### 8.2 R0 vs semantic-only (first two arms, test split, SparseHead off)
+### 8.2 Full per-arm results (test split unless noted; updated as each arm completes)
 
-| | R0 | semantic-only | $\Delta$ |
-|---|---:|---:|---:|
-| mAP@.5 | 0.750 | 0.769 | +1.9pp |
-| mAP@.5:.95 | 0.320 | 0.325 | +0.5pp |
-| Total recall (`audit_buckets.py`) | 84.42% | 87.75% | +3.33pp |
-| Very Tiny recall (`audit_buckets.py`) | 74.03% | 75.49% | +1.46pp |
-| Very Tiny recall (`vt_diagnose.py`, post-fix) | 74.05% | 75.51% | +1.46pp |
-| Occupy (test) | 0.228 | 0.363 | +0.135 |
-| GFLOPs / FPS (measure, valid, batch=1) | 202.4 / 88.9 | 266.8 / 75.4 | -- |
+**Size-bucket recall** (`audit_buckets.py`, test split, 300375 total GT
+targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 
-semantic-only (same `Segmenter` architecture as R0, coverage loss instead of
-upstream weighted BCE) improves every accuracy metric, isolating the
-loss-function effect cleanly since the selector architecture is unchanged.
-As with UAVDT's concat comparison (SS7.2), Occupy increased alongside
-accuracy -- the same "smarter selection vs. selecting more area" caveat
-applies here and is not yet isolated.
+| Arm | Very Tiny (<16x16) | Tiny (16-32) | Small (32-96) | Medium/Large (>96) | Total |
+|---|---:|---:|---:|---:|---:|
+| R0 | 74.03% (61014/82417) | 86.78% (151707/174816) | 94.74% (40725/42987) | 79.35% (123/155) | 84.42% (253569/300375) |
+| semantic-only | 75.49% (62217/82417) | 91.57% (160087/174816) | 95.71% (41141/42987) | 81.94% (127/155) | 87.75% (263572/300375) |
+| spectral-only | pending (OOM on first attempt, SS8.3) | | | | |
+| concat-only | pending | | | | |
+| concat+SABL | pending | | | | |
+| concat+SABL+ISPPHead | pending | | | | |
 
-**Miss-reason breakdown for Very Tiny GT (`vt_diagnose.py`, post-fix)** is
-the more interesting result: for both arms, localization failure
-(`right_class_low_iou`) dominates missed Very Tiny objects, not selector
-drops (`no_nearby_prediction`) --
+**Accuracy + efficiency** (mAP/P/R/BPR/Occupy from `test.py --task test`;
+GFLOPs/FPS/latency from `test.py --task measure`, valid split, batch=1):
 
-| | R0 | semantic-only |
-|---|---:|---:|
-| Missed Very Tiny GT | 21388 | 20181 |
-| `right_class_low_iou` (localization failure) | 74.3% | 79.7% |
-| `no_nearby_prediction` (selector-dropped) | 25.6% | 20.1% |
+| Arm | mAP@.5 | mAP@.5:.95 | P | R | BPR | Occupy (test) | GFLOPs | FPS | Latency (ms, infer/NMS/total) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| R0 | 0.750 | 0.320 | 0.827 | 0.696 | 0.947 | 0.228 | 202.4 | 88.9 | 11.2/1.2/12.4 |
+| semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 266.8 | 75.4 | 13.3/1.2/14.4 |
+| spectral-only | pending | | | | | | | | |
+| concat-only | pending | | | | | | | | |
+| concat+SABL | pending | | | | | | | | |
+| concat+SABL+ISPPHead | pending | | | | | | | | |
 
-Coverage supervision is doing exactly what SS3.3/H4 predict: it reduces
+**Very Tiny miss-reason breakdown** (`vt_diagnose.py`, post mixed-format fix,
+SS8.1; percentages are of that arm's own missed-Very-Tiny count):
+
+| Arm | Missed Very Tiny GT | `right_class_low_iou` (localization failure) | `no_nearby_prediction` (selector-dropped) | `matched_but_stolen_by_other_gt` |
+|---|---:|---:|---:|---:|
+| R0 | 21388 | 74.3% | 25.6% | 0.1% |
+| semantic-only | 20181 | 79.7% | 20.1% | 0.1% |
+| spectral-only | pending | | | |
+| concat-only | pending | | | |
+| concat+SABL | pending | | | |
+| concat+SABL+ISPPHead | pending | | | |
+
+**Interpretation so far** (2 of 6 arms; will be revisited once the roster
+completes): semantic-only (same `Segmenter` architecture as R0, coverage
+loss instead of upstream weighted BCE) improves every accuracy metric,
+isolating the loss-function effect cleanly since the selector architecture is
+unchanged. As with UAVDT's concat comparison (SS7.2), Occupy increased
+alongside accuracy -- the same "smarter selection vs. selecting more area"
+caveat applies here and is not yet isolated. More notably, for both arms
+localization failure dominates missed Very Tiny objects, not selector drops
+-- coverage supervision is doing exactly what SS3.3/H4 predict: it reduces
 selector-caused misses (25.6%->20.1% of a smaller total) and shifts the
 remaining bottleneck further toward detection-head localization precision at
-very tiny scale, not selector recall. This suggests headroom in this roster
-is more likely in box-regression quality (SABL, evaluated in a later arm)
-than in further selector tuning alone.
+very tiny scale. This suggests headroom in this roster is more likely in
+box-regression quality (SABL, evaluated in a later arm) than in further
+selector tuning alone -- a hypothesis the remaining arms will test directly.
+
+### 8.3 spectral-only: CUDA OOM, unresolved as of this writing
+
+`SpectralOnlySegmenter` (E2.5-style, full-channel `SpectralBranch` --
+`MultiKernelSpectralFilter` runs its depthwise 3x3/5x5 filters on the full
+P3 channel width, unlike the channel-pooled variant the concat arms use)
+OOM'd at epoch 0/batch 0 on the same batch=8 that trained R0 and
+semantic-only cleanly: "31.30 GiB memory in use" out of a 31.36 GiB RTX 5090,
+failing to allocate 48 MiB more. AMP is already on by default
+(`half_precision = not opt.disable_half`, no `--disable-half` passed), so
+this isn't an unused lever. A retry at `--batch-size 4` reproduced the same
+OOM; `--batch-size 2` is queued next, not yet confirmed. If this arm needs a
+smaller batch than every other arm to complete, that is a real, documented
+protocol deviation for this one arm specifically (its own row in SS8.2's
+tables should note the batch size actually used), not a silent
+inconsistency -- matches the same-class caveat already applied to R1/R3 in
+SS3.2 when a treatment arm needs a setting its control didn't.
