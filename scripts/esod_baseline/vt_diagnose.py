@@ -26,6 +26,17 @@ from collections import defaultdict
 
 from PIL import Image
 
+# Tried in order for every label file when --images-dir is given: the
+# explicit --image-ext first (preserves exact prior behavior/priority for
+# single-extension datasets like Pest24/VisDrone), then every other common
+# suffix. Datasets with mixed image formats (SeaPerson: .bmp in some
+# per-video subfolders, .jpg elsewhere) would otherwise silently fall back to
+# --native-w/--native-h for every non-matching extension, corrupting their
+# size-bucket classification without any visible error -- confirmed 2026-08-21
+# (1000/5752 SeaPerson test label files fell back to an assumed 800x600 when
+# only .jpg was tried, despite the actual images existing as .bmp).
+IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
+
 PEST24_CLASS_NAMES = ['Bollworm', 'Meadow borer', 'Gryllotalpa orientalis', 'Little Gecko',
     'Agriotes fuscicollis Miwa', 'Nematode trench', 'Athetis lepigone',
     'Scotogramma trifolii Rottemberg', 'Armyworm', 'Spodoptera cabbage',
@@ -58,7 +69,10 @@ def main():
                               "real (width, height) is read via PIL instead of assuming --native-w/--native-h "
                               "for every image. Required for datasets with variable native resolution "
                               "(VisDrone/TinyPerson); optional for Pest24 (confirmed uniform 800x600)")
-    parser.add_argument("--image-ext", default=".jpg", help="image file extension, used with --images-dir")
+    parser.add_argument("--image-ext", default=".jpg",
+                         help="image file extension tried first, used with --images-dir; "
+                              f"every other suffix in {IMAGE_SUFFIXES} is tried as a fallback "
+                              "before giving up on a label file (mixed-format datasets)")
     parser.add_argument("--native-w", type=int, default=800,
                          help="fallback native image width (pixels) when --images-dir is not given, "
                               "or when a label file's matching image can't be found")
@@ -119,8 +133,12 @@ def main():
 
         w, h = fallback_w, fallback_h
         if images_dir:
-            img_path = os.path.join(images_dir, os.path.splitext(fn)[0] + image_ext)
-            if os.path.isfile(img_path):
+            stem_path = os.path.join(images_dir, os.path.splitext(fn)[0])
+            candidates = [stem_path + image_ext] + [
+                stem_path + ext for ext in IMAGE_SUFFIXES if ext != image_ext
+            ]
+            img_path = next((p for p in candidates if os.path.isfile(p)), None)
+            if img_path is not None:
                 w, h = Image.open(img_path).size  # header-only read, not a full decode
             else:
                 n_size_fallback += 1
