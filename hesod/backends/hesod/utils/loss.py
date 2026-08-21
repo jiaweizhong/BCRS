@@ -547,6 +547,9 @@ class ComputeLoss:
         cell touching an object toward 1.
         """
         device = p.device
+        # HeatMapParser routes from channel 0, so coverage must supervise that
+        # same scalar map. This intentionally includes every GT class even
+        # when the fused selector exposes multiple pixelwise mask channels.
         s = p[:, 0].sigmoid()  # (bs, ny, nx)
         eps = 1e-6
 

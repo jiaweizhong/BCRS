@@ -1,0 +1,43 @@
+\section{Related Work}
+\label{sec:related}
+
+Table~\ref{tab:related} summarizes the closest prior work and the specific
+limitation each leaves open relative to DES-ESOD; all six are UAV/aerial or
+tiny-object detection papers we build directly on or position against.
+
+\begin{table}[t]
+\centering
+\caption{Closest prior work and the gap DES-ESOD targets.}
+\label{tab:related}
+\footnotesize
+\begin{tabular}{p{0.15\linewidth}p{0.28\linewidth}p{0.42\linewidth}}
+\hline
+\textbf{Work} & \textbf{Mechanism} & \textbf{Limitation vs.\ DES-ESOD} \\
+\hline
+QueryDet \cite{QueryDet} & Cascaded sparse query on coarse FPN, ranked by query score & Single objectness-derived score; no evidence for semantically-weak tiny targets; no coverage guarantee \\
+CEASC \cite{CEASC} & Per-layer adaptive activation masking (AMM) & Mask ratio fit per FPN layer as an auxiliary target, not an explicit inference-time budget; single evidence source \\
+ESOD \cite{ESOD} & ObjSeeker heatmap $\to$ AdaSlicer patch routing $\to$ SparseHead & Pure objectness ObjSeeker; per-cell loss has no guarantee a given GT is covered by any retained patch \\
+SET \cite{SET} & Spectral background suppression + saliency enhancement on the full feature map & Spectral evidence enhances representation, not used to estimate per-region miss risk or drive routing \\
+SSABNet \cite{SSABNet} & Wasserstein-based Scale-Aware Balancing Loss (SABL) for box regression & Dense detector; improves localization quality, not selective computation \\
+ESOD-YOLO \cite{ESODYOLO} & Shared inverted-residual/partial-conv (ISPP) decoupled head & Despite the name, a dense YOLOv8 detector with no routing or patch-skipping mechanism \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{How DES-ESOD addresses each gap.} Against QueryDet/ESOD's single-evidence
+routing, we add the spectral branch motivated by \cite{SET}'s own finding
+that tiny objects lose semantic salience under downsampling -- but where
+\cite{SET} applies spectral processing to enhance the shared feature map, we
+repurpose the same class of evidence as a second routing signal, fused with
+the semantic branch before the top-$K$ decision (\S\ref{ssec:evidence}).
+Against CEASC's per-layer mask ratio, our budget is a single explicit
+top-$K$ applied at inference, not a fitted auxiliary target. Against
+ESOD's and QueryDet's per-cell objectness supervision, which can be
+satisfied by many redundant nearby high-score cells without ever guaranteeing
+that a specific ground-truth object is covered, we replace it with an
+object-level soft-coverage loss (\S\ref{ssec:coverage}) that directly targets
+the coverage event recall depends on. SSABNet and ESOD-YOLO contribute
+components, not routing ideas: we adopt SSABNet's SABL as an optional
+box-regression loss and ESOD-YOLO's ISPP shared stem as our decoupled head
+(\S\ref{ssec:head}), both orthogonal to and compatible with the selector
+contribution above.

@@ -1,0 +1,45 @@
+\begin{thebibliography}{1}
+
+\bibitem{ESOD}
+Kai Liu, Zhihang Fu, Sheng Jin, Ze~Chen, Fan Zhou, Rongxin Jiang, Yaowu Chen,
+  and Jieping Ye,
+\newblock ``{ESOD}: Efficient small object detection on high-resolution
+  images,''
+\newblock {\em IEEE Transactions on Image Processing}, 2024.
+
+\bibitem{QueryDet}
+Chenhongyi Yang, Zehao Huang, and Naiyan Wang,
+\newblock ``{QueryDet}: Cascaded sparse query for accelerating high-resolution
+  small object detection,''
+\newblock in {\em Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition
+  (CVPR)}, 2022.
+
+\bibitem{CEASC}
+Bowei Du, Yecheng Huang, Jiaxin Chen, and Di~Huang,
+\newblock ``Adaptive sparse convolutional networks with global context
+  enhancement for faster object detection on drone images,''
+\newblock in {\em Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition
+  (CVPR)}, 2023.
+
+\bibitem{SET}
+Huixin Sun, Runqi Wang, Yanjing Li, Linlin Yang, Shaohui Lin, Xianbin Cao, and
+  Baochang Zhang,
+\newblock ``{SET}: Spectral enhancement for tiny object detection,''
+\newblock in {\em Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition
+  (CVPR)}, 2025.
+
+\bibitem{SSABNet}
+Hongxing Zhang, Zhonghong Ou, Siyuan Yao, Shigeng Wang, Yang Guo, and Meina
+  Song,
+\newblock ``{SSABNet}: Spatial-semantic aggregation and balancing network for
+  small-target detection in {UAV} remote sensing images,''
+\newblock {\em Remote Sensing}, vol. 18, no. 4, pp. 550, 2026.
+
+\bibitem{ESODYOLO}
+Xin Xu, Qi~Li, Jie Pan, Xingzheng Lu, Hongwei Wei, Mingzheng Sun, and Haoze
+  Zhang,
+\newblock ``{ESOD-YOLO}: an enhanced efficient small object detection framework
+  for aerial images,''
+\newblock {\em Computing}, vol. 107, pp. 54, 2025.
+
+\end{thebibliography}

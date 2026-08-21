@@ -39,17 +39,19 @@ Metric contract:
   Space A: fixed-cost patch top-k, chosen specifically because ESOD's own
   fixed threshold gives an input-dependent, unpredictable patch count and
   BCRS wants a guaranteed compute budget). Confirmed absent from the paper's
-  own released code: `grep -n "top.k\|top_k" esod/test.py esod/models/yolo.py`
-  returns zero hits, and `esod/test.py --sparse-head` calls
+  own released code: `grep -n "top.k\|top_k" hesod/backends/esod/test.py
+  hesod/backends/esod/models/yolo.py` returns zero hits, and
+  `hesod/backends/esod/test.py --sparse-head` calls
   `model.model[-1].set_sparse()` standalone, with no companion top-K flag.
   Efficiency/method comparisons BETWEEN HESOD ARMS use exact K + SparseHead +
   measured end-to-end latency/GFLOPs, so every arm gets the same fixed patch
   budget. For accuracy AND efficiency reproduction AGAINST THE PAPER'S OWN
   reported numbers (AP/AP50 and GFLOPs/FPS alike), fixed-threshold routing is
-  the paper-matching choice -- `esod/models/yolo.py`'s `get_indices(...,
-  thresh=0.3)` applies the same hardcoded second threshold inside each
-  fixed-threshold-selected patch with no override, exactly matching upstream.
-  HESOD adds a `sparse_all_selected` flag (absent from `esod/`) specifically
+  the paper-matching choice -- `hesod/backends/esod/models/yolo.py`'s
+  `get_indices(..., thresh=0.3)` applies the same hardcoded second threshold
+  inside each fixed-threshold-selected patch with no override, exactly
+  matching upstream. HESOD adds a `sparse_all_selected` flag (absent from
+  `hesod/backends/esod/`) specifically
   to stop that same 0.3 threshold from re-filtering positions inside an
   exact-K-selected patch, which would otherwise silently break exact K's own
   "select K patches, evaluate each fully" semantics; `test.py` enables it only

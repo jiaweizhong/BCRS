@@ -20,7 +20,7 @@ def load_module(path: Path):
 
 
 def test_tinyperson_keeps_only_the_paper_hyp_profile():
-    for backend in (ROOT / "esod", ROOT / "hesod" / "backends" / "esod", ROOT / "hesod" / "backends" / "hesod"):
+    for backend in (ROOT / "hesod" / "backends" / "esod", ROOT / "hesod" / "backends" / "hesod"):
         profiles = sorted((backend / "data/hyps").glob("hyp.tinyperson*.yaml"))
         assert [profile.name for profile in profiles] == ["hyp.tinyperson.yaml"]
         paper = yaml.safe_load(profiles[0].read_text(encoding="utf-8"))
@@ -28,7 +28,7 @@ def test_tinyperson_keeps_only_the_paper_hyp_profile():
 
 
 def test_tinyperson_converter_pins_no_dense_erased_data_and_explicit_masks():
-    for backend in (ROOT / "esod", ROOT / "hesod" / "backends" / "esod", ROOT / "hesod" / "backends" / "hesod"):
+    for backend in (ROOT / "hesod" / "backends" / "esod", ROOT / "hesod" / "backends" / "hesod"):
         source = (backend / "scripts/data_prepare.py").read_text(encoding="utf-8")
         start = source.index("def prepare_tinyperson")
         next_function = source.find("\ndef ", start + 1)

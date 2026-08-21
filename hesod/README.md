@@ -9,9 +9,13 @@ optional extension; sequencing gated by §11.2).
 ```
 hesod/
   backends/
-    esod/         # HESOD's ESOD-based implementation (primary). Started as a copy of the
-                   # pristine ../esod/ checkout; this is where the dual-evidence selector,
-                   # new losses, and budget router described in the Proposal actually get built.
+    esod/         # HESOD's ESOD-based implementation (primary); this is where the
+                   # dual-evidence selector, new losses, and budget router described
+                   # in the Proposal actually get built. The standalone pristine
+                   # baseline checkout that used to live at ../esod/ (repo root) was
+                   # retired 2026-08-21 once confirmed byte-identical and unreferenced
+                   # elsewhere -- this is now the sole baseline copy, see
+                   # ../ESOD-Baseline-Patches.md.
     querydet/      # not created yet -- Phase 4 only (Proposal §11.2)
     ceasc/         # not created yet -- Phase 6 only, optional (Proposal §11.2)
 ```
@@ -28,11 +32,9 @@ supposed to be a backend-agnostic interface. Extract it when `backends/querydet/
 
 ## Environment compatibility
 
-`backends/esod/` and `../esod/` are expected to track the same Python/dependency version
-matrix indefinitely (not deliberately diverge). `../ESOD-Baseline-Patches.md` at the repo root
-is the single authority for environment-compat patches on *both* trees — any new environment
-issue found in either one gets fixed and documented once there, then applied to both trees'
-corresponding files.
+`../ESOD-Baseline-Patches.md` at the repo root is the single authority for
+environment-compat patches on `backends/esod/` — any new environment issue
+gets fixed and documented once there.
 
 ## Relationship to `BCRS/`
 

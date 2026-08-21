@@ -77,7 +77,13 @@ class Detect(nn.Module):
 
     def set_sparse(self):
         sp_dict = {nn.Conv2d: SPYOLOv5Head, YOLOv6Head: SPYOLOv6Head}
-        sp_head = sp_dict[type(self.m[0])]
+        dense_head_type = type(self.m[0])
+        if dense_head_type not in sp_dict:
+            raise NotImplementedError(
+                f'SparseHead adapter is not implemented for {dense_head_type.__name__}; '
+                'ISPPHead requires a dedicated sparse expand/partial-conv/project path.'
+            )
+        sp_head = sp_dict[dense_head_type]
         self.m = nn.ModuleList(sp_head(m) for m in self.m)
         self.sparse = True
     
@@ -627,7 +633,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         head_type = None
         if m is Detect and len(args) >= 3 and isinstance(args[-1], str):
             # Pop before the generic eval() loop below resolves head-class names
-            # (e.g. 'SharedDWHead') to the class object itself.
+            # (e.g. 'ISPPHead') to the class object itself.
             head_type = args.pop()
         for j, a in enumerate(args):
             try:

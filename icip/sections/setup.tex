@@ -1,0 +1,26 @@
+\section{Experimental Setup}
+\label{sec:setup}
+
+\textbf{Datasets.} The evaluation protocol covers UAVDT (vehicle detection, three classes:
+car/truck/bus) and TinyPersonV2/SeaPerson (extremely small pedestrians,
+single class, whole, un-tiled images only). Neither dataset was used to
+design or tune DES-ESOD; both are held-out cross-domain checks after the method
+was developed and ablated on a separate aerial-imagery development set.
+
+\textbf{Protocol.} All arms share a YOLOv5m backbone, matched input
+resolution, 50 training epochs, SGD with cosine learning-rate scheduling, and
+identical pretrained initialization. Depending on the arm, the selector
+head/loss, box loss, and detection head may differ. Component-wise ablations
+will be inserted here after the ongoing roster completes; until then, the
+full-model comparison must not be interpreted as isolating one component.
+Routing uses ESOD's
+native fixed threshold, unchanged across arms (\S\ref{ssec:overview});
+SparseHead (\S\ref{ssec:sparsehead}) is off for every number reported below.
+
+\textbf{Metrics.} We report size-bucket detector recall (Very~Tiny
+$<16{\times}16$~px, Tiny $16$--$32$, Small $32$--$96$, Medium/Large
+$>96$~px), COCO-style AP/AP50, measured GFLOPs, batch-1 FPS/latency, and
+Occupy (fraction of the image area the selector retains) -- Occupy is
+reported specifically because an accuracy gain achieved by retaining more
+area is a different result from one achieved by selecting the \emph{same}
+area more accurately.

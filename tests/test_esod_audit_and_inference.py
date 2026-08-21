@@ -38,7 +38,6 @@ def _isolated_function(path: Path, name: str, globals_: dict):
 @pytest.mark.parametrize(
     "path",
     [
-        ROOT / "esod" / "test.py",
         ROOT / "hesod" / "backends" / "esod" / "test.py",
         ROOT / "hesod" / "backends" / "hesod" / "test.py",
     ],
@@ -56,7 +55,6 @@ def test_trailing_zero_patch_images_are_restored(path: Path):
 
 def test_metric_columns_map_ap50_then_coco_map():
     for path in (
-        ROOT / "esod" / "test.py",
         ROOT / "hesod" / "backends" / "esod" / "test.py",
         ROOT / "hesod" / "backends" / "hesod" / "test.py",
     ):
@@ -64,6 +62,15 @@ def test_metric_columns_map_ap50_then_coco_map():
         assert "ap50, ap = ap[:, 0], ap.mean(1)" in source
         assert "mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()" in source
         assert "('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95'" in source
+
+
+def test_sparse_head_rejects_unsupported_ispp_adapter_explicitly():
+    source = (ROOT / "hesod" / "backends" / "hesod" / "models" / "yolo.py").read_text(
+        encoding="utf-8"
+    )
+    assert "dense_head_type not in sp_dict" in source
+    assert "SparseHead adapter is not implemented" in source
+    assert "ISPPHead requires a dedicated sparse expand/partial-conv/project path" in source
 
 
 def test_topk_router_is_exact_and_stable():
@@ -216,7 +223,6 @@ def test_selector_audit_uses_strict_paper_bprbox_and_validates_full_split(tmp_pa
 
 def test_native_bprbox_uses_paper_strict_greater_than():
     for path in (
-        ROOT / "esod" / "utils" / "metrics.py",
         ROOT / "hesod" / "backends" / "esod" / "utils" / "metrics.py",
         ROOT / "hesod" / "backends" / "hesod" / "utils" / "metrics.py",
     ):
@@ -261,7 +267,6 @@ def test_every_runner_records_exact_route_and_audits_paper_bprbox():
 
 def test_only_explicit_tinyperson_protocol_configs_remain():
     for root in (
-        ROOT / "esod",
         ROOT / "hesod" / "backends" / "esod",
         ROOT / "hesod" / "backends" / "hesod",
     ):
@@ -270,21 +275,7 @@ def test_only_explicit_tinyperson_protocol_configs_remain():
         ]
 
 
-def test_plain_baseline_mirror_and_patch_ledger_stay_in_sync():
-    standalone = ROOT / "esod"
-    mirror = ROOT / "hesod" / "backends" / "esod"
-
-    def source_tree(root):
-        return {
-            path.relative_to(root).as_posix(): path.read_bytes().replace(b"\r\n", b"\n")
-            for path in root.rglob("*")
-            if path.is_file()
-            and "__pycache__" not in path.parts
-            and path.suffix not in {".pyc", ".pyo"}
-        }
-
-    assert source_tree(standalone) == source_tree(mirror)
-
+def test_patch_ledger_lists_exact_delta():
     ledger = (ROOT / "ESOD-Baseline-Patches.md").read_text(encoding="utf-8")
     expected_delta = {
         "data/uavdt.yaml",

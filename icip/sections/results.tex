@@ -1,0 +1,52 @@
+\section{Results}
+\label{sec:results}
+
+\begin{table}[t]
+\centering
+\caption{UAVDT: objectness-only baseline vs.\ DES-ESOD (dual-evidence selector + SABL + efficient head).}
+\label{tab:uavdt}
+\footnotesize
+\begin{tabular}{lrrr}
+\hline
+ & \textbf{Baseline} & \textbf{DES-ESOD} & \textbf{$\Delta$} \\
+\hline
+mAP@.5        & 0.344  & 0.371  & +2.7\,pp \\
+mAP@.5:.95    & 0.171  & 0.195  & +2.4\,pp \\
+Total recall  & 84.67\% & 90.17\% & +5.5\,pp \\
+Very Tiny recall ($<$16$\times$16) & 83.6\% & 84.2\% & +0.6\,pp \\
+Occupy        & 0.245  & 0.48   & $\sim$2$\times$ \\
+\hline
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:uavdt} shows a consistent win for DES-ESOD over the
+objectness-only baseline on UAVDT across mAP, total recall, and Very~Tiny
+recall -- not a single-axis trade-off. Because both arms use the same
+unchanged fixed-threshold routing (\S\ref{ssec:overview}), the Occupy row is
+an honest side effect, not a hidden confound introduced by a favorably-tuned
+budget: DES-ESOD's score distribution simply clears the threshold at more locations.
+The open question is how much of the accuracy gain survives once that extra
+area is paid for. A matched-Occupy or matched-GFLOPs comparison remains an
+explicit experiment placeholder. SparseHead evaluation additionally depends
+on the ISPP-compatible adapter described in \S\ref{ssec:sparsehead}.
+
+\begin{table}[t]
+\centering
+\caption{TinyPersonV2 (SeaPerson): roster in progress.}
+\label{tab:tinypersonv2}
+\footnotesize
+\begin{tabular}{lrrrr}
+\hline
+ & \textbf{mAP@.5} & \textbf{Recall} & \textbf{GFLOPs} & \textbf{FPS} \\
+\hline
+Baseline & -- & -- & -- & -- \\
+DES-ESOD & -- & -- & -- & -- \\
+\hline
+\end{tabular}
+\end{table}
+
+TinyPersonV2 results (Table~\ref{tab:tinypersonv2}) are pending at the time
+of this draft; the data-preparation and six-arm training pipeline are
+complete and the roster is queued. This table will be populated with
+audited size-bucket recall and efficiency numbers before submission,
+following the same protocol as Table~\ref{tab:uavdt}.

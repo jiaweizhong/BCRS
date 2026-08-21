@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Reproduce the official ESOD (YOLOv5m) baseline on VisDrone / UAVDT / TinyPerson
 # via hesod/backends/esod (the frozen ESOD reference copy inside the HESOD
-# umbrella -- NOT the BCRS vendored/modified fork, and, as of 2026-08-08, no
-# longer the standalone top-level esod/ either; see ESOD-Baseline-Patches.md's
-# "Dual-tree coverage" note. Point ESOD_REPO at esod/ if you specifically need
-# the standalone copy for some reason.
+# umbrella -- NOT the BCRS vendored/modified fork. This is the sole baseline
+# copy since 2026-08-21; the standalone top-level esod/ checkout that used to
+# mirror it was retired once confirmed byte-identical and unreferenced
+# elsewhere, see ESOD-Baseline-Patches.md's provenance note.
 #
 # Usage:
 #   ./run_baseline.sh <visdrone|uavdt|tinyperson|all> [gpu_index]

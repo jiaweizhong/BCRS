@@ -8,17 +8,20 @@ active behavior only; rejected experiments and execution order live in
 
 - Upstream: [`alibaba/esod`](https://github.com/alibaba/esod), pinned by the
   original gitlink at commit `bde3571bd7db697e441eef0278cd425e888ea026`.
-- `esod/` is the standalone baseline; `hesod/backends/esod/` is its runner
-  mirror. They are source-identical after line-ending normalization.
+- `hesod/backends/esod/` is the standalone baseline. A root-level `esod/`
+  checkout previously existed as a byte-identical mirror; it was retired
+  (2026-08-21) once `diff -rq` and `tests/test_esod_audit_and_inference.py`
+  confirmed no source difference, and nothing outside `hesod/backends/esod/`
+  itself depended on the root copy.
 - Against the pinned upstream, the baseline has exactly **11 path deltas**:
   8 modified, 2 deleted, and 1 added. The other 433 upstream files are
   unchanged after line-ending normalization.
 - `hesod/backends/hesod/` starts from this patched baseline and adds method-only
   routing, selector, and loss options. Those additions are listed separately.
 
-Any future baseline change must add or update a ledger row here, be mirrored in
-both baseline trees, and include a focused regression test. A path difference
-without a ledger entry is protocol drift.
+Any future baseline change must add or update a ledger row here and include a
+focused regression test. A path difference without a ledger entry is protocol
+drift.
 
 ## Complete baseline source delta
 

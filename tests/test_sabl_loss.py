@@ -96,6 +96,8 @@ def test_sabl_changes_lbox_only_and_keeps_ciou_objectness_target():
         gr = 1.0
         balance = [1.0, 1.0]
         autobalance = False
+        lambda_rescue = 0.0
+        lambda_cond = 0.0
         hyp = {"box": 1.0, "obj": 1.0, "cls": 1.0}
         BCEcls = CaptureBCE()
         BCEobj = CaptureBCE()

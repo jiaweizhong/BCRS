@@ -1,0 +1,56 @@
+% ICIP 2026 submission draft.
+% Built from Template.tex; see HESOD-Proposal.md / HESOD-Experiment-Plan.md /
+% HESOD-Lightweight-Detector-Review-and-Roadmap.md in the repo root for the
+% full design rationale and evidence this draft compresses to 5 pages.
+\documentclass{article}
+\usepackage{spconf,amsmath,graphicx}
+
+\def\x{{\mathbf x}}
+\def\L{{\cal L}}
+
+\title{DES-ESOD: Dual-Evidence Selection for High-Resolution Tiny Object Detection}
+%
+\name{Author Name(s)\thanks{TODO: author list, affiliation, funding acknowledgment.}}
+\address{Author Affiliation(s)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+High-resolution UAV imagery makes small-object detection expensive because most
+spatial regions are background. Selective-computation detectors such as
+QueryDet, CEASC, and ESOD route computation using a single
+objectness\slash foreground score, but a tiny object's semantic response can
+collapse toward background level after downsampling, and a region dropped at
+this stage is unrecoverable by every later network stage. We propose DES-ESOD,
+an extension of ESOD built around a recall-oriented, dual-evidence region
+selector that fuses a
+semantic-objectness branch with a lightweight spectral/local-saliency branch and trains the fused
+priority with an explicit object-level soft-coverage loss, encouraging at
+least one selected region to overlap every ground-truth object. Routing reuses
+ESOD's native fixed-threshold rule unchanged; the realized retained area is
+reported separately because equal thresholds do not imply equal compute.
+An ISPP-based decoupled head reduces dense detection-head cost. Evaluation
+placeholders are retained for UAVDT and TinyPersonV2 (SeaPerson), covering
+size-bucket recall, AP/AP50, retained area (Occupy), and measured
+GFLOPs/latency; final cross-dataset results will be inserted after the ongoing
+experiments finish.
+\end{abstract}
+%
+\begin{keywords}
+small object detection, selective computation, spectral evidence, coverage-constrained selection, UAV imagery
+\end{keywords}
+
+\input{sections/intro}
+\input{sections/related}
+\input{sections/method}
+\input{sections/setup}
+\input{sections/results}
+\input{sections/conclusion}
+
+\vfill\pagebreak
+
+\bibliographystyle{IEEEbib}
+\bibliography{strings,refs}
+
+\end{document}

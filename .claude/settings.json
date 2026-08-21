@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash ../tikzmake.sh hesod_segmenter_block)",
+      "Bash(bash ../tikzmake.sh hesod_sabl_block)",
+      "Bash(bash ../tikzmake.sh hesod_sparsehead_block)",
+      "Bash(python hesod_sparsehead_block.py)",
+      "Bash(pdflatex -interaction=nonstopmode hesod_sparsehead_block.tex)",
+      "Bash(rm -f hesod_sparsehead_block.aux hesod_sparsehead_block.log hesod_sparsehead_block.tex)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\jiawe\\Repos\\PlotNeuralNet\\pyexamples"
+    ]
+  }
+}

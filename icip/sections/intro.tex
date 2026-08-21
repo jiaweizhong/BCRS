@@ -1,0 +1,58 @@
+\section{Introduction}
+\label{sec:intro}
+
+High-resolution aerial and maritime imagery is the regime where small-object
+detection is hardest: targets occupy a handful of pixels, background dominates
+the frame, and running a dense detector at full resolution wastes most of its
+computation on regions with no object of interest \cite{ESOD}. A common
+remedy is \emph{selective computation}: a lightweight early-stage network
+scores which spatial regions merit full-resolution processing, and only those
+regions proceed through the expensive backbone/neck/head
+\cite{QueryDet,ESOD,CEASC}.
+
+Existing selectors share an implicit assumption: a region containing a real
+object will produce a sufficiently high foreground/objectness/query response
+in the lightweight branch. This holds for medium and large objects but
+becomes unreliable exactly where selective computation matters most --
+genuinely tiny targets, whose downsampled feature footprint can collapse to
+one or two activations indistinguishable from background clutter
+\cite{SET}. The two possible selector errors are asymmetric: retaining an
+extra background region only wastes compute, while dropping a true-object
+region removes that object from every later stage. An objectness-only
+selector's failure mode on tiny objects is therefore a silent, unrecoverable
+false negative, not simply a lower AP.
+
+We ask whether a second, independent evidence signal -- local
+spectral/saliency response, motivated by the observation that tiny targets
+retain residual high-frequency structure even when their semantic response is
+weak \cite{SET} -- can recover objects an objectness-only selector would
+drop, and whether directly supervising \emph{object-level coverage} (does at
+least one candidate cell overlap each ground-truth box?) in addition to
+per-cell classification yields a higher-recall selector under the same
+routing rule.
+
+We instantiate this idea as DES-ESOD, on ESOD's patch-routing skeleton
+\cite{ESOD}: a dual-evidence priority head replaces ESOD's single
+objectness head, trained with an explicit soft object-coverage loss. The
+results in this paper use ESOD's own native fixed-threshold routing,
+unchanged -- not a fixed top-$K$ cap. This holds the routing rule and threshold
+fixed, but does not hold realized computation fixed because different score
+distributions can retain different areas; a fixed-cardinality top-$K$ mode is
+part of the wider design but is evaluated separately, outside this paper.
+Because a higher-recall selector naturally
+retains more image area, we pair it with an efficient decoupled head and
+report retained area (Occupy) alongside accuracy so this
+trade-off is never hidden. We define evaluation on two datasets outside ESOD's own
+reported protocol -- UAVDT (vehicles) and TinyPersonV2/SeaPerson (extremely
+small pedestrians) -- to test whether a dual-evidence, coverage-supervised
+selector transfers across domains it was not tuned on.
+
+\textbf{Contributions:} (1) an object-level soft-coverage loss that directly
+supervises the event recall actually depends on, instead of a per-cell
+classification proxy; (2) a lightweight semantic-spectral evidence fusion
+that repurposes spectral saliency as a routing signal rather than a feature
+enhancer; (3) an ISPP-based decoupled head that reduces the dense detection
+head's parameter and arithmetic cost while preserving ESOD's prediction
+contract; and (4) a cross-domain evaluation protocol on UAVDT and
+TinyPersonV2, with final results retained as placeholders while experiments
+are in progress.

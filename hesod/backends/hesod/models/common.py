@@ -336,7 +336,11 @@ class HeatMapParser(nn.Module):
         if torch.max(mask_pred) > 1. or torch.min(mask_pred) < 0.:
             mask_pred = mask_pred.sigmoid()
 
-        mask_pred = mask_pred[:, 0, :, :].detach() 
+        # Preserve released ESOD's routing contract: channel 0 of the first
+        # selector level is the scalar routing map. In DES-ESOD the coverage
+        # term supervises this channel with every GT object; the remaining
+        # channels retain pixelwise mask supervision only.
+        mask_pred = mask_pred[:, 0, :, :].detach()
 
         if getattr(self, 'mask_only', False):
             return x, self.threshold
@@ -1198,34 +1202,6 @@ class YOLOv6Head(YOLOXHead):
         self.cls_pred = nn.Conv2d(c, nc * na, 1)
         self.reg_pred = nn.Conv2d(c, 4 * na, 1)
         self.obj_pred = nn.Conv2d(c, 1 * na, 1)
-
-
-class SharedDWHead(nn.Module):
-    # Channel-reduced decoupled head with one shared depthwise+pointwise
-    # trunk feeding both cls and reg/obj branches (HESOD-Lightweight-
-    # Detector-Review-and-Roadmap.md SS5.2, "H1a"). Unlike YOLOv6Head, which
-    # runs separate full-c1-width cls_conv/reg_conv branches, this reduces
-    # to c_mid first and shares one lightweight trunk between both branches.
-    def __init__(self, c1, nc, na, c_mid=None):
-        super(SharedDWHead, self).__init__()
-        self.nc = nc
-        self.na = na
-        c_mid = c_mid or min(c1, 128)
-        self.reduce = Conv(c1, c_mid, 1)
-        self.dw = DWConv(c_mid, c_mid, 3, 1)
-        self.pw = Conv(c_mid, c_mid, 1)
-        self.cls_pred = nn.Conv2d(c_mid, nc * na, 1)
-        self.reg_pred = nn.Conv2d(c_mid, 4 * na, 1)
-        self.obj_pred = nn.Conv2d(c_mid, 1 * na, 1)
-
-    def forward(self, x):
-        bs, _, ny, nx = x.shape
-        feat = self.pw(self.dw(self.reduce(x)))
-        cls = self.cls_pred(feat).view(bs, self.na, self.nc, ny, nx)
-        reg = self.reg_pred(feat).view(bs, self.na, 4, ny, nx)
-        obj = self.obj_pred(feat).view(bs, self.na, 1, ny, nx)
-        y = torch.cat((reg, obj, cls), 2)
-        return y.view(bs, -1, ny, nx)
 
 
 class ISPPHead(nn.Module):
