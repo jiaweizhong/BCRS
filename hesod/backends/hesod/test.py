@@ -248,7 +248,14 @@ def test(data,
                 # map into the 1024x768/1024x1024 model-input tensor space.
                 for si in range(nb):
                     img_path = Path(paths[si])
-                    image_id = int(img_path.stem) if img_path.stem.isnumeric() else img_path.stem
+                    # UAVDT reuses frame numbers (img000001.jpg etc.) across
+                    # every video sequence -- plain path.stem collides across
+                    # videos. Same disambiguation already used for --save-txt
+                    # filenames below (path.parent.stem + '_' + path.stem).
+                    if 'uavdt' in opt.data.lower():
+                        image_id = img_path.parent.stem + '_' + img_path.stem
+                    else:
+                        image_id = int(img_path.stem) if img_path.stem.isnumeric() else img_path.stem
                     selected_regions[image_id] = clusters[si].detach().cpu().round().to(torch.int32).tolist()
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         if out is not None:
@@ -303,7 +310,14 @@ def test(data,
             # Append to pycocotools JSON dictionary
             if save_json:
                 # [{"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}, ...
-                image_id = int(path.stem) if path.stem.isnumeric() else path.stem
+                # UAVDT reuses frame numbers across every video sequence --
+                # plain path.stem collides across videos (same disambiguation
+                # as the --save-txt filename and selected_regions image_id
+                # above: path.parent.stem + '_' + path.stem).
+                if 'uavdt' in opt.data.lower():
+                    image_id = path.parent.stem + '_' + path.stem
+                else:
+                    image_id = int(path.stem) if path.stem.isnumeric() else path.stem
                 box = xyxy2xywh(predn[:, :4])  # xywh
                 box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
                 for p, b in zip(pred.tolist(), box.tolist()):
