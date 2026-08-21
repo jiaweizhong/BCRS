@@ -26,11 +26,11 @@ ESOD Baseline \cite{ESOD} & 0.344 & 0.171 & 84.67\% & 83.63\% & 0.245 \\
 \centering
 \caption{Detection accuracy and runtime efficiency on SeaPerson.}
 \label{tab:seaperson}
-\scriptsize
+\small
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccccccc}
 \toprule
-\textbf{Method} & \textbf{mAP@.5} & \textbf{mAP@.5:.95} & \textbf{Recall} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} & \textbf{Occupy} \\
+\textbf{Method} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \shortstack{\textbf{Total}\\\textbf{Recall}} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} & \textbf{Occupy} \\
 \midrule
 ESOD Baseline \cite{ESOD} & 0.750 & 0.320 & 69.6\% & 0.947 & 202.4 & 88.9 & 0.228 \\
 \textbf{+ Soft-Coverage}  & \textbf{0.769} & \textbf{0.325} & \textbf{70.8\%} & \textbf{0.991} & 266.8 & 75.4 & 0.363 \\
@@ -51,11 +51,11 @@ Table~\ref{tab:seaperson} evaluates performance on the dense SeaPerson maritime 
 \centering
 \caption{Detailed size-bucket recall comparison across 300,375 ground-truth test instances on SeaPerson.}
 \label{tab:size_buckets}
-\scriptsize
+\small
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
-\textbf{Scale Bucket} & \textbf{Pixel Area} & \textbf{Baseline \cite{ESOD}} & \textbf{+ Soft-Coverage} & \textbf{Gain ($\Delta$)} & \textbf{Relative} \\
+\shortstack{\textbf{Scale}\\\textbf{Bucket}} & \shortstack{\textbf{Pixel}\\\textbf{Area}} & \shortstack{\textbf{Baseline}\\\cite{ESOD}} & \shortstack{\textbf{+ Soft-}\\\textbf{Coverage}} & \shortstack{\textbf{Gain}\\\textbf{($\Delta$)}} & \shortstack{\textbf{Relative}\\\textbf{Gain}} \\
 \midrule
 Very Tiny   & $<16^2$ px      & 74.03\% & \textbf{75.49\%} & \textbf{+1.46\,pp} & +1.97\% \\
 Tiny        & $16^2-32^2$ px  & 86.78\% & \textbf{91.57\%} & \textbf{+4.79\,pp} & +5.52\% \\
@@ -78,11 +78,11 @@ As shown in Table~\ref{tab:size_buckets}, coverage-guided spatial selection deli
 \centering
 \caption{Diagnostic breakdown of missed Very Tiny instances ($<16^2$ px).}
 \label{tab:error_breakdown}
-\scriptsize
+\small
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Method} & \textbf{Missed Targets} & \textbf{Selector Dropped} & \textbf{Localization Failure} & \textbf{Other} \\
+\textbf{Method} & \shortstack{\textbf{Missed}\\\textbf{Targets}} & \shortstack{\textbf{Selector}\\\textbf{Dropped}} & \shortstack{\textbf{Localization}\\\textbf{Failure}} & \shortstack{\textbf{Other}\\\textbf{Errors}} \\
 \midrule
 ESOD Baseline & 21,388 & 25.6\% & 74.3\% & 0.1\% \\
 \textbf{+ Soft-Coverage} & \textbf{20,181} & \textbf{20.1\%} & 79.7\% & 0.1\% \\
