@@ -95,7 +95,8 @@ Routing contract:
 | VisDrone Gaussian AP / AP50 | 35.7 / 59.5 | 34.9 / 58.6 | -0.8 / -0.9 pp |
 | VisDrone released SAM hybrid AP / AP50 | 36.0 / 59.7 | 34.6 / 58.4 | -1.4 / -1.3 pp |
 | TinyPerson APt50 / APs50 | 61.3 / 74.4 | pending audited rerun | -- |
-| UAVDT nc=3 AP / AP50 | 22.5 / 40.7 | 20.1 / 37.0 | -2.4 / -3.7 pp |
+| UAVDT nc=3 AP / AP50 (frozen-tree `run_baseline.sh`) | 22.5 / 40.7 | 20.1 / 37.0 | -2.4 / -3.7 pp |
+| UAVDT nc=3 AP / AP50 (`UAVDT_fresh`, active tree, 2026-08-20/21) | 22.5 / 40.7 | 17.1 / 34.4 | -5.4 / -6.3 pp |
 
 Interpretation is intentionally narrow:
 
@@ -105,6 +106,20 @@ Interpretation is intentionally narrow:
   reproduction: its retained training log identifies ratio 16 while the
   current source is ratio 8, and no matching official-evaluation log remains.
 - UAVDT nc=3 is paper-comparable; the released nc=1 collapse is another task.
+- UAVDT's fresh reconversion (`UAVDT_fresh`, re-extracted from the raw
+  `M_attr.zip`/`UAV-benchmark-M.zip`/`UAV-benchmark-MOTD_v1.0.zip` this
+  session) widened the residual to the paper rather than confirming the
+  frozen-tree number (-5.4/-6.3pp vs. -2.4/-3.7pp). Ruled out as the cause:
+  the `image_id` disambiguation bug found and fixed in `test.py` (UAVDT
+  reuses frame numbers like `img000001.jpg` across every video, colliding
+  under plain `path.stem`) -- that only affected the *external* audit tools
+  (`audit_buckets.py`/`vt_diagnose.py`), not `test.py`'s own internal AP/AP50,
+  which is computed directly from in-memory per-batch tensors and never
+  re-matches by filename, in either run. Leading candidates, neither
+  confirmed: a real data-provenance difference between `UAVDT_v3` (origin
+  unknown) and `UAVDT_fresh`, or single-seed noise (though a 3pp+ shift on a
+  373,997-box test set is large for noise alone). Open item, not yet
+  resolved.
 - TinyPerson uses only the retained official paper-text two-arm runner. Hardware
   topology (one GPU versus the paper's two V100s at global batch 8) remains a
   documented reproduction variable.
@@ -116,7 +131,8 @@ Retained bundles under `results/`:
 | `visdrone_yolov5m_baseline` | Valid Gaussian protocol; retrained 2026-08-18 on a re-provisioned GPU host (full train/test/measure/audit logs retained, see `results/visdrone/visdrone_yolov5m_baseline/`) -- 34.9/58.6, within 0.1-0.2pp of the prior Audited value and the smallest residual-to-paper of all four rows in this table |
 | `visdrone_yolov5m_sam_masks` | Valid released-code SAM hybrid control |
 | `tinyperson_yolov5m_baseline` | Legacy evidence only, not a canonical reproduction. The retained training log records code commit `cbbbc86` with ratio 16, the current source uses ratio 8, and the claimed 55.26/71.23 score has no matching retained `official_eval` log. Do not reuse this checkpoint as R0 for the corrected protocol. |
-| `uavdt_yolov5m_baseline` | Valid official-source, three-class artifacts |
+| `uavdt_yolov5m_baseline` | Valid official-source, three-class artifacts (frozen-tree `run_baseline.sh` provenance) |
+| `uavdt_yolov5m_baseline` (`UAVDT_fresh`) | Valid, active-tree reproduction on independently re-extracted raw data -- see SS7 for the full comparison against `uavdt_yolov5m_channel_pooled_concat_sabl_isphead` |
 
 Empty `buckets.json` is never evidence. Accept compute data only from a
 populated `--task measure` artifact or aggregate GFLOPs/FPS in its log.
@@ -447,3 +463,135 @@ result (SS11.2.9 in `HESOD-Agri-Experiment-Plan.md`) -- a legitimate,
 informative negative result about where the routing thesis does and doesn't
 have room to operate, not a data or pipeline failure. Retained here rather
 than silently dropped so the reasoning stays traceable.
+
+## 7. UAVDT: first concat-vs-R0 comparison, and an `image_id` fix (2026-08-20/21)
+
+No concat/SABL/lightweight-head arm had ever been run for UAVDT before this
+session (only R0 existed). `UAVDT_fresh` (re-extracted from the raw
+`M_attr.zip`/`UAV-benchmark-M.zip`/`UAV-benchmark-MOTD_v1.0.zip` on the active
+`hesod/backends/hesod` tree, not the frozen-tree `run_baseline.sh` pipeline)
+ran both R0 and `concat+SABL+ISPPHead` (plain concat+SABL skipped, same
+skip-the-middle-arm reasoning as SeaDronesSeeV2/fresh-TinyPerson).
+
+### 7.1 `image_id` collision bug found and fixed
+
+UAVDT reuses frame numbers (`img000001.jpg`, `img000002.jpg`, ...) identically
+across every video sequence, with no split-level subdirectory separating
+train from test videos in `UAV-benchmark-M/`. `test.py`'s `image_id`
+assignment (`int(path.stem) if path.stem.isnumeric() else path.stem`, used by
+TinyPerson/VisDrone/SeaDronesSeeV2 without issue) collided across videos for
+UAVDT specifically -- predictions from frame 1 of *any* of the ~20 test
+videos all wrote `image_id="img000001"` into `best_predictions.json`,
+indistinguishable to any external tool that re-associates predictions with
+images by that field. Fixed in `test.py` (both the `save_json` and
+`selected_regions` assignments) to use `path.parent.stem + '_' + path.stem`
+for UAVDT specifically -- the same disambiguation pattern the `--save-txt`
+label-filename code already used elsewhere in the same file, just not
+applied to `image_id` itself. A matching symlink farm
+(`images/test/`+`labels/test/`, built from `split/test.txt` with the same
+`{video}_{stem}` naming) was created so `audit_buckets.py`/`vt_diagnose.py`
+can resolve images by this same key.
+
+**Scope of the bug, precisely: this never affected `test.py`'s own internal
+AP/AP50** (computed directly from in-memory per-batch tensors during the
+dataloader loop, never re-matched by filename) -- only the external audit
+tools, which previously either crashed outright or silently reported 0%
+recall (predictions and GT never matched at all under the old plain-stem
+symlink layout).
+
+### 7.2 R0 vs concat+SABL+ISPPHead (`UAVDT_fresh`, both size-bin audits confirmed consistent)
+
+| | R0 | Concat+SABL+ISPPHead | Delta |
+|---|---:|---:|---:|
+| mAP@.5 | 0.344 | 0.371 | +2.7pp |
+| mAP@.5:.95 | 0.171 | 0.195 | +2.4pp |
+| Total recall | 84.67% | 90.17% | +5.5pp |
+| Very Tiny recall (<16x16) | 83.63-83.64% | 84.18-84.21% | +0.55pp |
+| car / truck / bus recall | 84.87 / 84.41 / 75.20 | 90.56 / 84.88 / 76.28 | +5.7 / +0.5 / +1.1pp |
+| Occupy | 0.245 | 0.48 | ~2x |
+
+audit_buckets.py and vt_diagnose.py's independently-computed Very Tiny
+recall figures agree closely for both arms (83.63/83.64 and 84.18/84.21),
+a useful cross-check that the fixed `image_id` pipeline is now self-
+consistent.
+
+**Clear, consistent win for concat+SABL+ISPPHead** across mAP, total
+recall, and Very Tiny recall -- not just a tradeoff on one axis. This is
+the first-ever arm-vs-R0 comparison run for UAVDT in this project.
+
+**Caveat, not yet isolated: Occupy nearly doubled (0.245 -> 0.48).** The
+concat selector routes to roughly twice as much image area as R0's
+semantic-only selector -- some of this accuracy gain is plausibly "seeing
+more of the image," not purely smarter patch selection. Same class of
+open question as Pest24's R2 result (HESOD-Agri-Experiment-Plan.md
+SS11.2.2's "smarter selection vs. selecting more area" caveat). A
+matched-Occupy or matched-GFLOPs comparison would be needed to isolate the
+selection-quality effect from the budget-increase effect; not run here.
+
+### 7.3 R0-vs-paper gap widened, not confirmed (see SS2)
+
+`UAVDT_fresh` R0's residual to the paper (-5.4/-6.3pp AP/AP50) is larger
+than the previously-accepted frozen-tree number's residual (-2.4/-3.7pp),
+not a confirmation of it. The `image_id` fix in SS7.1 does not explain this
+gap (it never touched `test.py`'s own AP computation). Leading candidates
+-- a real data-provenance difference between `UAVDT_v3` and `UAVDT_fresh`,
+or single-seed noise -- are both unconfirmed. Open item.
+
+## 8. SeaPerson (aka TinyPersonV2): pipeline built, roster not yet run (2026-08-20)
+
+A further-validation dataset requested after the TinyPerson protocol rework
+(SS1/SS2) -- same schema lineage as TinyPerson (JSON image/annotation keys
+verified identical, including `ignore`/`uncertain`/`in_dense_image`), much
+denser (5711 train images, 262,063 annotations, ~45.9 boxes/image vs
+TinyPerson's own 794/~much sparser), and ships a genuine official 3-way
+split (`train`/`valid`/`test`; confirmed `train_ids | valid_ids ==
+trainvalid_ids` exactly and zero train/test id overlap) -- unlike TinyPerson,
+which has to manufacture its own random valid slice.
+
+**Protocol decisions:**
+- Whole-image annotations only (`release/rgb_{train,valid,test}.json`), not
+  the pre-tiled `release/corner/*.json` sliding-window variants -- same
+  reasoning as TinyPerson's own excluded `sw640_sh512` variant: ESOD's method
+  self-routes full images, it does not want pre-cropped tiles.
+- img-size=2048, matching TinyPerson's own choice, justified by SeaPerson's
+  own resolution distribution (92.9% of train images at 1920x1080).
+- No erase-preprocessed image variant ships with this release (only raw
+  `imgs_rgb.zip`), unlike TinyPerson, which was just reworked specifically
+  *toward* the erase-preprocessed protocol. Rather than fall back to
+  label-level-only `ignore`/`uncertain` filtering on unmodified pixels (the
+  approach TinyPerson's own protocol was reworked away from), `prepare_seaperson()`
+  erases those box regions directly into the image (mid-gray fill, same
+  convention `prepare_visdrone()` already uses for its `ignored`/`others`
+  classes), writing an `_erased` copy only when erasing actually occurred.
+- Labels/masks are written in-place per source video subfolder (same
+  convention as `prepare_uavdt()`/`prepare_tinyperson()`), which leaves no
+  flat directory for `audit_buckets.py`/`vt_diagnose.py`'s `--labels`/
+  `--images` convention -- the same gap UAVDT hit. Fixed proactively this
+  time with a proper committed reorganizer
+  (`scripts/esod_baseline/reorganize_seaperson.py`, modeled on the
+  already-existing `reorganize_uavdt.py`) rather than a scratchpad symlink
+  patch, producing a self-contained `seaperson_v2/{images,labels,masks}/{split}/`
+  tree that `data/seaperson.yaml` points at directly.
+
+**Roster (6 arms, confirmed distinct by the user):**
+
+| Arm | Selector | Loss | Box |
+|---|---|---|---|
+| R0 | `Segmenter` | upstream | CIoU |
+| semantic-only | `Segmenter` (same arch as R0) | coverage | CIoU |
+| spectral-only | `SpectralOnlySegmenter` | coverage | CIoU |
+| concat-only | `ChannelPooledConcatEvidenceSegmenter` | coverage | CIoU |
+| concat+SABL | `ChannelPooledConcatEvidenceSegmenter` | coverage | SABL |
+| concat+SABL+ISPPHead | `ChannelPooledConcatEvidenceSegmenter` + `ISPPHead` | coverage | SABL |
+
+R0 and semantic-only share the same model config (`seaperson_yolov5m.yaml`)
+and differ only in `--selector-loss`, matching VisDrone's own E1.0/E2.1 pair
+(`run_visdrone_roster.sh`) -- deliberately isolating the loss-function effect
+from the selector-architecture effect. concat-only and concat+SABL likewise
+share one config (`seaperson_yolov5m_channel_pooled_concat.yaml`), differing
+only in `--box-loss`.
+
+**Status: pipeline built (`scripts/data_prepare.py::prepare_seaperson()`,
+`reorganize_seaperson.py`, 4 new model configs, `data/seaperson.yaml`,
+`hyp.seaperson.yaml`, `run_seaperson.sh`), not yet executed.** No results to
+report yet -- this section will be updated once the roster runs.

@@ -1,0 +1,29 @@
+# SeaPerson (aka TinyPersonV2), converted via
+# scripts/data_prepare.py::prepare_seaperson() (writes labels/masks in-place
+# under the raw rgb/<video>/ tree, same convention as UAVDT/TinyPerson) then
+# scripts/esod_baseline/reorganize_seaperson.py (flattens into a separate,
+# self-contained images/labels/masks/split-per-split root -- same fix UAVDT
+# needed after prepare_uavdt() left labels in-place with no flat directory
+# for audit_buckets.py/vt_diagnose.py's --labels/--images convention).
+#
+# Unlike TinyPerson, this release ships a genuine official 3-way split
+# (train/valid/test, confirmed train_ids | valid_ids == trainvalid_ids
+# exactly, zero train/test overlap, 2026-08-xx diagnostic) -- val: points at
+# the real held-out valid split, not a copy of test:, and --task test
+# evaluates the true held-out test set.
+#
+# Paths are absolute, matching seadronesseev2.yaml/tinyperson.yaml's own
+# on-disk convention -- NOT repo-relative. check_dataset()
+# (utils/general.py:264) resolves data-yaml paths against the process's cwd
+# (train.py's launch dir, $ESOD_REPO), not the yaml file's own location, so a
+# relative path here resolves wrong. Update this if seaperson_v2/ is moved to
+# a different mount/disk.
+train: /root/autodl-tmp/seaperson_v2/split/train.txt
+val: /root/autodl-tmp/seaperson_v2/split/valid.txt
+test: /root/autodl-tmp/seaperson_v2/split/test.txt
+
+# number of classes
+nc: 1
+
+# class names
+names: ['person']

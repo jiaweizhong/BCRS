@@ -553,6 +553,110 @@ def prepare_seadronesseev2():
             f.writelines(paths)
 
 
+def prepare_seaperson():
+    # SeaPerson (aka TinyPersonV2) whole-image release: release/rgb_{train,
+    # valid,test}.json under anns_extracted/ (release/corner/*.json are
+    # pre-tiled sliding-window variants, excluded -- same reasoning as
+    # TinyPerson's own excluded sw640_sh512 variant: ESOD's method self-routes
+    # full images, it does not want pre-cropped tiles). valid.json is the
+    # official held-out split (confirmed train_ids | valid_ids ==
+    # trainvalid_ids exactly, zero train/test id overlap, 2026-08-xx
+    # diagnostic) -- trainvalid.json itself is never read here.
+    #
+    # Same annotation schema as TinyPerson's with_dense format (image/
+    # annotation keys verified identical, including ignore/uncertain/
+    # in_dense_image); file_name already includes the 'rgb/...' relative
+    # path, so images resolve as join(root, file_name) with imgs_rgb.zip
+    # extracted directly under root.
+    #
+    # Unlike TinyPerson, this release ships no erase-preprocessed image
+    # variant -- only raw imgs_rgb.zip. Mirrors prepare_visdrone()'s existing
+    # ignored-region erasing convention (mid-gray fill, write only if any
+    # erasing occurred) rather than doing label-level-only ignore/uncertain
+    # filtering on unmodified pixels, so ambiguous regions don't leak into
+    # other boxes' negative-space supervision the way TinyPerson's protocol
+    # was specifically reworked to avoid.
+    #
+    # Labels/masks are written in-place next to each (possibly erased) image,
+    # same convention as prepare_uavdt()/prepare_tinyperson() -- SeaPerson's
+    # ~300 per-video-sequence subfolders are the same shape as UAVDT's
+    # per-video layout. This in-place layout has no flat directory for
+    # audit_buckets.py/vt_diagnose.py's --labels/--images convention (same
+    # gap UAVDT hit) -- run scripts/esod_baseline/reorganize_seaperson.py
+    # against this function's output before training/auditing.
+    root = opt.dataset
+    cat_id_to_yolo = {1: 0}
+    label_file_dict = {
+        'train': join(root, 'anns_extracted', 'release', 'rgb_train.json'),
+        'valid': join(root, 'anns_extracted', 'release', 'rgb_valid.json'),
+        'test': join(root, 'anns_extracted', 'release', 'rgb_test.json'),
+    }
+    split_dir = join(root, 'split')
+    os.makedirs(split_dir, exist_ok=True)
+
+    for mode, label_file in label_file_dict.items():
+        with open(label_file, 'r') as f:
+            anno = json.load(f)
+
+        image_dict = {}
+        for item in anno['images']:
+            file_name, width, height = item['file_name'], item['width'], item['height']
+            image_dict[item['id']] = {
+                'shape': [width, height], 'bboxes': [], 'erase_boxes': [],
+                'image_path': join(root, file_name),
+            }
+
+        missing_images = [
+            item['image_path'] for item in image_dict.values()
+            if not exists(item['image_path'])
+        ]
+        if missing_images:
+            samples = '\n'.join(f'  - {path}' for path in missing_images[:5])
+            raise FileNotFoundError(
+                f'SeaPerson image layout does not match {label_file}. '
+                f'Missing {len(missing_images)}/{len(image_dict)} {mode} images. '
+                f'Expected imgs_rgb.zip extracted directly under {root} '
+                "(so file_name's own 'rgb/...' prefix resolves without an "
+                f'extra subdirectory).\nFirst missing paths:\n{samples}\n'
+            )
+
+        for item in anno['annotations']:
+            _id, (x1, y1, w, h) = item['image_id'], item['bbox']
+            width, height = image_dict[_id]['shape']
+            if item.get('ignore', False) or item.get('uncertain', False):
+                image_dict[_id]['erase_boxes'].append((x1, y1, w, h))
+                continue
+            cls = cat_id_to_yolo[item['category_id']]
+            xc, yc = (x1 + w / 2.) / width, (y1 + h / 2.) / height
+            image_dict[_id]['bboxes'].append(
+                ('%d' + ' %.6f' * 4 + '\n') % (cls, xc, yc, w / width, h / height))
+
+        paths = []
+        for item in tqdm(image_dict.values(), desc=f'seaperson/{mode}'):
+            image_path = item['image_path']
+            image = cv2.imread(image_path)
+            if image is None:
+                raise FileNotFoundError(f'failed to read SeaPerson image: {image_path}')
+
+            if item['erase_boxes']:
+                for x1, y1, w, h in item['erase_boxes']:
+                    x1, y1, w, h = int(x1), int(y1), int(w), int(h)
+                    image[y1:y1 + h, x1:x1 + w, :] = 127
+                root_name, ext = osp.splitext(image_path)
+                image_path = root_name + '_erased' + ext
+                cv2.imwrite(image_path, image)
+
+            label_path = osp.splitext(image_path)[0] + '.txt'
+            with open(label_path, 'w+') as f:
+                f.writelines(item['bboxes'])
+
+            gen_mask(label_path, image)
+            paths.append(image_path + '\n')
+
+        with open(join(split_dir, f'{mode}.txt'), 'w+') as f:
+            f.writelines(paths)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='VisDrone', help='dataset, e.g., VisDrone, UAVDT, TinyPerson, and SeaDronesSeeV2')
@@ -574,5 +678,7 @@ if __name__ == '__main__':
         prepare_tinyperson()
     elif 'seadrones' in dataset or 'compressedversion' in dataset:
         prepare_seadronesseev2()
+    elif 'seaperson' in dataset:
+        prepare_seaperson()
     else:
         print('%s is coming soon.' % opt.dataset)
