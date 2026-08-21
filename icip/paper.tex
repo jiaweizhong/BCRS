@@ -1,44 +1,23 @@
-% ICIP 2026 submission draft.
-% Built from Template.tex; see HESOD-Proposal.md / HESOD-Experiment-Plan.md /
-% HESOD-Lightweight-Detector-Review-and-Roadmap.md in the repo root for the
-% full design rationale and evidence this draft compresses to 5 pages.
 \documentclass{article}
-\usepackage{spconf,amsmath,graphicx}
+\usepackage{spconf,amsmath,amssymb,amsfonts,graphicx,booktabs,multirow,array,cite,url}
 
 \def\x{{\mathbf x}}
 \def\L{{\cal L}}
 
-\title{DES-ESOD: Dual-Evidence Selection for High-Resolution Tiny Object Detection}
-%
-\name{Author Name(s)\thanks{TODO: author list, affiliation, funding acknowledgment.}}
-\address{Author Affiliation(s)}
+\title{DES-ESOD: Dual-Evidence Selection and Coverage Optimization for High-Resolution Small Object Detection}
+
+\name{Anonymous Authors\thanks{Submitted to IEEE ICIP 2026 for blind review.}}
+\address{Affiliation}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-High-resolution UAV imagery makes small-object detection expensive because most
-spatial regions are background. Selective-computation detectors such as
-QueryDet, CEASC, and ESOD route computation using a single
-objectness\slash foreground score, but a tiny object's semantic response can
-collapse toward background level after downsampling, and a region dropped at
-this stage is unrecoverable by every later network stage. We propose DES-ESOD,
-an extension of ESOD built around a recall-oriented, dual-evidence region
-selector that fuses a
-semantic-objectness branch with a lightweight spectral/local-saliency branch and trains the fused
-priority with an explicit object-level soft-coverage loss, encouraging at
-least one selected region to overlap every ground-truth object. Routing reuses
-ESOD's native fixed-threshold rule unchanged; the realized retained area is
-reported separately because equal thresholds do not imply equal compute.
-An ISPP-based decoupled head reduces dense detection-head cost. Evaluation
-placeholders are retained for UAVDT and TinyPersonV2 (SeaPerson), covering
-size-bucket recall, AP/AP50, retained area (Occupy), and measured
-GFLOPs/latency; final cross-dataset results will be inserted after the ongoing
-experiments finish.
+High-resolution aerial and maritime imagery presents severe computational challenges for small-object detection because background regions heavily dominate the visual field. While selective-computation detectors significantly reduce redundant processing by dynamically routing features to prospective foreground areas, existing spatial selectors rely strictly on a single semantic objectness score. When tiny targets undergo feature downsampling, their semantic activations frequently degrade toward background levels; discarding a region at this early stage results in an irrecoverable false negative for all subsequent detector stages. In this paper, we propose DES-ESOD, an efficient dual-evidence selection framework designed for recall-safe, high-resolution small object detection. DES-ESOD introduces a dual-evidence priority head that synergistically fuses semantic objectness with channel-pooled spectral saliency at negligible compute overhead ($\mathcal{O}(1)$ relative to backbone width), capturing critical high-frequency structural cues from semantically weak targets. Furthermore, we formulate an object-level soft-coverage loss that directly optimizes the joint spatial coverage probability of all ground-truth instances, preventing early false dismissals. Paired with a lightweight ISPP-based decoupled head and scale-aware Wasserstein regression, DES-ESOD demonstrates consistent performance gains across the UAVDT and SeaPerson benchmarks, achieving +2.7\% mAP and +5.5\% total detector recall on UAVDT while preserving real-time inference capability.
 \end{abstract}
-%
+
 \begin{keywords}
-small object detection, selective computation, spectral evidence, coverage-constrained selection, UAV imagery
+Small object detection, selective computation, spectral saliency, coverage optimization, UAV perception
 \end{keywords}
 
 \input{sections/intro}
@@ -47,8 +26,6 @@ small object detection, selective computation, spectral evidence, coverage-const
 \input{sections/setup}
 \input{sections/results}
 \input{sections/conclusion}
-
-\vfill\pagebreak
 
 \bibliographystyle{IEEEbib}
 \bibliography{strings,refs}

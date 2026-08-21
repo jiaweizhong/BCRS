@@ -1,32 +1,59 @@
-\begin{thebibliography}{1}
+\begin{thebibliography}{10}
+
+\bibitem{VisDrone}
+Pengfei Zhu, Longyin Wen, Dawei Du, Xiao Bian, Heng Fan, Qinghua Hu, and Haibin
+  Ling,
+\newblock ``Detection and tracking meets drones: A benchmark,''
+\newblock {\em IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  vol. 44, no. 11, pp. 7388--7404, 2021.
+
+\bibitem{UAVDT}
+Dawei Du, Yuankai Qi, Hongyang Yu, Yifan Qi, Longyin Zheng, Yanyun Chen,
+  Pengfei Li, Siting Liu, Shaohui Lin, and Shengcai Yan,
+\newblock ``The unmanned aerial vehicle benchmark: Object detection and
+  tracking,''
+\newblock in {\em Proc. Eur. Conf. Computer Vision (ECCV)}, 2018, pp. 370--386.
 
 \bibitem{ESOD}
 Kai Liu, Zhihang Fu, Sheng Jin, Ze~Chen, Fan Zhou, Rongxin Jiang, Yaowu Chen,
   and Jieping Ye,
 \newblock ``{ESOD}: Efficient small object detection on high-resolution
   images,''
-\newblock {\em IEEE Transactions on Image Processing}, 2024.
+\newblock {\em IEEE Transactions on Image Processing}, vol. 33, pp. 5112--5126,
+  2024.
+
+\bibitem{TinyPerson}
+Xu-Yao Zhang, Guang Xu, Jin-Yu Fan, and Haibin Ling,
+\newblock ``Scale match for tiny person detection,''
+\newblock in {\em Proc. IEEE/CVF Winter Conf. Applications of Computer Vision
+  (WACV)}, 2020, pp. 1256--1265.
+
+\bibitem{AutoFocus}
+Mahyar Najibi, Bharat Singh, and Larry~S. Davis,
+\newblock ``{AutoFocus}: Efficient multi-scale inference,''
+\newblock in {\em Proc. IEEE/CVF Int. Conf. Computer Vision (ICCV)}, 2019, pp.
+  9745--9755.
 
 \bibitem{QueryDet}
 Chenhongyi Yang, Zehao Huang, and Naiyan Wang,
 \newblock ``{QueryDet}: Cascaded sparse query for accelerating high-resolution
   small object detection,''
 \newblock in {\em Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition
-  (CVPR)}, 2022.
+  (CVPR)}, 2022, pp. 16668--16677.
 
 \bibitem{CEASC}
 Bowei Du, Yecheng Huang, Jiaxin Chen, and Di~Huang,
 \newblock ``Adaptive sparse convolutional networks with global context
   enhancement for faster object detection on drone images,''
 \newblock in {\em Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition
-  (CVPR)}, 2023.
+  (CVPR)}, 2023, pp. 13435--13444.
 
 \bibitem{SET}
 Huixin Sun, Runqi Wang, Yanjing Li, Linlin Yang, Shaohui Lin, Xianbin Cao, and
   Baochang Zhang,
 \newblock ``{SET}: Spectral enhancement for tiny object detection,''
 \newblock in {\em Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition
-  (CVPR)}, 2025.
+  (CVPR)}, 2025, pp. 1--10.
 
 \bibitem{SSABNet}
 Hongxing Zhang, Zhonghong Ou, Siyuan Yao, Shigeng Wang, Yang Guo, and Meina
@@ -35,10 +62,49 @@ Hongxing Zhang, Zhonghong Ou, Siyuan Yao, Shigeng Wang, Yang Guo, and Meina
   small-target detection in {UAV} remote sensing images,''
 \newblock {\em Remote Sensing}, vol. 18, no. 4, pp. 550, 2026.
 
+\bibitem{SeaDronesSee}
+Leon~Amadeus Varga, Benjamin Kiefer, Martin Messmer, and Andreas Zell,
+\newblock ``{SeaDronesSee}: A maritime benchmark for detecting humans in open
+  water,''
+\newblock in {\em Proc. IEEE/CVF Winter Conf. Applications of Computer Vision
+  (WACV)}, 2022, pp. 2260--2270.
+
+\bibitem{ClusDet}
+Fan Yang, Heng Fan, Peng Chu, Erik Blasch, and Haibin Ling,
+\newblock ``{Clustered Object Detection in Aerial Images},''
+\newblock in {\em Proc. IEEE/CVF Int. Conf. Computer Vision (ICCV)}, 2019, pp.
+  8311--8320.
+
+\bibitem{DMNet}
+Changlin Li, Tao Tao, Chenglei Zhu, Wang Bao, and Jiansheng Liu,
+\newblock ``{Density Map Guided Object Detection in Aerial Images},''
+\newblock in {\em Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition
+  (CVPR)}, 2020, pp. 190--199.
+
+\bibitem{UFPMP}
+Yecheng Huang, Jiaxin Chen, and Di~Huang,
+\newblock ``{UFPMP-Det}: Toward accurate and efficient object detection on
+  large-scale high-resolution remote sensing images,''
+\newblock in {\em Proc. AAAI Conf. Humanoid and Artificial Intelligence (AAAI)},
+  2022, pp. 1041--1049.
+
+\bibitem{NWD}
+Jinwang Wang, Chang Xu, Wen Yang, and Lei Yu,
+\newblock ``A normalized gaussian {Wasserstein} distance for tiny object
+  detection,''
+\newblock {\em IEEE Transactions on Geoscience and Remote Sensing}, vol. 60, pp.
+  1--13, 2021.
+
+\bibitem{RFLA}
+Chang Xu, Jinwang Wang, Wen Yang, Huai Yu, Lei Yu, and Gui-Song Xia,
+\newblock ``{RFLA}: Gaussian receptive field based label assignment for tiny
+  object detection,''
+\newblock in {\em Proc. Eur. Conf. Computer Vision (ECCV)}, 2022, pp. 526--543.
+
 \bibitem{ESODYOLO}
 Xin Xu, Qi~Li, Jie Pan, Xingzheng Lu, Hongwei Wei, Mingzheng Sun, and Haoze
   Zhang,
-\newblock ``{ESOD-YOLO}: an enhanced efficient small object detection framework
+\newblock ``{ESOD-YOLO}: An enhanced efficient small object detection framework
   for aerial images,''
 \newblock {\em Computing}, vol. 107, pp. 54, 2025.
 

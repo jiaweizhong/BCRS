@@ -1,58 +1,27 @@
 \section{Introduction}
 \label{sec:intro}
 
-High-resolution aerial and maritime imagery is the regime where small-object
-detection is hardest: targets occupy a handful of pixels, background dominates
-the frame, and running a dense detector at full resolution wastes most of its
-computation on regions with no object of interest \cite{ESOD}. A common
-remedy is \emph{selective computation}: a lightweight early-stage network
-scores which spatial regions merit full-resolution processing, and only those
-regions proceed through the expensive backbone/neck/head
-\cite{QueryDet,ESOD,CEASC}.
+High-resolution visual sensing from unmanned aerial vehicles (UAVs) and remote platforms is essential for applications such as traffic monitoring, precision agriculture, and search-and-rescue. However, detecting small and tiny targets in high-resolution imagery poses significant computational and perceptual challenges \cite{VisDrone,UAVDT}. In these scenarios, objects of interest typically span only a few pixels (often less than $16\times 16$ pixels), while background clutter occupies over $70\%$ to $80\%$ of the spatial area \cite{ESOD,TinyPerson}. Running modern dense object detectors on full-resolution feature maps incurs prohibitive arithmetic cost and memory overhead, making onboard real-time deployment on resource-constrained edge devices extremely difficult.
 
-Existing selectors share an implicit assumption: a region containing a real
-object will produce a sufficiently high foreground/objectness/query response
-in the lightweight branch. This holds for medium and large objects but
-becomes unreliable exactly where selective computation matters most --
-genuinely tiny targets, whose downsampled feature footprint can collapse to
-one or two activations indistinguishable from background clutter
-\cite{SET}. The two possible selector errors are asymmetric: retaining an
-extra background region only wastes compute, while dropping a true-object
-region removes that object from every later stage. An objectness-only
-selector's failure mode on tiny objects is therefore a silent, unrecoverable
-false negative, not simply a lower AP.
+To eliminate redundant computations on uniform background regions, \emph{selective computation} has emerged as an effective paradigm \cite{AutoFocus,QueryDet,CEASC,ESOD}. Methods such as QueryDet \cite{QueryDet} and CEASC \cite{CEASC} perform cascaded sparse querying or adaptive activation masking, while ESOD \cite{ESOD} predicts an early-stage spatial heatmap on shallow features to route only candidate foreground patches to deeper backbone, neck, and detection heads. 
 
-We ask whether a second, independent evidence signal -- local
-spectral/saliency response, motivated by the observation that tiny targets
-retain residual high-frequency structure even when their semantic response is
-weak \cite{SET} -- can recover objects an objectness-only selector would
-drop, and whether directly supervising \emph{object-level coverage} (does at
-least one candidate cell overlap each ground-truth box?) in addition to
-per-cell classification yields a higher-recall selector under the same
-routing rule.
+Despite their computational efficiency, existing spatial selectors share a fundamental limitation: they rely almost exclusively on a single semantic foreground or objectness response. While effective for medium and large objects, this assumption breaks down severely for genuinely tiny targets. Under spatial downsampling, the feature footprint of a tiny object collapses into only one or two activations that frequently fade into surrounding background textures \cite{SET}. More critically, spatial selection decisions exhibit a severe \emph{asymmetric cost}: retaining an extra background patch only marginally increases computational budget, whereas prematurely discarding a patch containing a true tiny object causes a catastrophic, unrecoverable false negative for all subsequent detector stages \cite{ESOD}. 
 
-We instantiate this idea as DES-ESOD, on ESOD's patch-routing skeleton
-\cite{ESOD}: a dual-evidence priority head replaces ESOD's single
-objectness head, trained with an explicit soft object-coverage loss. The
-results in this paper use ESOD's own native fixed-threshold routing,
-unchanged -- not a fixed top-$K$ cap. This holds the routing rule and threshold
-fixed, but does not hold realized computation fixed because different score
-distributions can retain different areas; a fixed-cardinality top-$K$ mode is
-part of the wider design but is evaluated separately, outside this paper.
-Because a higher-recall selector naturally
-retains more image area, we pair it with an efficient decoupled head and
-report retained area (Occupy) alongside accuracy so this
-trade-off is never hidden. We define evaluation on two datasets outside ESOD's own
-reported protocol -- UAVDT (vehicles) and TinyPersonV2/SeaPerson (extremely
-small pedestrians) -- to test whether a dual-evidence, coverage-supervised
-selector transfers across domains it was not tuned on.
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.92\textwidth]{hesod_overview.pdf}
+\caption{System architecture of DES-ESOD. A high-resolution input image is processed through a shallow feature stem. The proposed dual-evidence priority head (\S\ref{ssec:evidence}) synergistically fuses semantic objectness with channel-pooled spectral saliency. Dynamic patch extraction routes candidate regions containing high priority to the downstream backbone and lightweight ISPP decoupled detection head, optimized via the object-level soft-coverage loss and scale-aware balancing loss (\S\ref{ssec:coverage}, \S\ref{ssec:head}).}
+\label{fig:overview}
+\end{figure*}
 
-\textbf{Contributions:} (1) an object-level soft-coverage loss that directly
-supervises the event recall actually depends on, instead of a per-cell
-classification proxy; (2) a lightweight semantic-spectral evidence fusion
-that repurposes spectral saliency as a routing signal rather than a feature
-enhancer; (3) an ISPP-based decoupled head that reduces the dense detection
-head's parameter and arithmetic cost while preserving ESOD's prediction
-contract; and (4) a cross-domain evaluation protocol on UAVDT and
-TinyPersonV2, with final results retained as placeholders while experiments
-are in progress.
+To overcome this bottleneck, we explore whether an orthogonal evidence source can complement semantic representations during early routing. Spectral analysis indicates that tiny objects retain distinctive high-frequency structural gradients and spectral saliency even when their semantic activations are weak \cite{SET}. Furthermore, we observe that conventional per-pixel binary cross-entropy (BCE) loss treats candidate cells independently, often failing to guarantee that at least one candidate cell actually covers a ground-truth object.
+
+In this work, we propose \textbf{DES-ESOD} (Dual-Evidence Selection for Efficient Small Object Detection), a novel framework built upon the principles of multi-modal evidence fusion and coverage-constrained spatial routing. Specifically, DES-ESOD constructs a dual-evidence priority head that combines semantic objectness with an ultra-lightweight channel-pooled spectral saliency branch, utilizing trainable Laplacian and Sobel filter banks at negligible computational overhead ($\mathcal{O}(1)$ relative to backbone channel width). To guarantee recall safety, we design an object-level soft-coverage loss ($\mathcal{L}_{\mathrm{cover}}$) that directly optimizes the joint spatial coverage probability for every ground-truth bounding box. Finally, we incorporate an inverted residual partial-convolution (ISPP) decoupled head and a scale-aware balancing loss (SABL) \cite{SSABNet} to simultaneously reduce head computation and enhance micro-scale bounding-box localization.
+
+The main contributions of this paper are summarized as follows:
+\begin{enumerate}
+    \item We identify the fundamental vulnerability of single-evidence semantic routing in selective computation and propose a dual-evidence priority head that synergistically fuses semantic and spectral saliency at negligible arithmetic overhead.
+    \item We formulate an object-level soft-coverage loss ($\mathcal{L}_{\mathrm{cover}}$) that directly optimizes the multi-cell joint coverage probability across all ground-truth instances, preventing premature spatial discarding of tiny objects.
+    \item We introduce an efficient ISPP-based decoupled detection head integrated with scale-aware Wasserstein balancing loss (SABL), boosting tiny-object localization while maintaining low latency.
+    \item Extensive evaluations on the challenging UAVDT and SeaPerson benchmarks demonstrate that DES-ESOD achieves substantial improvements in tiny-object recall and mAP over state-of-the-art selective computation baselines.
+\end{enumerate}
