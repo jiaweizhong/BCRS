@@ -620,16 +620,26 @@ def prepare_seaperson():
                 f'extra subdirectory).\nFirst missing paths:\n{samples}\n'
             )
 
+        n_degenerate = 0
         for item in anno['annotations']:
             _id, (x1, y1, w, h) = item['image_id'], item['bbox']
             width, height = image_dict[_id]['shape']
             if item.get('ignore', False) or item.get('uncertain', False):
                 image_dict[_id]['erase_boxes'].append((x1, y1, w, h))
                 continue
+            # A handful of zero-area boxes exist in the raw annotations
+            # (262k boxes from varied scraped sources) -- gen_mask()'s
+            # gaussian2D() crashes on a zero-size array if one reaches it, so
+            # drop them here rather than filtering downstream.
+            if w < 1 or h < 1:
+                n_degenerate += 1
+                continue
             cls = cat_id_to_yolo[item['category_id']]
             xc, yc = (x1 + w / 2.) / width, (y1 + h / 2.) / height
             image_dict[_id]['bboxes'].append(
                 ('%d' + ' %.6f' * 4 + '\n') % (cls, xc, yc, w / width, h / height))
+        if n_degenerate:
+            print(f'seaperson/{mode}: skipped {n_degenerate} zero-area annotation(s)')
 
         paths = []
         for item in tqdm(image_dict.values(), desc=f'seaperson/{mode}'):
