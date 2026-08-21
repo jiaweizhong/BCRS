@@ -627,19 +627,24 @@ def prepare_seaperson():
             if item.get('ignore', False) or item.get('uncertain', False):
                 image_dict[_id]['erase_boxes'].append((x1, y1, w, h))
                 continue
-            # A handful of zero-area boxes exist in the raw annotations
-            # (262k boxes from varied scraped sources) -- gen_mask()'s
-            # gaussian2D() crashes on a zero-size array if one reaches it, so
-            # drop them here rather than filtering downstream.
-            if w < 1 or h < 1:
+            # A raw box with w,h >= 1px can still collapse to zero visible
+            # area once gen_mask() clamps it to the actual image frame (a
+            # handful of raw annotations extend past the image edge --
+            # 262k boxes from varied scraped sources). Clamp here, against
+            # the real frame, and drop what's left empty, rather than
+            # letting a clamped zero-size box reach gaussian2D().
+            x1c, y1c = max(x1, 0), max(y1, 0)
+            x2c, y2c = min(x1 + w, width), min(y1 + h, height)
+            if x2c - x1c < 1 or y2c - y1c < 1:
                 n_degenerate += 1
                 continue
             cls = cat_id_to_yolo[item['category_id']]
-            xc, yc = (x1 + w / 2.) / width, (y1 + h / 2.) / height
+            xc, yc = (x1c + x2c) / 2. / width, (y1c + y2c) / 2. / height
+            w_n, h_n = (x2c - x1c) / width, (y2c - y1c) / height
             image_dict[_id]['bboxes'].append(
-                ('%d' + ' %.6f' * 4 + '\n') % (cls, xc, yc, w / width, h / height))
+                ('%d' + ' %.6f' * 4 + '\n') % (cls, xc, yc, w_n, h_n))
         if n_degenerate:
-            print(f'seaperson/{mode}: skipped {n_degenerate} zero-area annotation(s)')
+            print(f'seaperson/{mode}: skipped {n_degenerate} zero-area/out-of-frame annotation(s)')
 
         paths = []
         for item in tqdm(image_dict.values(), desc=f'seaperson/{mode}'):
