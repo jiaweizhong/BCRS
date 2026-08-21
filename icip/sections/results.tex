@@ -96,3 +96,12 @@ ESOD Baseline & 21,388 & 25.6\% & 74.3\% & 0.1\% \\
 To isolate the precise mechanism contributing to the recall gain, Table~\ref{tab:error_breakdown} presents an in-depth error attribution diagnostic on all missed \emph{Very Tiny} instances ($<16\times 16$ px). Missed targets are categorized into: (i) \emph{Selector Dropped} (no candidate patch retained near the target); and (ii) \emph{Localization Failure} (candidate patch retained, but detection head prediction has IoU $<0.5$).
 
 The baseline ESOD model suffered a high selector drop rate of 25.6\% on missed tiny targets due to semantic activation collapse. In contrast, training with the proposed object-level soft-coverage loss reduces the selector-dropped error rate to \textbf{20.1\%} (\textbf{-5.5 pp}) while eliminating 1,207 missed instances. This confirms that soft-coverage supervision successfully rectifies early spatial pruning errors, effectively shifting the primary remaining detection bottleneck toward downstream localization refinement (which is addressed by SABL and ISPP decoupled heads).
+
+\subsection{Discussion and Limitations}
+\label{ssec:discussion}
+
+While DES-ESOD achieves substantial recall and accuracy gains on UAVDT and SeaPerson, its empirical characteristics illuminate an essential relationship between spatial background sparsity and target scale:
+\begin{itemize}
+    \item \textbf{Optimal Working Regime:} DES-ESOD delivers maximum performance and arithmetic savings in \emph{ultra-high-resolution, spatially sparse environments} (e.g., maritime search-and-rescue and high-altitude surveillance), where uniform background dominates ($>80\%$) and genuinely tiny targets ($<32\times 32$ px) suffer severe semantic feature fading. In this regime, dual-evidence priority estimation and soft-coverage optimization effectively prevent premature, catastrophic spatial dropping.
+    \item \textbf{Densely Clustered Scenarios:} In contrast, for densely cluttered scenes with mixed target scales (e.g., congested urban intersections like VisDrone \cite{VisDrone}), foreground instances are distributed across nearly every spatial patch, naturally diminishing the available spatial background skipping margin. Furthermore, larger objects already exhibit strong semantic activations, leading to performance parity with dense baselines rather than dramatic recall jumps.
+\end{itemize}
