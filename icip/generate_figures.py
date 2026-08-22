@@ -343,22 +343,138 @@ def create_system_overview(save_path):
 
 
 def create_segmenter_diagram(save_path):
-    fig, ax = plt.subplots(figsize=(8.5, 3.8), dpi=300)
-    ax.set_xlim(0, 100)
-    ax.set_ylim(0, 50)
+    import numpy as np
+
+    fig, ax = plt.subplots(figsize=(11.8, 5.0), dpi=300)
+    ax.set_xlim(0, 102)
+    ax.set_ylim(-5, 50)
     ax.axis("off")
 
-    # Colors
-    c_in = "#F8FAFC"
-    b_in = "#64748B"
-    c_sem = "#EFF6FF"
-    b_sem = "#2563EB"
-    c_spec = "#ECFDF5"
-    b_spec = "#059669"
-    c_fuse = "#FAF5FF"
-    b_fuse = "#7C3AED"
+    angle = 30
+    rad = np.radians(angle)
 
-    def draw_node(
+    def draw_3d_cube(
+        x,
+        y,
+        w,
+        h,
+        d,
+        c_front,
+        c_top,
+        c_side,
+        edge_col,
+        label_top="",
+        label_side="",
+        caption="",
+        sub_caption="",
+        title_color="#0F172A",
+        sub_color="#334155",
+        caption_y_offset=-2.5,
+    ):
+        dx = d * np.cos(rad)
+        dy = d * np.sin(rad)
+
+        # 1. Front face
+        front_poly = patches.Polygon(
+            [[x, y], [x + w, y], [x + w, y + h], [x, y + h]],
+            closed=True,
+            facecolor=c_front,
+            edgecolor=edge_col,
+            linewidth=1.3,
+            zorder=3,
+        )
+        ax.add_patch(front_poly)
+
+        # 2. Top face
+        top_poly = patches.Polygon(
+            [
+                [x, y + h],
+                [x + w, y + h],
+                [x + w + dx, y + h + dy],
+                [x + dx, y + h + dy],
+            ],
+            closed=True,
+            facecolor=c_top,
+            edgecolor=edge_col,
+            linewidth=1.3,
+            zorder=3,
+        )
+        ax.add_patch(top_poly)
+
+        # 3. Right side face
+        side_poly = patches.Polygon(
+            [
+                [x + w, y],
+                [x + w + dx, y + dy],
+                [x + w + dx, y + h + dy],
+                [x + w, y + h],
+            ],
+            closed=True,
+            facecolor=c_side,
+            edgecolor=edge_col,
+            linewidth=1.3,
+            zorder=3,
+        )
+        ax.add_patch(side_poly)
+
+        # Labels on Top face
+        if label_top:
+            ax.text(
+                x + w / 2 + dx / 2,
+                y + h + dy / 2 + 0.5,
+                label_top,
+                ha="center",
+                va="center",
+                fontsize=8.2,
+                fontweight="bold",
+                color=edge_col,
+                zorder=5,
+            )
+        # Labels on Side face
+        if label_side:
+            ax.text(
+                x + w + dx / 2 + 0.5,
+                y + h / 2 + dy / 2,
+                label_side,
+                ha="left",
+                va="center",
+                fontsize=7.5,
+                fontweight="bold",
+                color="#334155",
+                zorder=5,
+            )
+
+        # Caption
+        if caption:
+            ax.text(
+                x + w / 2 + dx / 2,
+                y + caption_y_offset,
+                caption,
+                ha="center",
+                va="top",
+                fontsize=8.8,
+                fontweight="bold",
+                color=title_color,
+                zorder=5,
+            )
+        if sub_caption:
+            ax.text(
+                x + w / 2 + dx / 2,
+                y + caption_y_offset - 2.4,
+                sub_caption,
+                ha="center",
+                va="top",
+                fontsize=7.8,
+                fontweight="bold",
+                color=sub_color,
+                zorder=5,
+            )
+
+        center_east = (x + w + dx, y + h / 2 + dy / 2)
+        center_west = (x, y + h / 2)
+        return center_east, center_west
+
+    def draw_operator_pill(
         x,
         y,
         w,
@@ -367,12 +483,11 @@ def create_segmenter_diagram(save_path):
         border,
         title,
         subtitle="",
-        radius=1.0,
         title_color="#1E293B",
         sub_color="#475569",
-        title_fs=8.5,
-        sub_fs=7,
-        lw=1.3,
+        radius=0.8,
+        title_fs=8.2,
+        sub_fs=7.2,
     ):
         rect = patches.FancyBboxPatch(
             (x, y),
@@ -381,21 +496,21 @@ def create_segmenter_diagram(save_path):
             boxstyle=f"round,pad=0.2,rounding_size={radius}",
             facecolor=bg,
             edgecolor=border,
-            linewidth=lw,
-            zorder=2,
+            linewidth=1.2,
+            zorder=4,
         )
         ax.add_patch(rect)
         if subtitle:
             ax.text(
                 x + w / 2,
-                y + h * 0.62,
+                y + h * 0.65,
                 title,
                 ha="center",
                 va="center",
                 fontsize=title_fs,
                 fontweight="bold",
                 color=title_color,
-                zorder=3,
+                zorder=5,
             )
             ax.text(
                 x + w / 2,
@@ -404,8 +519,9 @@ def create_segmenter_diagram(save_path):
                 ha="center",
                 va="center",
                 fontsize=sub_fs,
+                fontweight="bold",
                 color=sub_color,
-                zorder=3,
+                zorder=5,
             )
         else:
             ax.text(
@@ -417,168 +533,388 @@ def create_segmenter_diagram(save_path):
                 fontsize=title_fs,
                 fontweight="bold",
                 color=title_color,
-                zorder=3,
+                zorder=5,
             )
 
-    # Input shallow feature
-    draw_node(
-        1.5,
-        17,
-        13.5,
-        16,
-        c_in,
-        b_in,
-        "Shallow Features",
-        r"$\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$",
-        title_color="#334155",
-        sub_color="#475569",
-    )
+    # Palettes
+    p_in = ("#93C5FD", "#DBEAFE", "#60A5FA", "#1E3A8A")
+    p_sem = ("#60A5FA", "#BFDBFE", "#3B82F6", "#1D4ED8")
+    p_pool = ("#6EE7B7", "#D1FAE5", "#34D399", "#065F46")
+    p_filt = ("#86EFAC", "#DCFCE7", "#4ADE80", "#166534")
+    p_sstem = ("#5EEAD4", "#CCFBF1", "#2DD4BF", "#0F766E")
+    p_shead = ("#6EE7B7", "#D1FAE5", "#34D399", "#065F46")
+    p_fuse = ("#FDE68A", "#FEF3C7", "#FCD34D", "#B45309")
 
-    # Fork paths
-    ax.annotate(
-        "",
-        xy=(19.5, 38),
-        xytext=(15.2, 28),
-        arrowprops=dict(arrowstyle="-|>", color="#2563EB", lw=1.5, mutation_scale=12),
-    )
-    ax.annotate(
-        "",
-        xy=(19.5, 12),
-        xytext=(15.2, 22),
-        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.5, mutation_scale=12),
-    )
-
-    # --- TOP: Semantic Branch ---
-    draw_node(
-        20,
-        32,
-        28,
-        12,
-        c_sem,
-        b_sem,
+    # Branch Banners
+    ax.text(
+        38,
+        46.5,
         "Semantic Objectness Branch",
-        r"$\mathrm{Conv}_{1\times 1} \to z^{\mathrm{sem}} \in \mathbb{R}^{H_s \times W_s \times N_c}$",
+        ha="center",
+        va="center",
+        fontsize=9.5,
+        fontweight="bold",
+        color="#1E40AF",
+        bbox=dict(
+            boxstyle="round,pad=0.25", facecolor="#EFF6FF", edgecolor="#2563EB", lw=1.3
+        ),
+    )
+    ax.text(
+        49,
+        18.0,
+        r"Channel-Pooled Spectral Branch ($\mathcal{O}(1)$ Complexity)",
+        ha="center",
+        va="center",
+        fontsize=9.5,
+        fontweight="bold",
+        color="#065F46",
+        bbox=dict(
+            boxstyle="round,pad=0.25", facecolor="#ECFDF5", edgecolor="#059669", lw=1.3
+        ),
+    )
+
+    # 1. Input Shallow Feature Map (x=2, y=14)
+    e_in, _ = draw_3d_cube(
+        2.0,
+        13.5,
+        4.2,
+        13.0,
+        4.8,
+        *p_in,
+        label_top=r"$C{=}256$",
+        label_side=r"$H_s{\times}W_s$",
+        caption="Shallow Feature",
+        sub_caption=r"$\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times 256}$",
+        title_color="#1E3A8A",
+        sub_color="#1E40AF",
+    )
+
+    # --- TOP PATH: Semantic Branch ---
+    # Layer: 1x1 Conv Operator Block (x=22, y=32)
+    draw_operator_pill(
+        20.5,
+        32.5,
+        11.5,
+        7.0,
+        "#DBEAFE",
+        "#2563EB",
+        r"$\mathbf{1\times 1 \; Conv}$",
+        r"$C \to N_c$",
         title_color="#1E40AF",
         sub_color="#1D4ED8",
     )
 
-    # --- BOTTOM: Spectral Branch ---
-    # Step 1: Channel-wise pooling
-    draw_node(
-        20,
-        6,
-        17,
-        12,
-        c_spec,
-        b_spec,
-        "Channel Pooling",
-        r"$\mathrm{Max}+\mathrm{Mean} \; (C \to 2)$",
+    # Arrow Input -> 1x1 Conv
+    ax.annotate(
+        "",
+        xy=(20.0, 36.0),
+        xytext=(e_in[0] + 0.5, e_in[1] + 2.5),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="#1D4ED8",
+            lw=1.8,
+            connectionstyle="arc3,rad=-0.12",
+            mutation_scale=13,
+        ),
+    )
+
+    # Output: Semantic Logits Tensor (x=38, y=30.5)
+    e_sem, w_sem = draw_3d_cube(
+        38.0,
+        30.5,
+        2.8,
+        10.5,
+        2.2,
+        *p_sem,
+        label_top=r"$N_c$",
+        label_side=r"$H_s{\times}W_s$",
+        caption="Semantic Logits",
+        sub_caption=r"$z^{\mathrm{sem}} \in \mathbb{R}^{H_s \times W_s \times N_c}$",
+        title_color="#1E3A8A",
+        sub_color="#1E40AF",
+    )
+
+    # Arrow 1x1 Conv -> z_sem
+    ax.annotate(
+        "",
+        xy=(w_sem[0] - 0.8, w_sem[1] + 1),
+        xytext=(32.5, 36.0),
+        arrowprops=dict(arrowstyle="-|>", color="#1D4ED8", lw=1.8, mutation_scale=13),
+    )
+
+    # --- BOTTOM PATH: Spectral Branch ---
+    # Operator 1: Parallel MaxPool & AvgPool along Channels (x=15, y=3.0)
+    draw_operator_pill(
+        14.0,
+        7.5,
+        9.0,
+        4.8,
+        "#D1FAE5",
+        "#059669",
+        "Max Pool",
+        r"$\max_c(\mathbf{F})$",
         title_color="#065F46",
+        sub_color="#047857",
+        title_fs=7.8,
+        sub_fs=7.0,
+    )
+    draw_operator_pill(
+        14.0,
+        1.5,
+        9.0,
+        4.8,
+        "#D1FAE5",
+        "#059669",
+        "Avg Pool",
+        r"$\mathrm{mean}_c(\mathbf{F})$",
+        title_color="#065F46",
+        sub_color="#047857",
+        title_fs=7.8,
+        sub_fs=7.0,
+    )
+
+    # Fork Arrow to Max & Avg Pool
+    ax.annotate(
+        "",
+        xy=(13.5, 9.8),
+        xytext=(e_in[0] + 0.5, e_in[1] - 1.5),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="#047857",
+            lw=1.8,
+            connectionstyle="arc3,rad=0.12",
+            mutation_scale=13,
+        ),
+    )
+    ax.annotate(
+        "",
+        xy=(13.5, 4.0),
+        xytext=(e_in[0] + 0.5, e_in[1] - 2.5),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="#047857",
+            lw=1.8,
+            connectionstyle="arc3,rad=0.15",
+            mutation_scale=13,
+        ),
+    )
+
+    # Output of Pooling: 2-Channel Tensor (x=27.5, y=3.5)
+    e_pool, w_pool = draw_3d_cube(
+        27.5,
+        3.5,
+        2.2,
+        9.5,
+        1.8,
+        *p_pool,
+        label_top=r"$2$",
+        label_side=r"$H_s{\times}W_s$",
+        caption="Pooled Map",
+        sub_caption=r"$\mathbf{F}_{\mathrm{pool}} \in \mathbb{R}^{2}$",
+        title_color="#064E3B",
+        sub_color="#047857",
+    )
+
+    # Convergence from Max+Avg to Pooled Tensor
+    ax.annotate(
+        "",
+        xy=(w_pool[0] - 0.8, w_pool[1] + 2),
+        xytext=(23.5, 9.8),
+        arrowprops=dict(arrowstyle="-|>", color="#047857", lw=1.6, mutation_scale=12),
+    )
+    ax.annotate(
+        "",
+        xy=(w_pool[0] - 0.8, w_pool[1] - 1),
+        xytext=(23.5, 4.0),
+        arrowprops=dict(arrowstyle="-|>", color="#047857", lw=1.6, mutation_scale=12),
+    )
+
+    # Operator 2: Trainable Filter Bank DWConv 3x3 (x=37.5, y=4.5)
+    draw_operator_pill(
+        37.5,
+        4.0,
+        12.0,
+        8.5,
+        "#DCFCE7",
+        "#166534",
+        r"$\mathbf{DWConv}_{3\times 3}$" + "\n" + r"$\mathbf{Filter \; Bank}$",
+        r"$\mathbf{K}_{\mathrm{Lap}}, \mathbf{K}_{\mathrm{Sob\text{-}x}}, \mathbf{K}_{\mathrm{Sob\text{-}y}}$",
+        title_color="#14532D",
+        sub_color="#166534",
+        title_fs=7.8,
+        sub_fs=7.0,
+    )
+
+    # Arrow Pooled -> Filter Bank
+    ax.annotate(
+        "",
+        xy=(37.0, 8.2),
+        xytext=(e_pool[0] + 0.8, e_pool[1] + 1),
+        arrowprops=dict(arrowstyle="-|>", color="#047857", lw=1.8, mutation_scale=13),
+    )
+
+    # Output of Filter Bank: 6-Channel Tensor (x=53.5, y=3.5)
+    e_filt, w_filt = draw_3d_cube(
+        53.5,
+        3.5,
+        2.8,
+        9.5,
+        2.6,
+        *p_filt,
+        label_top=r"$6$",
+        label_side=r"$H_s{\times}W_s$",
+        caption="Gradients",
+        sub_caption=r"$\mathbf{F}_{\mathrm{filt}} \in \mathbb{R}^{6}$",
+        title_color="#064E3B",
         sub_color="#047857",
     )
 
     ax.annotate(
         "",
-        xy=(40.5, 12),
-        xytext=(37.2, 12),
-        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.4, mutation_scale=12),
+        xy=(w_filt[0] - 0.8, w_filt[1] + 1),
+        xytext=(50.0, 8.2),
+        arrowprops=dict(arrowstyle="-|>", color="#047857", lw=1.8, mutation_scale=13),
     )
 
-    # Step 2: Depthwise Laplacian & Sobel
-    draw_node(
-        41,
-        6,
-        19,
-        12,
-        c_spec,
-        b_spec,
-        "Trainable Filter Bank",
-        r"$\mathrm{DWConv}_{3\times 3} \; (2 \to 6)$" + "\nLaplacian + Sobel-x/y",
-        title_color="#065F46",
+    # Operator 3: 1x1 Conv + BN + SiLU + 1x1 Head (x=63.5, y=4.5)
+    draw_operator_pill(
+        63.0,
+        4.0,
+        12.0,
+        8.5,
+        "#CCFBF1",
+        "#0F766E",
+        r"$\mathbf{1\times 1 \; Conv}$" + "\n" + r"$\mathbf{+ \; BN \; + \; SiLU}$",
+        r"$6 \to 256 \to N_c$",
+        title_color="#134E4A",
+        sub_color="#0F766E",
+        title_fs=7.8,
+        sub_fs=7.0,
+    )
+
+    ax.annotate(
+        "",
+        xy=(62.5, 8.2),
+        xytext=(e_filt[0] + 0.8, e_filt[1] + 1),
+        arrowprops=dict(arrowstyle="-|>", color="#047857", lw=1.8, mutation_scale=13),
+    )
+
+    # Output: Spectral Logits Tensor (x=79.0, y=3.5)
+    e_shead, w_shead = draw_3d_cube(
+        79.0,
+        3.5,
+        2.8,
+        9.5,
+        2.0,
+        *p_shead,
+        label_top=r"$N_c$",
+        label_side=r"$H_s{\times}W_s$",
+        caption="Spectral Logits",
+        sub_caption=r"$z^{\mathrm{spec}} \in \mathbb{R}^{H_s \times W_s \times N_c}$",
+        title_color="#064E3B",
         sub_color="#047857",
-        title_fs=8,
-        sub_fs=6.8,
     )
 
     ax.annotate(
         "",
-        xy=(63.5, 12),
-        xytext=(60.2, 12),
-        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.4, mutation_scale=12),
+        xy=(w_shead[0] - 0.8, w_shead[1] + 1),
+        xytext=(75.5, 8.2),
+        arrowprops=dict(arrowstyle="-|>", color="#0F766E", lw=1.8, mutation_scale=13),
     )
 
-    # Step 3: Projection & Spectral Logits
-    draw_node(
-        64,
-        6,
-        17,
-        12,
-        c_spec,
-        b_spec,
-        "Spectral Head",
-        r"$\mathrm{Conv}_{1\times 1} \to z^{\mathrm{spec}}$",
-        title_color="#065F46",
-        sub_color="#047857",
-    )
-
-    # Join arrows to Concat
-    ax.annotate(
-        "",
-        xy=(84.5, 27),
-        xytext=(48.5, 38),
-        arrowprops=dict(arrowstyle="-|>", color="#2563EB", lw=1.5, mutation_scale=12),
-    )
-    ax.annotate(
-        "",
-        xy=(84.5, 23),
-        xytext=(81.3, 12),
-        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.5, mutation_scale=12),
-    )
-
-    # Concat & Fusion
+    # --- Evidence Concat & Fusion ---
+    concat_x, concat_y = 89.0, 20.0
     concat_circle = patches.Circle(
-        (86.5, 25),
-        radius=2.6,
+        (concat_x, concat_y),
+        radius=2.8,
         facecolor="#EDE9FE",
         edgecolor="#7C3AED",
-        lw=1.5,
-        zorder=4,
+        linewidth=2.0,
+        zorder=5,
     )
     ax.add_patch(concat_circle)
     ax.text(
-        86.5,
-        25,
+        concat_x,
+        concat_y,
         r"$\mathbf{C}$",
         ha="center",
         va="center",
-        fontsize=9,
+        fontsize=11.0,
         fontweight="bold",
         color="#7C3AED",
-        zorder=5,
+        zorder=6,
+    )
+    ax.text(
+        concat_x,
+        concat_y - 4.2,
+        r"$\mathbf{Concat}$" + "\n" + r"$(2N_c)$",
+        ha="center",
+        va="top",
+        fontsize=8.0,
+        fontweight="bold",
+        color="#6D28D9",
     )
 
+    # Connection from Semantic to Concat
     ax.annotate(
         "",
-        xy=(91.5, 25),
-        xytext=(89.2, 25),
-        arrowprops=dict(arrowstyle="-|>", color="#7C3AED", lw=1.5, mutation_scale=12),
+        xy=(concat_x - 2.0, concat_y + 2.0),
+        xytext=(e_sem[0] + 0.8, e_sem[1] + 1),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="#1D4ED8",
+            lw=2.0,
+            connectionstyle="arc3,rad=-0.1",
+            mutation_scale=14,
+        ),
     )
 
-    # Output Fusion
-    draw_node(
-        91.8,
-        17,
-        7.8,
-        16,
-        c_fuse,
-        b_fuse,
-        r"$\mathrm{Conv}_{1\times 1}$" + "\nFusion",
-        r"$s_i = \sigma(u_{i,0})$" + "\n" + r"$\in [0, 1]$",
-        title_color="#5B21B6",
-        sub_color="#6D28D9",
-        title_fs=8,
-        sub_fs=7,
-        lw=1.5,
+    # Connection from Spectral to Concat
+    ax.annotate(
+        "",
+        xy=(concat_x - 2.0, concat_y - 2.0),
+        xytext=(e_shead[0] + 0.8, e_shead[1] + 1),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="#047857",
+            lw=2.0,
+            connectionstyle="arc3,rad=0.1",
+            mutation_scale=14,
+        ),
+    )
+
+    # Fusion Conv 1x1 + Sigmoid Output Priority Map S (x=96)
+    e_fuse, w_fuse = draw_3d_cube(
+        96.0,
+        14.0,
+        2.5,
+        12.0,
+        1.5,
+        *p_fuse,
+        label_top=r"$1$",
+        label_side=r"$H_s{\times}W_s$",
+        caption="Priority Map",
+        sub_caption=r"$\mathbf{S} \in [0, 1]$",
+        title_color="#92400E",
+        sub_color="#B45309",
+    )
+
+    # Arrow Concat -> Fusion
+    ax.annotate(
+        "",
+        xy=(w_fuse[0] - 1.0, w_fuse[1] + 1),
+        xytext=(concat_x + 3.0, concat_y),
+        arrowprops=dict(arrowstyle="-|>", color="#7C3AED", lw=2.0, mutation_scale=14),
+    )
+    ax.text(
+        92.5,
+        24.0,
+        r"$\mathbf{1\times 1 \; Conv}$" + "\n" + r"$\mathbf{+ \; \sigma(\cdot)}$",
+        ha="center",
+        va="center",
+        fontsize=7.8,
+        color="#7C3AED",
+        fontweight="bold",
     )
 
     plt.tight_layout()
@@ -588,17 +924,17 @@ def create_segmenter_diagram(save_path):
 
 
 def create_sabl_diagram(save_path):
-    fig, ax = plt.subplots(figsize=(8.5, 3.8), dpi=300)
+    fig, ax = plt.subplots(figsize=(8.0, 4.4), dpi=300)
     ax.set_xlim(0, 100)
-    ax.set_ylim(0, 48)
+    ax.set_ylim(-3, 47)
     ax.axis("off")
 
     c_box = "#F8FAFC"
-    b_box = "#64748B"
+    b_box = "#475569"
     c_w = "#FFF7ED"
     b_w = "#EA580C"
     c_ciou = "#F1F5F9"
-    b_ciou = "#475569"
+    b_ciou = "#334155"
     c_gate = "#FEF3C7"
     b_gate = "#D97706"
     c_sum = "#FDF2F8"
@@ -613,18 +949,18 @@ def create_sabl_diagram(save_path):
         border,
         title,
         subtitle="",
-        radius=1.0,
-        title_color="#1E293B",
-        sub_color="#475569",
-        title_fs=8.5,
-        sub_fs=7,
-        lw=1.3,
+        radius=1.2,
+        title_color="#0F172A",
+        sub_color="#334155",
+        title_fs=9.2,
+        sub_fs=7.8,
+        lw=1.5,
     ):
         rect = patches.FancyBboxPatch(
             (x, y),
             w,
             h,
-            boxstyle=f"round,pad=0.2,rounding_size={radius}",
+            boxstyle=f"round,pad=0.25,rounding_size={radius}",
             facecolor=bg,
             edgecolor=border,
             linewidth=lw,
@@ -634,7 +970,7 @@ def create_sabl_diagram(save_path):
         if subtitle:
             ax.text(
                 x + w / 2,
-                y + h * 0.62,
+                y + h * 0.74,
                 title,
                 ha="center",
                 va="center",
@@ -645,11 +981,12 @@ def create_sabl_diagram(save_path):
             )
             ax.text(
                 x + w / 2,
-                y + h * 0.28,
+                y + h * 0.36,
                 subtitle,
                 ha="center",
                 va="center",
                 fontsize=sub_fs,
+                fontweight="bold",
                 color=sub_color,
                 zorder=3,
             )
@@ -670,39 +1007,39 @@ def create_sabl_diagram(save_path):
     draw_node(
         1.5,
         27,
-        13,
+        14,
         14,
         c_box,
         b_box,
         "Predicted Box",
         r"$p_{\mathrm{box}} = (c_x, c_y, w, h)$",
-        title_color="#334155",
-        sub_color="#475569",
+        title_color="#1E293B",
+        sub_color="#334155",
     )
     draw_node(
         1.5,
         7,
-        13,
+        14,
         14,
         c_box,
         b_box,
         "Ground Truth",
         r"$t_{\mathrm{box}} = (\hat{c}_x, \hat{c}_y, \hat{w}, \hat{h})$",
-        title_color="#334155",
-        sub_color="#475569",
+        title_color="#1E293B",
+        sub_color="#334155",
     )
 
     # Arrows to Scale Gate & Wasserstein
     ax.annotate(
         "",
-        xy=(20, 24),
-        xytext=(14.8, 14),
-        arrowprops=dict(arrowstyle="-|>", color="#D97706", lw=1.4, mutation_scale=12),
+        xy=(21, 24),
+        xytext=(15.8, 14),
+        arrowprops=dict(arrowstyle="-|>", color="#D97706", lw=1.8, mutation_scale=13),
     )
 
     # Scale computation & Gate
     draw_node(
-        20.5,
+        21.5,
         17,
         21,
         14,
@@ -717,104 +1054,106 @@ def create_sabl_diagram(save_path):
     # Arrow from Gate to Wasserstein & CIoU
     ax.annotate(
         "",
-        xy=(47, 36),
-        xytext=(41.8, 26),
-        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.4, mutation_scale=12),
+        xy=(48, 36),
+        xytext=(42.8, 26),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.8, mutation_scale=13),
     )
     ax.annotate(
         "",
-        xy=(47, 12),
-        xytext=(41.8, 22),
-        arrowprops=dict(arrowstyle="-|>", color="#475569", lw=1.4, mutation_scale=12),
+        xy=(48, 12),
+        xytext=(42.8, 22),
+        arrowprops=dict(arrowstyle="-|>", color="#334155", lw=1.8, mutation_scale=13),
     )
 
     # Direct arrows from boxes to terms
     ax.annotate(
         "",
-        xy=(47, 40),
-        xytext=(14.8, 34),
-        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.4, mutation_scale=12),
+        xy=(48, 40),
+        xytext=(15.8, 34),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.8, mutation_scale=13),
     )
 
     # Top: Wasserstein Penalty
     draw_node(
-        47.5,
-        30,
-        27,
-        14,
+        48.5,
+        28.5,
+        28.5,
+        15.5,
         c_w,
         b_w,
-        "Normalized Wasserstein Penalty",
+        "Normalized Wasserstein",
         r"$\mathcal{L}_W = \mu(s) \cdot (1 - e^{-D_W/12})$"
         + "\n"
-        + r"(Dominant for Tiny Targets, $s \rightarrow 0$)",
+        + r"(Dominates for Tiny Targets, $s \to 0$)",
         title_color="#9A3412",
         sub_color="#C2410C",
-        title_fs=8.5,
-        sub_fs=7,
-        lw=1.5,
+        title_fs=9.2,
+        sub_fs=7.8,
+        lw=1.6,
     )
 
     # Bottom: CIoU Center Distance Penalty
     draw_node(
-        47.5,
-        4,
-        27,
-        14,
+        48.5,
+        3.5,
+        28.5,
+        15.5,
         c_ciou,
         b_ciou,
-        "CIoU Center-Distance Penalty",
+        "CIoU Center Penalty",
         r"$\mathcal{L}_{\mathrm{ctr}} = (1 - \mu(s)) \cdot \ell_{\mathrm{ctr}}$"
         + "\n"
-        + r"(Dominant for Large Targets, $s \gg 32$)",
+        + r"(Dominates for Large Targets, $s \gg 32$)",
         title_color="#1E293B",
-        sub_color="#475569",
-        title_fs=8.5,
-        sub_fs=7,
+        sub_color="#334155",
+        title_fs=9.2,
+        sub_fs=7.8,
+        lw=1.6,
     )
 
     # Base CIoU overlap
     ax.text(
-        61,
+        62.5,
         23.5,
         r"$+ \; (1 - \mathrm{IoU} + \alpha v)$",
         ha="center",
         va="center",
-        fontsize=8.5,
-        color="#475569",
+        fontsize=9.2,
+        fontweight="bold",
+        color="#334155",
     )
 
     # Arrows to Summation
     ax.annotate(
         "",
         xy=(81.5, 25),
-        xytext=(75.0, 35),
-        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.5, mutation_scale=12),
+        xytext=(76.8, 35),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.8, mutation_scale=14),
     )
     ax.annotate(
         "",
         xy=(81.5, 23),
-        xytext=(75.0, 13),
-        arrowprops=dict(arrowstyle="-|>", color="#475569", lw=1.5, mutation_scale=12),
+        xytext=(76.8, 13),
+        arrowprops=dict(arrowstyle="-|>", color="#334155", lw=1.8, mutation_scale=14),
     )
 
     # Summation node
     sum_circle = patches.Circle(
-        (84, 24),
-        radius=2.6,
+        (84.5, 24),
+        radius=2.8,
         facecolor="#FCE7F3",
         edgecolor="#DB2777",
-        lw=1.6,
+        linewidth=1.8,
         zorder=4,
     )
     ax.add_patch(sum_circle)
     ax.text(
-        84,
+        84.5,
         24,
         r"$+$",
         ha="center",
         va="center",
-        fontsize=12,
+        fontsize=13,
         fontweight="bold",
         color="#DB2777",
         zorder=5,
@@ -822,16 +1161,16 @@ def create_sabl_diagram(save_path):
 
     ax.annotate(
         "",
-        xy=(90.5, 24),
-        xytext=(86.8, 24),
-        arrowprops=dict(arrowstyle="-|>", color="#DB2777", lw=1.6, mutation_scale=12),
+        xy=(91.0, 24),
+        xytext=(87.5, 24),
+        arrowprops=dict(arrowstyle="-|>", color="#DB2777", lw=1.8, mutation_scale=14),
     )
 
     # Output Box Loss
     draw_node(
-        91,
+        91.5,
         17,
-        8,
+        7.8,
         14,
         c_sum,
         b_sum,
@@ -839,9 +1178,9 @@ def create_sabl_diagram(save_path):
         "Total Box\nLoss",
         title_color="#831843",
         sub_color="#9D174D",
-        title_fs=9.5,
-        sub_fs=7.5,
-        lw=1.6,
+        title_fs=10.0,
+        sub_fs=8.0,
+        lw=1.8,
     )
 
     plt.tight_layout()

@@ -3,15 +3,25 @@
 
 The overall architecture of DES-ESOD is illustrated in Fig.~\ref{fig:overview}. Given a high-resolution input image $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow convolutional stem first extracts dense feature representation $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The proposed \emph{Dual-Evidence Spatial Selector} operates in two coordinated stages: (i) a lightweight Dual-Evidence Priority Head (\S\ref{ssec:evidence}) that fuses semantic objectness with channel-pooled spectral saliency to generate a continuous spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer routing module that uses $\mathbf{S}$ to dynamically crop high-priority candidate feature patches $\mathcal{P}$ directly out of shallow features $\mathbf{F}$. Downstream deep backbone, neck, and lightweight ISPP decoupled detection head modules evaluate only these retained patches, trained end-to-end via an object-level soft-coverage loss and scale-aware regression (\S\ref{ssec:coverage}, \S\ref{ssec:head}).
 
+\begin{figure*}[t]
+\centering
+\begin{minipage}[b]{0.57\textwidth}
+\centering
+\includegraphics[width=\textwidth]{hesod_segmenter_block.pdf}
+\caption{Architecture of the Dual-Evidence Priority Head (\S\ref{ssec:evidence}).}
+\label{fig:evidence}
+\end{minipage}
+\hfill
+\begin{minipage}[b]{0.41\textwidth}
+\centering
+\includegraphics[width=\textwidth]{hesod_sabl_block.pdf}
+\caption{Scale-Aware Balancing Loss (SABL) workflow (\S\ref{ssec:head}).}
+\label{fig:sabl}
+\end{minipage}
+\end{figure*}
+
 \subsection{Dual-Evidence Priority Estimation}
 \label{ssec:evidence}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.98\columnwidth]{hesod_segmenter_block.pdf}
-\caption{Architecture of the dual-evidence priority head. The semantic branch (top) captures category-level objectness, while the channel-pooled spectral branch (bottom) extracts directional gradient and high-frequency saliency via trainable Laplacian and Sobel filter banks. The two representations are fused via a $1\times 1$ convolution.}
-\label{fig:evidence}
-\end{figure}
 
 Existing selective computation frameworks rely exclusively on semantic objectness, which suffers severe activation degradation for tiny objects after downsampling. To provide an orthogonal, recall-safe signal, DES-ESOD introduces a dual-evidence priority mechanism that combines high-level semantic confidence with low-level spectral saliency.
 
@@ -85,13 +95,6 @@ where $M$ denotes the target selector masks, $\rho$ is the positive-class BCE lo
 
 \subsection{Efficient Decoupled Head and Scale-Aware Loss}
 \label{ssec:head}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.98\columnwidth]{hesod_sabl_block.pdf}
-\caption{Illustration of the Scale-Aware Balancing Loss (SABL). The scale gating function $\mu(s)$ adaptively balances the Normalized Gaussian Wasserstein distance for micro-scale targets and CIoU for larger objects.}
-\label{fig:sabl}
-\end{figure}
 
 In high-resolution detection, standard decoupled detection heads (e.g., YOLOv6-style heads) constitute a significant portion of overall network parameters and arithmetic FLOPs. To maintain high detection throughput, we introduce an inverted residual partial-convolution (ISPP) decoupled head \cite{ESODYOLO}. Specifically, the ISPP head expands channels via a $1\times 1$ convolution, executes a lightweight $3\times 3$ partial convolution on a quarter of the expanded channels, and projects back with a residual connection, reducing parameter cost and FLOPs while maintaining rich representation capacity.
 
