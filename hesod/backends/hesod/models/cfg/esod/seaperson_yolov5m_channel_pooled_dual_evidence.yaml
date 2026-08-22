@@ -1,22 +1,24 @@
 # parameters
-# SeaDronesSeeV2 channel-pooled concat selector (F1 control) -- identical to
-# seadronesseev2_yolov5m.yaml except the Segmenter ->
-# ChannelPooledConcatEvidenceSegmenter swap, same pattern as
-# visdrone/tinyperson_yolov5m_channel_pooled_concat.yaml. Built to test the
-# routing thesis on a dataset chosen for its high native resolution
-# (mixed, up to 3840x2160) and small-but-not-majority-tiny object
-# distribution (median area 1600px^2, ~5.5% Very Tiny by train-split
-# diagnostic 2026-08-xx) -- unlike TinyPerson/VisDrone, this is the first
-# dataset where the "should favor routing" premise is only partially
-# supported by pre-run evidence, so this comparison is exploratory.
-nc: 5  # number of classes
+# SeaPerson (aka TinyPersonV2) gated-fusion arm -- isolates the fusion
+# MECHANISM against concat-only (seaperson_yolov5m_channel_pooled_concat.yaml):
+# same channel-pooled spectral branch, same semantic branch, only the fusion
+# op differs (learned input-dependent sigmoid gate here vs. a fixed 1x1 conv
+# over concatenated logits there). Matches VisDrone's own long-defined E2.4
+# arm (HESOD-Experiment-Plan.md SS3.1), never actually run in isolation there
+# -- added here because SeaPerson's concat-only result (SS8.2) showed a real
+# per-bucket trade-off (wins Very Tiny, loses Tiny/Small/Medium-Large) that a
+# learned gate might avoid by suppressing one evidence source per-location
+# instead of always blending both. Run with --selector-loss coverage
+# (--box-loss upstream or sabl, matching whichever concat-only/concat+SABL
+# comparison point this arm is measured against).
+nc: 1  # number of classes
 depth_multiple: 0.67  # model depth multiple
 width_multiple: 0.75  # layer channel multiple
-# anchors seeded from visdrone_yolov5m.yaml (1536 scale) -- autoanchor will adapt
+# anchors  2048
 anchors:
-  - [6,8,    10,22,  19,15]  # P3/8
-  - [19,32,  39,22,  32,47]  # P4/16
-  - [74,38,  65,74,  136,112]  # P5/32
+  - [5,8,  7,15,  11,12]  # P3/8
+  - [10,22,  18,21,  19,43]  # P4/16
+  - [34,33,  45,73,  86,163]  # P5/32
 
 # YOLOv5 backbone
 backbone:
@@ -28,8 +30,8 @@ backbone:
    [-1, 9, C3, [256]],  # RF=23+2*(9*0.33)=23+6=29  or 31+18=49
 
    [-1, 1, DWConv, [256, 13, 1]],
-   [[-1], 1, ChannelPooledConcatEvidenceSegmenter, [1]],
-   [[4, -1], 1, HeatMapParser, [256, 8, 0.5]],  # 7
+   [[-1], 1, ChannelPooledDualEvidenceSegmenter, [1]],
+   [[4, -1], 1, HeatMapParser, [256, 8, 0.5]],  # 7, from 4 or 5? : 4
 
    [-1, 1, Conv, [512, 3, 2]],  # 8-P4/16
    [-1, 9, C3, [512]],

@@ -5,12 +5,7 @@ High-resolution aerial and maritime vision is essential for remote surveillance,
 
 To eliminate redundant computations, \emph{selective computation} has emerged as an effective paradigm \cite{AutoFocus,QueryDet,CEASC,ESOD}. Frameworks such as QueryDet \cite{QueryDet} and CEASC \cite{CEASC} sparsify feature pyramids, while ESOD \cite{ESOD} predicts an early-stage spatial heatmap to route only candidate foreground patches to downstream backbone and detection heads.
 
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.98\textwidth]{figures/DES-ESOD.jpg}
-\caption{Architectural comparison between: (A) the proposed DES-ESOD framework featuring the Dual-Evidence Priority Head (combining semantic and spectral signals) and AdaSlicer to sparsely route high-priority patches to the neck and lightweight ISPP detection head; and (B) conventional dense object detection, which uniformly executes heavy full-resolution computations across redundant background regions.}
-\label{fig:overview}
-\end{figure*}
+
 
 Despite substantial compute savings, existing spatial selectors suffer from a fundamental vulnerability: they rely exclusively on a single semantic objectness score. When tiny targets undergo feature downsampling, their semantic activations frequently collapse into background textures \cite{SET}. More critically, spatial selection decisions exhibit an \emph{asymmetric cost}: retaining an extra background patch only marginally increases compute, whereas discarding a patch with a true tiny target creates an irrecoverable false negative for all subsequent detector stages \cite{ESOD}. Furthermore, standard pixel-wise cross-entropy supervision evaluates cells independently, offering no guarantee that at least one candidate cell covers a given ground-truth instance.
 

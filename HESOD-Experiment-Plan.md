@@ -575,7 +575,9 @@ which has to manufacture its own random valid slice.
   patch, producing a self-contained `seaperson_v2/{images,labels,masks}/{split}/`
   tree that `data/seaperson.yaml` points at directly.
 
-**Roster (6 arms, confirmed distinct by the user):**
+**Roster (7 arms; 6 confirmed distinct by the user, gated-fusion added
+2026-08-22 after concat-only's per-bucket trade-off, SS8.2, motivated adding
+VisDrone's own long-defined but never-isolated E2.4 arm):**
 
 | Arm | Selector | Loss | Box |
 |---|---|---|---|
@@ -583,6 +585,7 @@ which has to manufacture its own random valid slice.
 | semantic-only | `Segmenter` (same arch as R0) | coverage | CIoU |
 | spectral-only | `SpectralOnlySegmenter` | coverage | CIoU |
 | concat-only | `ChannelPooledConcatEvidenceSegmenter` | coverage | CIoU |
+| gated-fusion | `ChannelPooledDualEvidenceSegmenter` | coverage | CIoU |
 | concat+SABL | `ChannelPooledConcatEvidenceSegmenter` | coverage | SABL |
 | concat+SABL+ISPPHead | `ChannelPooledConcatEvidenceSegmenter` + `ISPPHead` | coverage | SABL |
 
@@ -591,10 +594,18 @@ and differ only in `--selector-loss`, matching VisDrone's own E1.0/E2.1 pair
 (`run_visdrone_roster.sh`) -- deliberately isolating the loss-function effect
 from the selector-architecture effect. concat-only and concat+SABL likewise
 share one config (`seaperson_yolov5m_channel_pooled_concat.yaml`), differing
-only in `--box-loss`.
+only in `--box-loss`. gated-fusion shares concat-only's evidence branches
+(same channel-pooled spectral filter, same semantic head) via
+`seaperson_yolov5m_channel_pooled_dual_evidence.yaml`, differing only in the
+fusion op (`GatedEvidenceFusion`'s learned sigmoid gate vs. concat-only's
+fixed 1x1 conv over concatenated logits) -- isolates the fusion mechanism
+itself, holding evidence sources fixed, directly testing whether a gate can
+recover concat-only's Tiny/Small/Medium-Large losses without giving up its
+Very Tiny gain.
 
-**Status (2026-08-21): roster running. R0 and semantic-only complete;
-spectral-only, concat-only, concat+SABL, concat+SABL+ISPPHead in progress.**
+**Status (2026-08-22): roster running. R0, semantic-only, spectral-only,
+concat-only complete; gated-fusion, concat+SABL, concat+SABL+ISPPHead in
+progress/queued.**
 
 ### 8.1 `vt_diagnose.py` mixed-image-format bug found and fixed
 
@@ -637,7 +648,8 @@ targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 | R0 | 74.03% (61014/82417) | 86.78% (151707/174816) | 94.74% (40725/42987) | 79.35% (123/155) | 84.42% (253569/300375) |
 | semantic-only | 75.49% (62217/82417) | 91.57% (160087/174816) | 95.71% (41141/42987) | 81.94% (127/155) | 87.75% (263572/300375) |
 | spectral-only | 75.23% (62006/82417) | 91.69% (160286/174816) | 95.89% (41220/42987) | 86.45% (134/155) | 87.77% (263646/300375) |
-| concat-only | pending | | | | |
+| concat-only | 76.00% (62637/82417) | 91.50% (159962/174816) | 95.68% (41131/42987) | 80.00% (124/155) | 87.84% (263854/300375) |
+| gated-fusion | pending | | | | |
 | concat+SABL | pending | | | | |
 | concat+SABL+ISPPHead | pending | | | | |
 
@@ -649,7 +661,8 @@ GFLOPs/FPS/latency from `test.py --task measure`, valid split, batch=1):
 | R0 | 0.750 | 0.320 | 0.827 | 0.696 | 0.947 | 0.228 | 202.4 | 88.9 | 11.2/1.2/12.4 |
 | semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 266.8 | 75.4 | 13.3/1.2/14.4 |
 | spectral-only | 0.770 | 0.327 | 0.829 | 0.705 | 0.992 | 0.335 | 267.4 | 72.6 | 13.8/1.2/15.0 |
-| concat-only | pending | | | | | | | | |
+| concat-only | 0.772 | 0.326 | 0.825 | 0.707 | 0.986 | 0.374 | 281.2 | 72.4 | 13.8/1.2/15.0 |
+| gated-fusion | pending | | | | | | | | |
 | concat+SABL | pending | | | | | | | | |
 | concat+SABL+ISPPHead | pending | | | | | | | | |
 
@@ -661,7 +674,8 @@ SS8.1; percentages are of that arm's own missed-Very-Tiny count):
 | R0 | 21388 | 74.3% | 25.6% | 0.1% |
 | semantic-only | 20181 | 79.7% | 20.1% | 0.1% |
 | spectral-only | 20395 | 79.7% | 20.1% | 0.2% |
-| concat-only | pending | | | |
+| concat-only | 19760 | 80.6% | 19.2% | 0.2% |
+| gated-fusion | pending | | | |
 | concat+SABL | pending | | | |
 | concat+SABL+ISPPHead | pending | | | |
 
@@ -694,6 +708,37 @@ value into question rather than confirm it. Medium/Large recall is notably
 higher for spectral-only (86.45% vs 79.35%/81.94%), but N=155 GT is small
 enough (a 7-11 detection swing moves the percentage several points) that
 this should not be over-interpreted without a multi-seed check.
+
+**concat-only did not clearly beat either single-evidence arm on aggregate,
+and per-bucket it is a genuine trade-off, not a uniform improvement -- this
+is the predicted negative/mixed result, not a confirmation of fusion
+value.** Total recall (87.84%) is only +0.07pp over spectral-only (87.77%)
+and +0.09pp over semantic-only (87.75%); mAP@.5 (0.772) is +0.002/+0.003
+over the same two arms. Breaking the aggregate down by bucket (recalled
+counts): concat wins Very Tiny by a real margin (62637 vs 62006
+spectral-only vs 62217 semantic-only, +420 to +631 objects), but *loses* to
+**both** single-evidence arms on Tiny (159962, worst of the three), Small
+(41131, worst), and Medium/Large (124, worst). The small aggregate win exists
+only because Very Tiny's gain outweighs the losses in every larger bucket
+combined. Read plainly: concat is not "semantic + spectral, strictly
+better" -- it is a redistribution of selector sensitivity toward the very
+smallest objects at a measurable cost everywhere else, and the net is only
+barely positive. This is an order of magnitude smaller than the
+R0-to-single-evidence jump (+3.3-3.4pp total recall from adding coverage
+loss alone, architecture unchanged) -- essentially all of this roster's
+gain so far comes from switching to the coverage loss, not from fusing
+evidence. It is also not free: Occupy 0.374/0.488, higher than
+spectral-only's 0.335/0.420 and close to semantic-only's 0.363/0.457. This
+should be reported as a genuine, structured data point for the
+"dual-evidence fusion" framing -- a real Very-Tiny-specific effect, not
+noise (both audit_buckets.py and vt_diagnose.py agree to within 0.02pp), but
+not the unqualified win a fusion-improves-everything narrative would need --
+not smoothed over. Matches the falsifiable spirit of H2/H3 in
+`HESOD-Proposal.md` SS6. concat+SABL and concat+SABL+ISPPHead may still
+separately justify themselves on box-regression and head-efficiency grounds
+respectively, but neither should be framed as validating fusion-over-single-
+evidence unless their own per-bucket deltas over concat-only (not over R0)
+show it.
 
 ### 8.3 spectral-only: CUDA OOM, resolved via reduced batch size
 

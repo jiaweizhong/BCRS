@@ -63,8 +63,23 @@ completed_epochs() {
 
 log "epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML"
 
+# Optional: comma-separated list of exact run_name(s) to run, e.g.
+#   ARMS="seaperson_yolov5m_channel_pooled_concat_sabl,seaperson_yolov5m_channel_pooled_concat_sabl_isphead" bash run_seaperson.sh
+# Unset/empty (default) runs every arm, unchanged from before. Names must
+# match exactly what run_arm() below is called with, including any ${SUFFIX}
+# (e.g. under SMOKE=1). This only skips arms outright -- it does not replace
+# run_arm()'s own per-arm resume/skip logic for whatever does run.
+ARMS="${ARMS:-}"
+
 run_arm() {
   local run_name="$1" model_cfg="$2" selector_loss="$3" box_loss="${4:-upstream}"
+
+  if [ -n "$ARMS" ]; then
+    case ",$ARMS," in
+      *",$run_name,"*) ;;
+      *) log "===== $run_name not in \$ARMS, skipping ====="; return 0 ;;
+    esac
+  fi
 
   local results_dir="$RUN_ROOT/test/$run_name"
   mkdir -p "$results_dir"
@@ -166,6 +181,15 @@ run_arm "seaperson_yolov5m_spectral_only${SUFFIX}" \
 run_arm "seaperson_yolov5m_channel_pooled_concat${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_concat.yaml" coverage upstream
 
+# gated-fusion: same evidence branches as concat-only, learned input-dependent
+# sigmoid gate instead of a fixed 1x1 conv over concatenated logits -- isolates
+# the fusion MECHANISM against concat-only. Added after concat-only showed a
+# real per-bucket trade-off (wins Very Tiny, loses Tiny/Small/Medium-Large,
+# HESOD-Experiment-Plan.md SS8.2); matches VisDrone's own long-defined E2.4
+# arm, never actually run there either.
+run_arm "seaperson_yolov5m_channel_pooled_dual_evidence${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_dual_evidence.yaml" coverage upstream
+
 # concat+SABL: same concat architecture, SABL box regression
 run_arm "seaperson_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_concat.yaml" coverage sabl
@@ -179,5 +203,6 @@ log "  R0:                    $RUN_ROOT/test/seaperson_yolov5m_baseline${SUFFIX}
 log "  Semantic-only:         $RUN_ROOT/test/seaperson_yolov5m_semantic_coverage${SUFFIX}/"
 log "  Spectral-only:         $RUN_ROOT/test/seaperson_yolov5m_spectral_only${SUFFIX}/"
 log "  Concat-only:           $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_concat${SUFFIX}/"
+log "  Gated-fusion:          $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_dual_evidence${SUFFIX}/"
 log "  Concat+SABL:           $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
 log "  Concat+SABL+ISPPHead:  $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}/"
