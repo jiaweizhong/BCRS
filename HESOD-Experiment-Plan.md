@@ -481,9 +481,16 @@ is the first concat/SABL/lightweight-head comparison ever run for UAVDT in
 this project -- previously only R0 existed. It ran R0 and
 `concat+SABL+ISPPHead` (plain concat+SABL was skipped at the time; SS9.2
 revisits that gap now that SeaPerson's own concat-only result turned out to
-be non-obvious). Params below is computed the same architecture-only way as
-SS8.1's table (see that table's note) -- `test.py --task measure` did not
-capture parameter count until 2026-08-22, after this comparison ran.
+be non-obvious). **Params below is known-incorrect, same bug as SS8.1's
+now-fixed table:** computed from an unfused `Model(cfg).parameters()`
+rather than the actual deployed (post-`.fuse()`) checkpoint `test.py
+--task measure` reports -- SS8.1's audit (2026-08-23) found this
+understates the real fusion savings by a small, architecture-dependent
+amount (~22.8K params on SeaPerson's configs; UAVDT's own offset has not
+been measured). Left uncorrected pending a fresh `--task measure` re-run
+for these two UAVDT checkpoints (not yet done; low priority, same as
+SS8.1's own artifact-consistency item, but this one is a known-wrong value,
+not just an unrefreshed artifact).
 
 | | R0 | Concat+SABL+ISPPHead | Delta |
 |---|---:|---:|---:|
@@ -559,9 +566,12 @@ which has to manufacture its own random valid slice.
   patch, producing a self-contained `seaperson_v2/{images,labels,masks}/{split}/`
   tree that `data/seaperson.yaml` points at directly.
 
-**Roster (7 arms; 6 confirmed distinct by the user, gated-fusion added
-after concat-only's per-bucket trade-off below motivated adding VisDrone's
-own long-defined but never-isolated E2.4 arm):**
+**Roster (8 arms. First 6 confirmed distinct by the user, gated-fusion
+added after concat-only's per-bucket trade-off below motivated adding
+VisDrone's own long-defined but never-isolated E2.4 arm; concat+ISPPHead
+added 2026-08-23 after concat+SABL showed no clean accuracy win over
+concat-only -- isolates ISPPHead's own efficiency gain from SABL's
+mixed/inconclusive effect, see the interpretation below):**
 
 | Arm | Selector | Loss | Box |
 |---|---|---|---|
@@ -572,6 +582,7 @@ own long-defined but never-isolated E2.4 arm):**
 | gated-fusion | `ChannelPooledDualEvidenceSegmenter` | coverage | CIoU |
 | concat+SABL | `ChannelPooledConcatEvidenceSegmenter` | coverage | SABL |
 | concat+SABL+ISPPHead | `ChannelPooledConcatEvidenceSegmenter` + `ISPPHead` | coverage | SABL |
+| concat+ISPPHead | `ChannelPooledConcatEvidenceSegmenter` + `ISPPHead` | coverage | CIoU |
 
 R0 and semantic-only share the same model config (`seaperson_yolov5m.yaml`)
 and differ only in `--selector-loss`, matching VisDrone's own E1.0/E2.1 pair
@@ -594,15 +605,11 @@ documented protocol deviation for this one arm (SS1). Given its result
 below already lands essentially on par with semantic-only despite the
 handicap, the smaller batch is not an obvious confound in its favor.
 
-**Status: all 7 arms complete (2026-08-23).** Once the GPU is free, re-run
-`--task measure` (only, ~2min/arm, no retraining) for the first 6 arms so
-their `buckets.json` on disk carries the `params` field directly (currently
-backfilled into this doc's tables only, from an architecture-only
-computation -- see the Accuracy + efficiency table's note below;
-`concat+SABL+ISPPHead` alone already has a live-measured `params` value,
-being the first arm to finish after the `test.py` fix). Not urgent: the
-numbers already in this doc are exact, this is artifact-consistency
-cleanup, not a correction.
+**Status: first 7 arms complete (2026-08-23), all results downloaded and
+independently re-verified against the raw logs (`results/seaperson_raw/`)
+-- see the Accuracy + efficiency table's note for the one correction that
+came out of that audit (Params methodology). 8th arm (concat+ISPPHead)
+added 2026-08-23, queued/in progress.**
 
 ### 8.1 Results (test split unless noted; updated as each arm completes)
 
@@ -618,26 +625,39 @@ targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 | gated-fusion | 75.49% (62219/82417) | 90.79% (158711/174816) | 95.50% (41052/42987) | 86.45% (134/155) | 87.26% (262116/300375) |
 | concat+SABL | 76.67% (63193/82417) | 91.49% (159935/174816) | 94.77% (40740/42987) | 80.65% (125/155) | 87.89% (263993/300375) |
 | concat+SABL+ISPPHead | 77.19% (63619/82417) | 90.70% (158562/174816) | 94.89% (40792/42987) | 83.23% (129/155) | 87.59% (263102/300375) |
+| concat+ISPPHead | pending | | | | |
 
 **Accuracy + efficiency** (mAP/P/R/BPR/Occupy from `test.py --task test`;
 Params/GFLOPs/FPS/latency from `test.py --task measure`, valid split,
-batch=1). Params is architecture-determined, not trained-weight-dependent,
-so every arm's value below was computed directly from its `models/cfg/esod/
-*.yaml` (`sum(p.numel() for p in Model(cfg).parameters())`) rather than
-waiting to re-derive it from a checkpoint -- `test.py --task measure` did
-not capture parameter count into `buckets.json` before 2026-08-22 (fixed
-this session, see `hesod/backends/hesod/utils/plots.py`'s `LatencyBucket`);
-arms measured after that fix report Params directly from their own run:
+batch=1; all values below independently re-verified 2026-08-23 against the
+downloaded raw `*_test.log`/`*_measure.log`/`buckets.json` artifacts, see
+`results/seaperson_raw/`). **Params correction (2026-08-23):** this table
+previously listed an architecture-only Params estimate for the first 6 arms
+(`sum(p.numel() for p in Model(cfg).parameters())`, computed before their
+`--task measure` was re-run) that did not match the real measured value --
+`test.py` loads every checkpoint through `attempt_load()`, which calls
+`.fuse()` (`models/yolo.py` `Model.fuse()`, folding each Conv2d+BatchNorm2d
+pair into one Conv2d, the "Fusing layers..." line in every log), so the
+real deployed parameter count is systematically lower (by ~22.8K here) than
+counting an unfused `Model(cfg)` naively. Every arm below now uses the
+`buckets.json`/measure-log value directly, matching how a paper reports
+deployed-model parameters, not the training-time graph. GFLOPs matched
+exactly between the two computations (architecture-only, unaffected by
+fusion's parameter-count change); FPS/latency below are also refreshed to
+this same 2026-08-23 remeasurement pass for all 6 (consistent with each
+other and with concat+SABL+ISPPHead, which was already a single live
+measurement) rather than mixing an older single R0 measurement in:
 
 | Arm | mAP@.5 | mAP@.5:.95 | P | R | BPR | Occupy (test) | Params (M) | GFLOPs | FPS | Latency (ms, infer/NMS/total) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| R0 | 0.750 | 0.320 | 0.827 | 0.696 | 0.947 | 0.228 | 35.81 | 202.4 | 88.9 | 11.2/1.2/12.4 |
-| semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 35.81 | 266.8 | 75.4 | 13.3/1.2/14.4 |
-| spectral-only | 0.770 | 0.327 | 0.829 | 0.705 | 0.992 | 0.335 | 35.97 | 267.4 | 72.6 | 13.8/1.2/15.0 |
-| concat-only | 0.772 | 0.326 | 0.825 | 0.707 | 0.986 | 0.374 | 35.81 | 281.2 | 72.4 | 13.8/1.2/15.0 |
-| gated-fusion | 0.765 | 0.324 | 0.824 | 0.704 | 0.990 | 0.330 | 35.88 | 261.5 | 76.8 | 13.0/1.2/14.2 |
-| concat+SABL | 0.771 | 0.323 | 0.820 | 0.713 | 0.990 | 0.348 | 35.81 | 263.7 | 74.8 | 13.4/1.3/14.6 |
+| R0 | 0.750 | 0.320 | 0.827 | 0.696 | 0.947 | 0.228 | 35.78 | 202.4 | 85.7 | 11.7/1.2/12.9 |
+| semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 35.78 | 266.8 | 73.5 | 13.6/1.2/14.8 |
+| spectral-only | 0.770 | 0.327 | 0.829 | 0.705 | 0.992 | 0.335 | 35.94 | 267.4 | 71.7 | 14.0/1.2/15.2 |
+| concat-only | 0.772 | 0.326 | 0.825 | 0.707 | 0.986 | 0.374 | 35.79 | 281.2 | 69.8 | 14.3/1.3/15.6 |
+| gated-fusion | 0.765 | 0.324 | 0.824 | 0.704 | 0.990 | 0.330 | 35.86 | 261.5 | 74.3 | 13.5/1.2/14.7 |
+| concat+SABL | 0.771 | 0.323 | 0.820 | 0.713 | 0.990 | 0.348 | 35.79 | 263.7 | 73.4 | 13.6/1.3/14.9 |
 | concat+SABL+ISPPHead | 0.769 | 0.323 | 0.815 | 0.716 | 0.990 | 0.340 | 25.92 | 209.1 | 77.1 | 13.0/1.2/14.2 |
+| concat+ISPPHead | pending | | | | | | | | | |
 
 **Very Tiny miss-reason breakdown** (`vt_diagnose.py`; percentages are of
 that arm's own missed-Very-Tiny count):
@@ -651,8 +671,9 @@ that arm's own missed-Very-Tiny count):
 | gated-fusion | 20181 | 79.5% | 20.4% | 0.1% |
 | concat+SABL | 19215 | 79.6% | 20.3% | 0.1% |
 | concat+SABL+ISPPHead | 18780 | 79.8% | 20.1% | 0.1% |
+| concat+ISPPHead | pending | | | |
 
-**Interpretation (all 7 arms, roster complete 2026-08-23):**
+**Interpretation (7 of 8 arms; concat+ISPPHead queued):**
 semantic-only (same `Segmenter` architecture as R0, coverage loss instead
 of upstream weighted BCE) improves every accuracy metric over R0, isolating
 the loss-function effect cleanly since the selector architecture is
@@ -723,7 +744,7 @@ on total recall and mAP@.5, beating only R0's plain upstream-loss baseline
 -- worse than semantic-only and spectral-only alone, not just worse than
 concat-only. Occupy (test) dropped further still (0.330, lowest of any
 coverage-loss arm) alongside GFLOPs (261.5, also lowest) and the highest
-FPS (76.8) -- the gate learned to suppress evidence and route to less area
+FPS (74.3) -- the gate learned to suppress evidence and route to less area
 than the fixed concatenation does, and that reduction cost accuracy across
 almost every bucket rather than sharpening selection. The one bucket where
 it wins is Medium/Large (86.45% vs 80.00%), but N=155 GT makes that a
@@ -742,7 +763,7 @@ and mAP@.5/mAP@.5:.95 are flat-to-slightly-down (0.772->0.771,
 0.326->0.323) -- box-loss precision gains at the smallest scale did not
 translate into an aggregate accuracy improvement. The one clear, consistent
 change is efficiency: Occupy (test) dropped from 0.374 to 0.348 and
-measured GFLOPs from 281.2 to 263.7 (FPS 72.4->74.8), even though only the
+measured GFLOPs from 281.2 to 263.7 (FPS 69.8->73.4), even though only the
 regression loss changed and the selector's own supervision
 (`--selector-loss coverage`) is identical between the two arms -- a real,
 if indirect, training-dynamics interaction between the box and selector
@@ -755,9 +776,9 @@ interpretation above flagged as the roster's main remaining headroom.
 **concat+SABL+ISPPHead over concat+SABL (its matched control -- same
 selector, same evidence, same box loss, only `YOLOv6Head` -> `ISPPHead`)
 cleanly isolates the head swap, and confirms it: a large parameter/compute
-saving at essentially no accuracy cost.** Params drops 27.6% (35.81M ->
+saving at essentially no accuracy cost.** Params drops 27.6% (35.79M ->
 25.92M) and measured GFLOPs 20.7% (263.7 -> 209.1), with FPS up modestly
-(74.8 -> 77.1). Accuracy is a wash, not a win or a loss: total recall dips
+(73.4 -> 77.1). Accuracy is a wash, not a win or a loss: total recall dips
 slightly (-0.30pp, 87.89% -> 87.59%), mAP@.5 is flat-to-slightly-down
 (0.771 -> 0.769), but Very Tiny recall actually improves (+0.52pp, 76.67%
 -> 77.19%) and the Very Tiny miss-reason mix stays effectively unchanged
@@ -774,9 +795,9 @@ cross-dataset consistency check for ISPPHead's efficiency claim.
 **Against R0 -- the roster's actual start-to-end comparison -- the full
 recipe is not simply "better and faster."** concat+SABL+ISPPHead beats R0
 on every accuracy axis (total recall 87.59% vs 84.42%, +3.17pp; mAP@.5
-0.769 vs 0.750) with 27.6% fewer parameters (25.92M vs 35.81M), but
+0.769 vs 0.750) with 27.6% fewer parameters (25.92M vs 35.78M), but
 measured GFLOPs is slightly *higher* (209.1 vs 202.4) and FPS is *lower*
-(77.1 vs 88.9, -13.3%) -- because Occupy is much larger throughout this
+(77.1 vs 85.7, -10.0%) -- because Occupy is much larger throughout this
 roster than R0's (0.34 here vs R0's 0.228), the concat selector routes
 substantially more image area through the shared backbone/neck, and that
 cost outweighs what the lighter head saves. Fewer parameters did not

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# SeaPerson (aka TinyPersonV2) 6-arm roster, run through the ACTIVE
+# SeaPerson (aka TinyPersonV2) 8-arm roster, run through the ACTIVE
 # hesod/backends/hesod tree, mirroring run_uavdt.sh's resume-capable
 # run_arm() structure.
 #
-# Arms (HESOD-Experiment-Plan.md, decided alongside the TinyPerson roster):
+# Arms (HESOD-Experiment-Plan.md SS8, decided alongside the TinyPerson roster):
 #   R0             -- Segmenter, upstream loss, CIoU box (original baseline)
 #   semantic-only  -- SAME architecture as R0, coverage loss instead (E2.1
 #                      style) -- isolates the loss-function effect from the
@@ -11,9 +11,14 @@
 #   spectral-only  -- SpectralOnlySegmenter, coverage loss (E2.5 style)
 #   concat-only    -- ChannelPooledConcatEvidenceSegmenter, coverage loss,
 #                      CIoU box (E2.9 style, no SABL)
+#   gated-fusion   -- same evidence branches as concat-only, learned gate
+#                      instead of fixed concat (isolates the fusion mechanism)
 #   concat+SABL    -- same concat architecture, coverage loss, SABL box
 #   concat+SABL+ISPPHead -- same + ISPPHead Detect (this project's best-known
 #                      lightweight recipe, confirmed on TinyPerson v1)
+#   concat+ISPPHead -- same as concat+SABL+ISPPHead but upstream/CIoU box
+#                      loss (no SABL) -- isolates ISPPHead's saving from
+#                      SABL's mixed/inconclusive accuracy effect (SS8.1)
 #
 # Prerequisite (run once, not by this script):
 #   python scripts/data_prepare.py --dataset /root/autodl-tmp/seaperson
@@ -198,6 +203,17 @@ run_arm "seaperson_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
 run_arm "seaperson_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_concat_isphead.yaml" coverage sabl
 
+# concat+ISPPHead (no SABL): same config as concat+SABL+ISPPHead, upstream/CIoU
+# box loss instead of sabl -- isolates the ISPPHead saving from SABL. Added
+# after concat+SABL showed no clean accuracy win over concat-only (small,
+# mixed result -- see HESOD-Experiment-Plan.md SS8.1's concat+SABL
+# interpretation) while concat+SABL+ISPPHead's own head-only isolation
+# showed ISPPHead alone is a clean win: tests whether dropping SABL entirely
+# (keeping just ISPPHead's efficiency gain) matches or beats
+# concat+SABL+ISPPHead's accuracy with the same or better efficiency.
+run_arm "seaperson_yolov5m_channel_pooled_concat_isphead${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_concat_isphead.yaml" coverage upstream
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/seaperson_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/seaperson_yolov5m_semantic_coverage${SUFFIX}/"
@@ -206,3 +222,4 @@ log "  Concat-only:           $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_co
 log "  Gated-fusion:          $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_dual_evidence${SUFFIX}/"
 log "  Concat+SABL:           $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
 log "  Concat+SABL+ISPPHead:  $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}/"
+log "  Concat+ISPPHead:       $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_concat_isphead${SUFFIX}/"
