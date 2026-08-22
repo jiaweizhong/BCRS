@@ -160,24 +160,25 @@ run_arm "uavdt_retinanet" retinanet \
 
 # ---- SeaPerson (aka TinyPersonV2) ----
 # Genuine 3-way split; valid is real held-out data, never touched by test.
-# Batch defaults lower than UAVDT (4 vs 8): 2048px images through a
-# two-stage/dense-anchor ResNet50-FPN detector is a different memory
-# profile than YOLOv5m at the same resolution -- untested on this GPU as of
-# writing (prepped while the GPU is busy finishing the SeaPerson roster's
-# last arm), lower first to avoid repeating the spectral-only OOM saga
-# (HESOD-Experiment-Plan.md SS8). Raise if it comfortably fits.
+# Batch=2, not 4: confirmed OOM'd at batch=4 on this exact GPU on
+# 2026-08-23 (seaperson_fasterrcnn, mid-epoch-1, "CUDA out of memory. Tried
+# to allocate 1.74 GiB... 29.89 GiB in use"). 2048px images through a
+# two-stage/dense-anchor ResNet50-FPN detector is far more memory-hungry
+# than YOLOv5m at the same resolution -- same class of issue, and same
+# resolution (batch=2), as the spectral-only OOM saga (SS8). Raise only
+# after confirming batch=2 comfortably fits with headroom to spare.
 SEAPERSON_ROOT="${SEAPERSON_ROOT:-/root/autodl-tmp/seaperson_v2}"
 run_arm "seaperson_fasterrcnn" fasterrcnn \
   "$SEAPERSON_ROOT/images/train" "$SEAPERSON_ROOT/labels/train" \
   "$SEAPERSON_ROOT/images/valid" "$SEAPERSON_ROOT/labels/valid" \
   "$SEAPERSON_ROOT/images/test" "$SEAPERSON_ROOT/labels/test" \
-  "person" 2048 4
+  "person" 2048 2
 
 run_arm "seaperson_retinanet" retinanet \
   "$SEAPERSON_ROOT/images/train" "$SEAPERSON_ROOT/labels/train" \
   "$SEAPERSON_ROOT/images/valid" "$SEAPERSON_ROOT/labels/valid" \
   "$SEAPERSON_ROOT/images/test" "$SEAPERSON_ROOT/labels/test" \
-  "person" 2048 4
+  "person" 2048 2
 
 log "===== ALL DONE ====="
 log "  UAVDT Faster R-CNN:     $RUN_ROOT/test/uavdt_fasterrcnn/"
