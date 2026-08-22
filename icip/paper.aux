@@ -22,11 +22,6 @@
 \citation{QueryDet}
 \citation{CEASC}
 \citation{ESOD}
-\citation{QueryDet}
-\citation{CEASC}
-\citation{ESOD}
-\citation{SET}
-\citation{SSABNet}
 \citation{SET}
 \@writefile{toc}{\contentsline {section}{\numberline {2} Related Work}{2}{}\protected@file@percent }
 \newlabel{sec:related}{{2}{2}{}{section.2}{}}
@@ -36,22 +31,20 @@
 \newlabel{ssec:evidence}{{3.1}{2}{}{subsection.3.1}{}}
 \newlabel{eq:sem_logit}{{1}{2}{}{equation.1}{}}
 \newlabel{eq:channel_pool}{{2}{2}{}{equation.2}{}}
-\newlabel{eq:kernels}{{3}{2}{}{equation.3}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Systematic comparison of related detection paradigms and the proposed DES-ESOD framework.}}{3}{}\protected@file@percent }
-\newlabel{tab:related}{{1}{3}{}{table.1}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Overview of DES-ESOD: (A) End-to-end selective detection pipeline comprising the Stem, Dual-Evidence Priority Head (with Object-Level Soft-Coverage Loss), AdaSlicer patch router, Neck, and ISPP Detection Head; (B) Detailed inner structure of the Dual-Evidence Priority Head (\S  \ref {ssec:evidence}).}}{3}{}\protected@file@percent }
 \newlabel{fig:overview}{{1}{3}{}{figure.1}{}}
+\newlabel{eq:kernels}{{3}{3}{}{equation.3}{}}
 \newlabel{eq:fusion}{{4}{3}{}{equation.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2} Object-Level Soft-Coverage Loss}{3}{}\protected@file@percent }
 \newlabel{ssec:coverage}{{3.2}{3}{}{subsection.3.2}{}}
+\newlabel{eq:cover_prob}{{5}{3}{}{equation.5}{}}
+\newlabel{eq:cover_loss}{{6}{3}{}{equation.6}{}}
 \citation{ESODYOLO}
 \citation{SSABNet}
 \citation{UAVDT}
 \citation{TinyPerson,SeaDronesSee}
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Scale-Aware Balancing Loss (SABL) workflow (\S  \ref {ssec:head}).}}{4}{}\protected@file@percent }
 \newlabel{fig:sabl}{{2}{4}{}{figure.2}{}}
-\newlabel{eq:cover_prob}{{5}{4}{}{equation.5}{}}
-\newlabel{eq:cover_loss}{{6}{4}{}{equation.6}{}}
 \newlabel{eq:weight}{{7}{4}{}{equation.7}{}}
 \newlabel{eq:total_loss}{{8}{4}{}{equation.8}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3} Efficient Decoupled Head and Scale-Aware Loss}{4}{}\protected@file@percent }
@@ -61,23 +54,26 @@
 \@writefile{toc}{\contentsline {section}{\numberline {4} Experimental Setup}{4}{}\protected@file@percent }
 \newlabel{sec:setup}{{4}{4}{}{section.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1} Datasets and Evaluation Protocols}{4}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2} Implementation Details}{4}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3} Evaluation Metrics}{4}{}\protected@file@percent }
 \citation{ESOD}
 \citation{ESOD}
 \citation{ESOD}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Quantitative performance comparison on the UAVDT test set.}}{5}{}\protected@file@percent }
-\newlabel{tab:uavdt}{{2}{5}{}{table.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Detection accuracy and runtime efficiency on SeaPerson.}}{5}{}\protected@file@percent }
-\newlabel{tab:seaperson}{{3}{5}{}{table.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2} Implementation Details}{5}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3} Evaluation Metrics}{5}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Quantitative performance comparison on the UAVDT test set.}}{5}{}\protected@file@percent }
+\newlabel{tab:uavdt}{{1}{5}{}{table.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Detection accuracy and runtime efficiency on SeaPerson.}}{5}{}\protected@file@percent }
+\newlabel{tab:seaperson}{{2}{5}{}{table.2}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5} Results and Analysis}{5}{}\protected@file@percent }
 \newlabel{sec:results}{{5}{5}{}{section.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1} Quantitative Results on UAVDT and SeaPerson}{5}{}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Detailed size-bucket recall comparison across 300,375 ground-truth test instances on SeaPerson.}}{5}{}\protected@file@percent }
-\newlabel{tab:size_buckets}{{4}{5}{}{table.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Diagnostic breakdown of missed Very Tiny instances ($<16^2$ px).}}{5}{}\protected@file@percent }
-\newlabel{tab:error_breakdown}{{5}{5}{}{table.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2} Size-Stratified Recall Analysis across Scale Strata}{5}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Detailed size-bucket recall comparison across 300,375 ground-truth test instances on SeaPerson.}}{5}{}\protected@file@percent }
+\newlabel{tab:size_buckets}{{3}{5}{}{table.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Diagnostic breakdown of missed Very Tiny instances ($<16^2$ px).}}{5}{}\protected@file@percent }
+\newlabel{tab:error_breakdown}{{4}{5}{}{table.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3} Error Attribution and Recall Safety Diagnostics}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4} Discussion and Limitations}{5}{}\protected@file@percent }
+\newlabel{ssec:discussion}{{5.4}{5}{}{subsection.5.4}{}}
 \citation{VisDrone}
 \bibstyle{IEEEbib}
 \bibdata{strings,refs}
@@ -88,17 +84,14 @@
 \bibcite{AutoFocus}{5}
 \bibcite{QueryDet}{6}
 \bibcite{CEASC}{7}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3} Error Attribution and Recall Safety Diagnostics}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4} Discussion and Limitations}{6}{}\protected@file@percent }
-\newlabel{ssec:discussion}{{5.4}{6}{}{subsection.5.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6} Conclusion}{6}{}\protected@file@percent }
-\newlabel{sec:conclusion}{{6}{6}{}{section.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7} References}{6}{}\protected@file@percent }
 \bibcite{SET}{8}
 \bibcite{SSABNet}{9}
 \bibcite{SeaDronesSee}{10}
 \bibcite{ClusDet}{11}
 \bibcite{DMNet}{12}
+\@writefile{toc}{\contentsline {section}{\numberline {6} Conclusion}{6}{}\protected@file@percent }
+\newlabel{sec:conclusion}{{6}{6}{}{section.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7} References}{6}{}\protected@file@percent }
 \bibcite{UFPMP}{13}
 \bibcite{NWD}{14}
 \bibcite{RFLA}{15}

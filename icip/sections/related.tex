@@ -5,26 +5,6 @@
 
 \textbf{Selective and Dynamic Computation.} To reduce arithmetic redundancy, selective computation dynamically routes processing to prospective foreground regions. AutoFocus \cite{AutoFocus} predicts focus pixels to guide fine-scale multi-scale processing. QueryDet \cite{QueryDet} accelerates feature pyramids via cascaded sparse queries, while CEASC \cite{CEASC} formulates adaptive activation masking (AMM) for sparse convolutions. ESOD \cite{ESOD} introduces an early ObjSeeker module after the shallow stem to slice features into patches (AdaSlicer), bypassing background across subsequent stages. Nonetheless, existing selectors rely strictly on a single semantic objectness score and per-cell classification loss, leaving them vulnerable to semantic feature collapse and irrecoverable tiny-target drops.
 
-\begin{table*}[t]
-\centering
-\caption{Systematic comparison of related detection paradigms and the proposed DES-ESOD framework.}
-\label{tab:related}
-\small
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Method} & \textbf{Routing Granularity} & \textbf{Evidence Source} & \textbf{Coverage Guarantee} & \textbf{Decoupled Head Design} \\
-\midrule
-QueryDet \cite{QueryDet} & Feature Pyramid / Query & Semantic only & \texttimes & Standard Conv Head \\
-CEASC \cite{CEASC}       & Activation Masking      & Semantic only & \texttimes & Standard Conv Head \\
-ESOD \cite{ESOD}         & Early Spatial Patch     & Semantic only & \texttimes & Standard / Sparse Head \\
-SET \cite{SET}           & Full Dense Feature Map  & Spectral Filtering & \texttimes & Standard Conv Head \\
-SSABNet \cite{SSABNet}   & Full Dense Feature Map  & Semantic only & \texttimes & Dense Balancing Head \\
-\midrule
-\textbf{DES-ESOD (Ours)} & \textbf{Early Spatial Patch} & \textbf{Dual (Semantic + Spectral)} & \textbf{\checkmark} & \textbf{Lightweight ISPP + SABL} \\
-\bottomrule
-\end{tabular}%
-}
-\end{table*}
+
 
 \textbf{Spectral Analysis and Spatial Saliency.} Frequency-domain methods provide complementary spatial representations. SET \cite{SET} demonstrated that tiny objects preserve distinct high-frequency structural signatures even when semantic activations are weak, using frequency background smoothing to enhance dense feature maps. Unlike SET, which applies dense spectral operations over entire multi-scale pyramids, DES-ESOD repurposes spectral and gradient saliency as an ultra-lightweight, channel-pooled routing signal ($\mathcal{O}(1)$ relative to backbone width) to guide recall-safe spatial selection.
