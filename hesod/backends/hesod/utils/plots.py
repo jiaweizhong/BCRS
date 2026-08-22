@@ -469,27 +469,30 @@ class LatencyBucket(object):
         self.nums = []
         self.gflops = []
         self.latency = []
+        self.params = None  # total model parameter count (scalar, not per-image -- set once, not via add())
 
     def add(self, nums, gflops, latency):
         self.nums.append(nums)
         self.gflops.append(gflops)
         self.latency.append(latency)
-    
+
     def save(self, out_path):
         data = {
-            'nums': self.nums, 
+            'nums': self.nums,
             'gflops': self.gflops,
-            'latency': self.latency
+            'latency': self.latency,
+            'params': self.params,
         }
         with open(out_path, 'w+') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-    
+
     def load(self, file_path):
         with open(file_path, 'r') as f:
             data = json.load(f)
         self.nums = data['nums']
         self.gflops = data['gflops']
         self.latency = data['latency']
+        self.params = data.get('params')  # absent in buckets.json saved before this field existed
 
     def plot(self):
         assert len(self.nums)

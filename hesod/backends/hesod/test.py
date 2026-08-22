@@ -404,7 +404,9 @@ def test(data,
     t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (imgsz, imgsz, batch_size)  # tuple
     if not training:
         if opt.task == 'measure':
-            print('GFLOPs: %.1f. FPS: %.1f ' % (np.mean(gflops), 1000. / t[0]), end='')
+            n_p = sum(x.numel() for x in model.parameters())
+            lbucket.params = n_p
+            print('GFLOPs: %.1f. Params: %d. FPS: %.1f ' % (np.mean(gflops), n_p, 1000. / t[0]), end='')
         print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
 
     # Plots

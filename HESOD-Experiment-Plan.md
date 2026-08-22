@@ -481,7 +481,9 @@ is the first concat/SABL/lightweight-head comparison ever run for UAVDT in
 this project -- previously only R0 existed. It ran R0 and
 `concat+SABL+ISPPHead` (plain concat+SABL was skipped at the time; SS9.2
 revisits that gap now that SeaPerson's own concat-only result turned out to
-be non-obvious).
+be non-obvious). Params below is computed the same architecture-only way as
+SS8.1's table (see that table's note) -- `test.py --task measure` did not
+capture parameter count until 2026-08-22, after this comparison ran.
 
 | | R0 | Concat+SABL+ISPPHead | Delta |
 |---|---:|---:|---:|
@@ -491,6 +493,7 @@ be non-obvious).
 | Very Tiny recall (<16x16) | 83.63-83.64% | 84.18-84.21% | +0.55pp |
 | car / truck / bus recall | 84.87 / 84.41 / 75.20 | 90.56 / 84.88 / 76.28 | +5.7 / +0.5 / +1.1pp |
 | Occupy | 0.245 | 0.48 | ~2x |
+| Params (M) | 35.87 | 26.01 | -27.5% |
 
 `audit_buckets.py` and `vt_diagnose.py`'s independently-computed Very Tiny
 recall figures agree closely for both arms (83.63/83.64 and 84.18/84.21), a
@@ -498,7 +501,12 @@ useful cross-check that the `image_id` disambiguation (SS1) leaves the
 pipeline self-consistent.
 
 **Clear, consistent win for concat+SABL+ISPPHead** across mAP, total
-recall, and Very Tiny recall -- not just a tradeoff on one axis.
+recall, and Very Tiny recall -- not just a tradeoff on one axis. It also
+has 27.5% fewer parameters than R0 (26.01M vs 35.87M) despite the added
+concat selector branch, confirming ISPPHead's own efficiency motivation
+(`HESOD-Lightweight-Detector-Review-and-Roadmap.md` SS5.2) holds at the
+whole-model level here too, not just in the head-only bake-off it was
+originally measured in.
 
 **Caveat, not yet isolated: Occupy nearly doubled (0.245 -> 0.48).** The
 concat selector routes to roughly twice as much image area as R0's
@@ -587,7 +595,13 @@ below already lands essentially on par with semantic-only despite the
 handicap, the smaller batch is not an obvious confound in its favor.
 
 **Status: R0, semantic-only, spectral-only, concat-only, gated-fusion,
-concat+SABL complete; concat+SABL+ISPPHead in progress/queued.**
+concat+SABL complete; concat+SABL+ISPPHead in progress/queued.** Once the
+GPU is free, re-run `--task measure` (only, ~2min/arm, no retraining) for
+the 6 completed arms so their `buckets.json` on disk carries the `params`
+field directly (currently backfilled into this doc's tables only, from an
+architecture-only computation -- see the Accuracy + efficiency table's
+note below). Not urgent: the numbers already in this doc are exact, this
+is artifact-consistency cleanup, not a correction.
 
 ### 8.1 Results (test split unless noted; updated as each arm completes)
 
@@ -605,17 +619,24 @@ targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 | concat+SABL+ISPPHead | pending | | | | |
 
 **Accuracy + efficiency** (mAP/P/R/BPR/Occupy from `test.py --task test`;
-GFLOPs/FPS/latency from `test.py --task measure`, valid split, batch=1):
+Params/GFLOPs/FPS/latency from `test.py --task measure`, valid split,
+batch=1). Params is architecture-determined, not trained-weight-dependent,
+so every arm's value below was computed directly from its `models/cfg/esod/
+*.yaml` (`sum(p.numel() for p in Model(cfg).parameters())`) rather than
+waiting to re-derive it from a checkpoint -- `test.py --task measure` did
+not capture parameter count into `buckets.json` before 2026-08-22 (fixed
+this session, see `hesod/backends/hesod/utils/plots.py`'s `LatencyBucket`);
+arms measured after that fix report Params directly from their own run:
 
-| Arm | mAP@.5 | mAP@.5:.95 | P | R | BPR | Occupy (test) | GFLOPs | FPS | Latency (ms, infer/NMS/total) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| R0 | 0.750 | 0.320 | 0.827 | 0.696 | 0.947 | 0.228 | 202.4 | 88.9 | 11.2/1.2/12.4 |
-| semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 266.8 | 75.4 | 13.3/1.2/14.4 |
-| spectral-only | 0.770 | 0.327 | 0.829 | 0.705 | 0.992 | 0.335 | 267.4 | 72.6 | 13.8/1.2/15.0 |
-| concat-only | 0.772 | 0.326 | 0.825 | 0.707 | 0.986 | 0.374 | 281.2 | 72.4 | 13.8/1.2/15.0 |
-| gated-fusion | 0.765 | 0.324 | 0.824 | 0.704 | 0.990 | 0.330 | 261.5 | 76.8 | 13.0/1.2/14.2 |
-| concat+SABL | 0.771 | 0.323 | 0.820 | 0.713 | 0.990 | 0.348 | 263.7 | 74.8 | 13.4/1.3/14.6 |
-| concat+SABL+ISPPHead | pending | | | | | | | | |
+| Arm | mAP@.5 | mAP@.5:.95 | P | R | BPR | Occupy (test) | Params (M) | GFLOPs | FPS | Latency (ms, infer/NMS/total) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| R0 | 0.750 | 0.320 | 0.827 | 0.696 | 0.947 | 0.228 | 35.81 | 202.4 | 88.9 | 11.2/1.2/12.4 |
+| semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 35.81 | 266.8 | 75.4 | 13.3/1.2/14.4 |
+| spectral-only | 0.770 | 0.327 | 0.829 | 0.705 | 0.992 | 0.335 | 35.97 | 267.4 | 72.6 | 13.8/1.2/15.0 |
+| concat-only | 0.772 | 0.326 | 0.825 | 0.707 | 0.986 | 0.374 | 35.81 | 281.2 | 72.4 | 13.8/1.2/15.0 |
+| gated-fusion | 0.765 | 0.324 | 0.824 | 0.704 | 0.990 | 0.330 | 35.88 | 261.5 | 76.8 | 13.0/1.2/14.2 |
+| concat+SABL | 0.771 | 0.323 | 0.820 | 0.713 | 0.990 | 0.348 | 35.81 | 263.7 | 74.8 | 13.4/1.3/14.6 |
+| concat+SABL+ISPPHead | pending | | | | | | | | | |
 
 **Very Tiny miss-reason breakdown** (`vt_diagnose.py`; percentages are of
 that arm's own missed-Very-Tiny count):

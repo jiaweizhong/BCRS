@@ -85,15 +85,15 @@ Changlin Li, Tao Tao, Chenglei Zhu, Wang Bao, and Jiansheng Liu,
 Yecheng Huang, Jiaxin Chen, and Di~Huang,
 \newblock ``{UFPMP-Det}: Toward accurate and efficient object detection on
   large-scale high-resolution remote sensing images,''
-\newblock in {\em Proc. AAAI Conf. Humanoid and Artificial Intelligence (AAAI)},
-  2022, pp. 1041--1049.
+\newblock in {\em Proc. AAAI Conf. Humanoid and Artificial Intelligence
+  (AAAI)}, 2022, pp. 1041--1049.
 
 \bibitem{NWD}
 Jinwang Wang, Chang Xu, Wen Yang, and Lei Yu,
 \newblock ``A normalized gaussian {Wasserstein} distance for tiny object
   detection,''
-\newblock {\em IEEE Transactions on Geoscience and Remote Sensing}, vol. 60, pp.
-  1--13, 2021.
+\newblock {\em IEEE Transactions on Geoscience and Remote Sensing}, vol. 60,
+  pp. 1--13, 2021.
 
 \bibitem{RFLA}
 Chang Xu, Jinwang Wang, Wen Yang, Huai Yu, Lei Yu, and Gui-Song Xia,
@@ -107,5 +107,18 @@ Xin Xu, Qi~Li, Jie Pan, Xingzheng Lu, Hongwei Wei, Mingzheng Sun, and Haoze
 \newblock ``{ESOD-YOLO}: An enhanced efficient small object detection framework
   for aerial images,''
 \newblock {\em Computing}, vol. 107, pp. 54, 2025.
+
+\bibitem{FasterRCNN}
+Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun,
+\newblock ``{Faster R-CNN}: Towards real-time object detection with region
+  proposal networks,''
+\newblock {\em IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  vol. 39, no. 6, pp. 1137--1149, 2017.
+
+\bibitem{RetinaNet}
+Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Doll{\'a}r,
+\newblock ``Focal loss for dense object detection,''
+\newblock in {\em Proc. IEEE Int. Conf. Computer Vision (ICCV)}, 2017, pp.
+  2980--2988.
 
 \end{thebibliography}
