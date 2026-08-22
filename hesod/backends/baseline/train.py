@@ -27,6 +27,7 @@ import sys
 
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from datasets import YoloDetectionDataset, collate_fn  # noqa: E402
@@ -88,7 +89,7 @@ def _eval_loss(model: torch.nn.Module, loader: DataLoader, device: torch.device)
     # without updating weights or requiring a second (eval-mode) code path.
     model.train()
     total, count = 0.0, 0
-    for images, targets in loader:
+    for images, targets in tqdm(loader, desc="val", leave=False):
         images = [img.to(device) for img in images]
         targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
         loss_dict = model(images, targets)
@@ -140,7 +141,8 @@ def train(opt: argparse.Namespace) -> None:
     for epoch in range(start_epoch, opt.epochs):
         model.train()
         running_loss, batches = 0.0, 0
-        for images, targets in train_loader:
+        pbar = tqdm(train_loader, desc=f"epoch {epoch}/{opt.epochs - 1}")
+        for images, targets in pbar:
             images = [img.to(device) for img in images]
             targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
             loss_dict = model(images, targets)
@@ -150,6 +152,7 @@ def train(opt: argparse.Namespace) -> None:
             optimizer.step()
             running_loss += loss.item()
             batches += 1
+            pbar.set_postfix(loss=f"{running_loss / batches:.4f}")
         scheduler.step()
         train_loss = running_loss / batches if batches else float("nan")
         val_loss = _eval_loss(model, val_loader, device)

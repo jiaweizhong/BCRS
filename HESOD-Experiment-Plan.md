@@ -1,6 +1,6 @@
 # HESOD Experiment Plan
 
-**Canonical status: 2026-08-22.** This file is the execution contract, not an
+**Canonical status: 2026-08-23.** This file is the execution contract, not an
 investigation log. Superseded configs, failed-run details, and patch history
 belong in Git history or `ESOD-Baseline-Patches.md`.
 
@@ -594,14 +594,15 @@ documented protocol deviation for this one arm (SS1). Given its result
 below already lands essentially on par with semantic-only despite the
 handicap, the smaller batch is not an obvious confound in its favor.
 
-**Status: R0, semantic-only, spectral-only, concat-only, gated-fusion,
-concat+SABL complete; concat+SABL+ISPPHead in progress/queued.** Once the
-GPU is free, re-run `--task measure` (only, ~2min/arm, no retraining) for
-the 6 completed arms so their `buckets.json` on disk carries the `params`
-field directly (currently backfilled into this doc's tables only, from an
-architecture-only computation -- see the Accuracy + efficiency table's
-note below). Not urgent: the numbers already in this doc are exact, this
-is artifact-consistency cleanup, not a correction.
+**Status: all 7 arms complete (2026-08-23).** Once the GPU is free, re-run
+`--task measure` (only, ~2min/arm, no retraining) for the first 6 arms so
+their `buckets.json` on disk carries the `params` field directly (currently
+backfilled into this doc's tables only, from an architecture-only
+computation -- see the Accuracy + efficiency table's note below;
+`concat+SABL+ISPPHead` alone already has a live-measured `params` value,
+being the first arm to finish after the `test.py` fix). Not urgent: the
+numbers already in this doc are exact, this is artifact-consistency
+cleanup, not a correction.
 
 ### 8.1 Results (test split unless noted; updated as each arm completes)
 
@@ -616,7 +617,7 @@ targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 | concat-only | 76.00% (62637/82417) | 91.50% (159962/174816) | 95.68% (41131/42987) | 80.00% (124/155) | 87.84% (263854/300375) |
 | gated-fusion | 75.49% (62219/82417) | 90.79% (158711/174816) | 95.50% (41052/42987) | 86.45% (134/155) | 87.26% (262116/300375) |
 | concat+SABL | 76.67% (63193/82417) | 91.49% (159935/174816) | 94.77% (40740/42987) | 80.65% (125/155) | 87.89% (263993/300375) |
-| concat+SABL+ISPPHead | pending | | | | |
+| concat+SABL+ISPPHead | 77.19% (63619/82417) | 90.70% (158562/174816) | 94.89% (40792/42987) | 83.23% (129/155) | 87.59% (263102/300375) |
 
 **Accuracy + efficiency** (mAP/P/R/BPR/Occupy from `test.py --task test`;
 Params/GFLOPs/FPS/latency from `test.py --task measure`, valid split,
@@ -636,7 +637,7 @@ arms measured after that fix report Params directly from their own run:
 | concat-only | 0.772 | 0.326 | 0.825 | 0.707 | 0.986 | 0.374 | 35.81 | 281.2 | 72.4 | 13.8/1.2/15.0 |
 | gated-fusion | 0.765 | 0.324 | 0.824 | 0.704 | 0.990 | 0.330 | 35.88 | 261.5 | 76.8 | 13.0/1.2/14.2 |
 | concat+SABL | 0.771 | 0.323 | 0.820 | 0.713 | 0.990 | 0.348 | 35.81 | 263.7 | 74.8 | 13.4/1.3/14.6 |
-| concat+SABL+ISPPHead | pending | | | | | | | | | |
+| concat+SABL+ISPPHead | 0.769 | 0.323 | 0.815 | 0.716 | 0.990 | 0.340 | 25.92 | 209.1 | 77.1 | 13.0/1.2/14.2 |
 
 **Very Tiny miss-reason breakdown** (`vt_diagnose.py`; percentages are of
 that arm's own missed-Very-Tiny count):
@@ -649,22 +650,24 @@ that arm's own missed-Very-Tiny count):
 | concat-only | 19760 | 80.6% | 19.2% | 0.2% |
 | gated-fusion | 20181 | 79.5% | 20.4% | 0.1% |
 | concat+SABL | 19215 | 79.6% | 20.3% | 0.1% |
-| concat+SABL+ISPPHead | pending | | | |
+| concat+SABL+ISPPHead | 18780 | 79.8% | 20.1% | 0.1% |
 
-**Interpretation (6 of 7 arms; will be revisited once the roster
-completes):** semantic-only (same `Segmenter` architecture as R0, coverage
-loss instead of upstream weighted BCE) improves every accuracy metric over
-R0, isolating the loss-function effect cleanly since the selector
-architecture is unchanged. As with UAVDT's concat comparison (SS7), Occupy
-increased alongside accuracy -- the same "smarter selection vs. selecting
-more area" caveat applies here and is not yet isolated. For all four arms
-so far, localization failure dominates missed Very Tiny objects, not
-selector drops -- coverage supervision reduces selector-caused misses (R0's
-25.6% -> ~20% for every coverage-loss arm, of a smaller total) and shifts
-the remaining bottleneck further toward detection-head localization
+**Interpretation (all 7 arms, roster complete 2026-08-23):**
+semantic-only (same `Segmenter` architecture as R0, coverage loss instead
+of upstream weighted BCE) improves every accuracy metric over R0, isolating
+the loss-function effect cleanly since the selector architecture is
+unchanged. As with UAVDT's concat comparison (SS7), Occupy increased
+alongside accuracy -- the same "smarter selection vs. selecting more area"
+caveat applies here and is not yet isolated. Across all six coverage-loss
+arms, localization failure dominates missed Very Tiny objects, not selector
+drops -- coverage supervision reduces selector-caused misses (R0's 25.6% ->
+19-20% for every coverage-loss arm, of a smaller total each time) and
+shifts the remaining bottleneck further toward detection-head localization
 precision at very tiny scale. This suggests headroom in this roster is more
 likely in box-regression quality (SABL) than in further selector tuning
-alone -- a hypothesis the remaining arms will test directly.
+alone -- confirmed only partially: concat+SABL's own localization-failure
+share barely moved (see its interpretation below), so this remains an open
+question rather than a confirmed explanation.
 
 **spectral-only is essentially on par with semantic-only** (total recall
 87.77% vs 87.75%, Very Tiny recall ~75.2% vs ~75.5%, mAP@.5 0.770 vs 0.769)
@@ -747,8 +750,42 @@ losses, not something to over-read as SABL "learning to select better."
 Very Tiny miss-reason mix is essentially unchanged (localization failure
 80.6%->79.6%, selector-dropped 19.2%->20.3%, on 545 fewer total misses),
 so SABL is not resolving the localization-failure bottleneck the SS8.1
-interpretation above flagged as the roster's main remaining headroom --
-that hypothesis stays open for concat+SABL+ISPPHead to test.
+interpretation above flagged as the roster's main remaining headroom.
+
+**concat+SABL+ISPPHead over concat+SABL (its matched control -- same
+selector, same evidence, same box loss, only `YOLOv6Head` -> `ISPPHead`)
+cleanly isolates the head swap, and confirms it: a large parameter/compute
+saving at essentially no accuracy cost.** Params drops 27.6% (35.81M ->
+25.92M) and measured GFLOPs 20.7% (263.7 -> 209.1), with FPS up modestly
+(74.8 -> 77.1). Accuracy is a wash, not a win or a loss: total recall dips
+slightly (-0.30pp, 87.89% -> 87.59%), mAP@.5 is flat-to-slightly-down
+(0.771 -> 0.769), but Very Tiny recall actually improves (+0.52pp, 76.67%
+-> 77.19%) and the Very Tiny miss-reason mix stays effectively unchanged
+(localization failure 79.6% -> 79.8%, on 435 fewer total misses) -- so, as
+with concat+SABL itself, the lighter head does not resolve the
+localization-failure bottleneck either; it just gets to the same accuracy
+for meaningfully less compute. This is the cleanest isolation of the
+ISPPHead effect in the whole project (UAVDT's SS7 comparison bundled the
+head swap with the selector and loss changes at once; SS9.1's still-open
+gap is about isolating it against plain R0, not against this SABL+concat
+combo) -- and it matches the 27.5% UAVDT reduction (SS7) closely, a useful
+cross-dataset consistency check for ISPPHead's efficiency claim.
+
+**Against R0 -- the roster's actual start-to-end comparison -- the full
+recipe is not simply "better and faster."** concat+SABL+ISPPHead beats R0
+on every accuracy axis (total recall 87.59% vs 84.42%, +3.17pp; mAP@.5
+0.769 vs 0.750) with 27.6% fewer parameters (25.92M vs 35.81M), but
+measured GFLOPs is slightly *higher* (209.1 vs 202.4) and FPS is *lower*
+(77.1 vs 88.9, -13.3%) -- because Occupy is much larger throughout this
+roster than R0's (0.34 here vs R0's 0.228), the concat selector routes
+substantially more image area through the shared backbone/neck, and that
+cost outweighs what the lighter head saves. Fewer parameters did not
+translate into a net latency win here; the accuracy gain came partly from
+processing more of the image, the same "smarter selection vs. selecting
+more area" caveat flagged for UAVDT (SS7) and never isolated in this
+roster either. Report both numbers together -- neither "the final method
+has 28% fewer parameters" nor "the final method is faster than R0" is true
+in isolation without the other.
 
 ## 9. Known gaps: missing head-swap controls and competitor baselines
 

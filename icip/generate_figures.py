@@ -1,5 +1,5 @@
 """
-Script to generate high-quality, publication-ready vector PDF diagrams for DES-ESOD.
+Script to generate high-quality, publication-ready vector PDF diagrams for HESOD.
 Self-contained inside the icip/ paper directory.
 """
 

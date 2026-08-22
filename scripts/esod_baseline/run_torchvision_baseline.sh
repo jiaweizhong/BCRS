@@ -137,7 +137,15 @@ run_arm() {
 # train/test) -- val during training reuses images/test, same as the
 # existing YOLOv5 arms' own val: convention for this dataset (inherited,
 # not introduced here; see backends/baseline/README.md).
-UAVDT_ROOT="${UAVDT_ROOT:-/root/autodl-tmp/UAVDT_v3}"
+#
+# UAVDT_fresh, not UAVDT_v3: this project's active hesod/backends/hesod
+# tree runs UAVDT against UAVDT_fresh (re-extracted from raw source
+# archives, HESOD-Experiment-Plan.md SS7) -- UAVDT_v3 is the older
+# frozen-tree run_baseline.sh naming and was never confirmed to have a
+# reorganized labels/train on this box (confirmed missing entirely on
+# 2026-08-23: `ls /root/autodl-tmp/UAVDT_v3/labels/` -> No such file or
+# directory; only UAVDT_fresh/ exists under /root/autodl-tmp).
+UAVDT_ROOT="${UAVDT_ROOT:-/root/autodl-tmp/UAVDT_fresh}"
 run_arm "uavdt_fasterrcnn" fasterrcnn \
   "$UAVDT_ROOT/images/train" "$UAVDT_ROOT/labels/train" \
   "$UAVDT_ROOT/images/test" "$UAVDT_ROOT/labels/test" \

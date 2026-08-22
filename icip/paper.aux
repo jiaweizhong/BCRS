@@ -25,15 +25,21 @@
 \citation{SET}
 \@writefile{toc}{\contentsline {section}{\numberline {2} Related Work}{2}{}\protected@file@percent }
 \newlabel{sec:related}{{2}{2}{}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1} Small Object Detection in Aerial Imagery}{2}{}\protected@file@percent }
+\newlabel{ssec:related_sod}{{2.1}{2}{}{subsection.2.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2} Selective and Dynamic Computation}{2}{}\protected@file@percent }
+\newlabel{ssec:related_selective}{{2.2}{2}{}{subsection.2.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3} Spectral Analysis and Spatial Saliency}{2}{}\protected@file@percent }
+\newlabel{ssec:related_spectral}{{2.3}{2}{}{subsection.2.3}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {3} Proposed Method}{2}{}\protected@file@percent }
 \newlabel{sec:method}{{3}{2}{}{section.3}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.1} Dual-Evidence Priority Estimation}{2}{}\protected@file@percent }
 \newlabel{ssec:evidence}{{3.1}{2}{}{subsection.3.1}{}}
 \newlabel{eq:sem_logit}{{1}{2}{}{equation.1}{}}
 \newlabel{eq:channel_pool}{{2}{2}{}{equation.2}{}}
-\newlabel{eq:kernels}{{3}{2}{}{equation.3}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Overview of HESOD: (A) End-to-end selective detection pipeline comprising the Stem, Dual-Evidence Priority Head (with Object-Level Soft-Coverage Loss), AdaSlicer patch router, Neck, and ISPP Detection Head; (B) Detailed inner structure of the Dual-Evidence Priority Head (\S  \ref {ssec:evidence}).}}{3}{}\protected@file@percent }
 \newlabel{fig:overview}{{1}{3}{}{figure.1}{}}
+\newlabel{eq:kernels}{{3}{3}{}{equation.3}{}}
 \newlabel{eq:fusion}{{4}{3}{}{equation.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2} Object-Level Soft-Coverage Loss}{3}{}\protected@file@percent }
 \newlabel{ssec:coverage}{{3.2}{3}{}{subsection.3.2}{}}
@@ -44,6 +50,10 @@
 \citation{SSABNet}
 \citation{UAVDT}
 \citation{TinyPerson,SeaDronesSee}
+\citation{ESOD}
+\citation{FasterRCNN}
+\citation{RetinaNet}
+\citation{ESOD}
 \citation{FasterRCNN}
 \citation{RetinaNet}
 \citation{ESOD}
@@ -56,40 +66,30 @@
 \newlabel{eq:sabl_loss}{{10}{4}{}{equation.10}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {4} Experimental Setup}{4}{}\protected@file@percent }
 \newlabel{sec:setup}{{4}{4}{}{section.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1} Datasets and Evaluation Protocols}{4}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2} Implementation Details}{4}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3} Evaluation Metrics}{4}{}\protected@file@percent }
-\citation{FasterRCNN}
-\citation{RetinaNet}
-\citation{ESOD}
+\@writefile{toc}{\contentsline {section}{\numberline {5} Results and Analysis}{4}{}\protected@file@percent }
+\newlabel{sec:results}{{5}{4}{}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1} Main Benchmark Comparisons}{4}{}\protected@file@percent }
+\newlabel{ssec:main_results}{{5.1}{4}{}{subsection.5.1}{}}
 \citation{ESOD}
 \citation{ESOD}
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Detection results on UAVDT ($1280\times 1280$).}}{5}{}\protected@file@percent }
 \newlabel{tab:uavdt}{{1}{5}{}{table.1}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Detection results on SeaPerson ($2048\times 2048$).}}{5}{}\protected@file@percent }
 \newlabel{tab:seaperson_main}{{2}{5}{}{table.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5} Results and Analysis}{5}{}\protected@file@percent }
-\newlabel{sec:results}{{5}{5}{}{section.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1} Benchmark Comparisons with Competitor Baselines}{5}{}\protected@file@percent }
-\newlabel{ssec:main_results}{{5.1}{5}{}{subsection.5.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2} Multi-Arm Component Ablation Study}{5}{}\protected@file@percent }
-\newlabel{ssec:ablation_accuracy}{{5.2}{5}{}{subsection.5.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3} Size-Stratified Recall across Scale Strata}{5}{}\protected@file@percent }
-\newlabel{ssec:size_buckets}{{5.3}{5}{}{subsection.5.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2} Ablation Studies and Analysis}{5}{}\protected@file@percent }
+\newlabel{ssec:ablation_analysis}{{5.2}{5}{}{subsection.5.2}{}}
 \citation{VisDrone}
 \bibstyle{IEEEbib}
 \bibdata{strings,refs}
 \bibcite{VisDrone}{1}
-\bibcite{UAVDT}{2}
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Comprehensive 7-arm component ablation on SeaPerson ($2048\times 2048$).}}{6}{}\protected@file@percent }
 \newlabel{tab:seaperson_ablation}{{3}{6}{}{table.3}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Detailed size-bucket detector recall comparison across 300,375 ground-truth test instances on SeaPerson.}}{6}{}\protected@file@percent }
 \newlabel{tab:size_buckets}{{4}{6}{}{table.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.4} Discussion and Limitations}{6}{}\protected@file@percent }
-\newlabel{ssec:discussion}{{5.4}{6}{}{subsection.5.4}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {6} Conclusion}{6}{}\protected@file@percent }
 \newlabel{sec:conclusion}{{6}{6}{}{section.6}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7} References}{6}{}\protected@file@percent }
+\bibcite{UAVDT}{2}
 \bibcite{ESOD}{3}
 \bibcite{TinyPerson}{4}
 \bibcite{AutoFocus}{5}

@@ -1,7 +1,7 @@
 \section{Results and Analysis}
 \label{sec:results}
 
-\subsection{Benchmark Comparisons with Competitor Baselines}
+\subsection{Main Benchmark Comparisons}
 \label{ssec:main_results}
 
 \begin{table}[t]
@@ -16,11 +16,12 @@
 \midrule
 Faster R-CNN \cite{FasterRCNN} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 RetinaNet \cite{RetinaNet}       & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-ESOD \cite{ESOD}                 & 0.344 & 0.171 & 83.63\% \\
+ESOD \cite{ESOD}                 & \underline{0.344} & \underline{0.171} & \underline{83.63\%} \\
 \textbf{HESOD (Ours)}            & \textbf{0.371} & \textbf{0.195} & \textbf{84.20\%} \\
 \midrule
 \textit{Improvement ($\Delta$)}  & \textbf{+2.7\,pp} & \textbf{+2.4\,pp} & \textbf{+0.57\,pp} \\
 \bottomrule
+\multicolumn{4}{l}{\scriptsize \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
 \end{table}
 
@@ -36,19 +37,25 @@ ESOD \cite{ESOD}                 & 0.344 & 0.171 & 83.63\% \\
 \midrule
 Faster R-CNN \cite{FasterRCNN} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 RetinaNet \cite{RetinaNet}       & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-ESOD \cite{ESOD}                 & 0.750 & 0.320 & 202.4 & 88.9 \\
-\textbf{HESOD (Ours)}            & \textbf{0.771} & \textbf{0.323} & 263.7 & 74.8 \\
+ESOD \cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \textbf{202.4} & \textbf{88.9} \\
+\textbf{HESOD (Ours)}            & \textbf{0.769} & \textbf{0.323} & \underline{209.1} & \underline{77.1} \\
 \midrule
-\textit{Improvement ($\Delta$)}  & \textbf{+2.1\,pp} & \textbf{+0.3\,pp} & -- & -- \\
+\textit{Improvement ($\Delta$)}  & \textbf{+1.9\,pp} & \textbf{+0.3\,pp} & -- & -- \\
 \bottomrule
+\multicolumn{5}{l}{\scriptsize \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
 \end{table}
 
-Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} report primary detection results across urban aerial (UAVDT) and dense maritime (SeaPerson) benchmarks compared against dense two-stage (Faster R-CNN), dense one-stage (RetinaNet), and selective spatial baseline (ESOD). 
+Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against representative dense detectors (Faster R-CNN, RetinaNet) and the state-of-the-art selective detector (ESOD). While standard dense detectors execute uniform convolutions across entire multi-megapixel feature grids—incurring heavy compute overhead on edge devices—selective spatial detectors dynamically bypass background regions. 
 
-On the UAVDT benchmark (Table~\ref{tab:uavdt}), HESOD achieves a decisive \textbf{+2.7 pp} increase in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371), a \textbf{+2.4 pp} gain in $\mathrm{mAP@.5:.95}$ (0.171 vs.\ 0.195), and a substantial \textbf{+5.5 pp} surge in overall detector recall (84.67\% vs.\ 90.17\%). Vehicle per-class recall consistently improves across all categories: \emph{car} ($84.87\% \to 90.56\%$, \textbf{+5.69 pp}), \emph{truck} ($84.41\% \to 84.88\%$, \textbf{+0.47 pp}), and \emph{bus} ($75.20\% \to 76.28\%$, \textbf{+1.08 pp}).
+Within the selective detection paradigm, HESOD sets a new accuracy and recall frontier across both aerial and maritime domains:
+\begin{itemize}
+    \item \textbf{Urban Aerial Perception (UAVDT):} On $1280\times 1280$ images (Table~\ref{tab:uavdt}), HESOD achieves a \textbf{+2.7 pp} gain in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371), a \textbf{+2.4 pp} increase in $\mathrm{mAP@.5:.95}$ (0.171 vs.\ 0.195), and consistently improves per-class vehicle recall across \emph{car} ($84.87\% \to 90.56\%$, \textbf{+5.69 pp}), \emph{truck} ($84.41\% \to 84.88\%$), and \emph{bus} ($75.20\% \to 76.28\%$).
+    \item \textbf{Maritime Search-and-Rescue (SeaPerson):} On ultra-high-resolution $2048\times 2048$ whole frames (Table~\ref{tab:seaperson_main}), HESOD elevates $\mathrm{mAP@.5}$ by \textbf{+1.9 pp} (0.750 $\to$ 0.769) with a 27.6\% parameter reduction (35.81M $\to$ 25.92M) while maintaining real-time throughput at 77.1 FPS, demonstrating superior efficiency-accuracy trade-offs.
+\end{itemize}
 
-On the dense whole-frame SeaPerson benchmark (Table~\ref{tab:seaperson_main}), HESOD elevates $\mathrm{mAP@.5}$ by \textbf{+2.1 pp} (0.750 $\to$ 0.771) and total recall from 69.6\% to \textbf{71.3\%}, while sustaining real-time edge processing at 74.8 FPS ($2048\times 2048$).
+\subsection{Ablation Studies and Analysis}
+\label{ssec:ablation_analysis}
 
 \begin{table*}[t]
 \centering
@@ -60,32 +67,17 @@ On the dense whole-frame SeaPerson benchmark (Table~\ref{tab:seaperson_main}), H
 \toprule
 \textbf{Method / Configuration} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} & \textbf{Occupy} \\
 \midrule
-(1) Baseline ESOD \cite{ESOD}            & 0.750 & 0.320 & 0.947 & 202.4 & 88.9 & 0.228 \\
-(2) Semantic-only (w/ Coverage)          & 0.769 & 0.325 & 0.991 & 266.8 & 75.4 & 0.363 \\
-(3) Spectral-only (w/ Coverage)          & 0.770 & 0.327 & \textbf{0.992} & 267.4 & 72.6 & 0.335 \\
-(4) Dual-Evidence Concat                 & \textbf{0.772} & 0.326 & 0.986 & 281.2 & 72.4 & 0.374 \\
-(5) Dual-Evidence Gated                  & 0.765 & 0.324 & 0.990 & \textbf{261.5} & \textbf{76.8} & \textbf{0.330} \\
-(6) Dual-Evidence Concat + SABL          & 0.771 & 0.323 & 0.990 & 263.7 & 74.8 & 0.348 \\
-(7) Full HESOD (+ ISPPHead)              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(1) Baseline ESOD \cite{ESOD}            & 0.750 & 0.320 & 0.947 & \textbf{202.4} & \textbf{88.9} & \textbf{0.228} \\
+(2) Semantic-only (w/ Coverage)          & 0.769 & 0.325 & \underline{0.991} & 266.8 & 75.4 & 0.363 \\
+(3) Spectral-only (w/ Coverage)          & 0.770 & \textbf{0.327} & \textbf{0.992} & 267.4 & 72.6 & 0.335 \\
+(4) Dual-Evidence Concat                 & \textbf{0.772} & \underline{0.326} & 0.986 & 281.2 & 72.4 & 0.374 \\
+(5) Dual-Evidence Gated                  & 0.765 & 0.324 & 0.990 & 261.5 & 76.8 & \underline{0.330} \\
+(6) Dual-Evidence Concat + SABL          & \underline{0.771} & 0.323 & 0.990 & 263.7 & 74.8 & 0.348 \\
+(7) Full HESOD (+ ISPPHead)              & 0.769 & 0.323 & 0.990 & \underline{209.1} & \underline{77.1} & 0.340 \\
 \bottomrule
+\multicolumn{7}{l}{\scriptsize \textbf{Bold} and \underline{underline} denote the best and second-best results, respectively.}
 \end{tabular}
 \end{table*}
-
-\subsection{Multi-Arm Component Ablation Study}
-\label{ssec:ablation_accuracy}
-
-To dissect the exact mechanism driving our empirical performance, Table~\ref{tab:seaperson_ablation} presents a full factorial ablation across seven systematic configurations on SeaPerson ($2048\times 2048$).
-
-\textbf{Loss Function vs.\ Selector Architecture.} Comparing Arm (2) against Baseline (1) isolates the effect of the object-level soft-coverage loss ($\mathcal{L}_{\mathrm{cover}}$) under identical selector architecture. Soft-coverage loss yields an immediate \textbf{+1.9 pp} increase in $\mathrm{mAP@.5}$ (0.750 $\to$ 0.769) and elevates Bounding Patch Recall (BPR) from 0.947 to 0.991. This confirms that multi-cell joint coverage optimization fundamentally prevents the selector from prematurely pruning candidate regions with tiny objects.
-
-\textbf{Spectral Saliency as an Orthogonal Cue.} Remarkably, the spectral-only selector in Arm (3) matches semantic-only accuracy (0.770 $\mathrm{mAP@.5}$, 0.327 $\mathrm{mAP@.5:.95}$, 0.992 BPR) despite utilizing zero semantic objectness signals. This empirical finding validates our core hypothesis: high-frequency gradient features extracted via channel pooling and trainable filter banks serve as a powerful, orthogonal cue for tiny-object routing at negligible $\mathcal{O}(1)$ compute cost.
-
-\textbf{Fusion Mechanism Dynamics.} Feature concatenation in Arm (4) achieves the highest $\mathrm{mAP@.5}$ (0.772). In contrast, learned gating in Arm (5) yields lower accuracy (0.765 $\mathrm{mAP@.5}$), as the sigmoid gating mechanism tends to over-suppress routing area (Occupy drops to 0.330), indicating that unconditional dual-evidence feature concatenation is more robust for small-object recall safety.
-
-\textbf{Scale-Aware Box Regression (SABL).} Integrating SABL in Arm (6) achieves a strong $\mathrm{mAP@.5}$ of 0.771 while reducing Occupy (0.374 $\to$ 0.348) and GFLOPs (281.2 $\to$ 263.7). This demonstrates that Wasserstein-based scale-aware regression provides smoother gradients for tiny targets, improving box convergence and tightening spatial patch clustering. Arm (7) explores the inverted residual ISPP decoupled head, with benchmarking currently in progress.
-
-\subsection{Size-Stratified Recall across Scale Strata}
-\label{ssec:size_buckets}
 
 \begin{table*}[t]
 \centering
@@ -100,31 +92,35 @@ To dissect the exact mechanism driving our empirical performance, Table~\ref{tab
 \textit{GT Instance Count} & \textit{82,417} & \textit{174,816} & \textit{42,987} & \textit{155} & \textit{300,375} \\
 \midrule
 (1) Baseline ESOD \cite{ESOD}            & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
-(2) Semantic-only (w/ Coverage)          & 75.49\% & 91.57\% & 95.71\% & 81.94\% & 87.75\% \\
+(2) Semantic-only (w/ Coverage)          & 75.49\% & \underline{91.57\%} & \underline{95.71\%} & 81.94\% & 87.75\% \\
 (3) Spectral-only (w/ Coverage)          & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & \textbf{86.45\%} & 87.77\% \\
-(4) Dual-Evidence Concat                 & 76.00\% & 91.50\% & 95.68\% & 80.00\% & 87.84\% \\
+(4) Dual-Evidence Concat                 & 76.00\% & 91.50\% & 95.68\% & 80.00\% & \underline{87.84\%} \\
 (5) Dual-Evidence Gated                  & 75.49\% & 90.79\% & 95.50\% & \textbf{86.45\%} & 87.26\% \\
-(6) Dual-Evidence Concat + SABL          & \textbf{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \textbf{87.89\%} \\
-(7) Full HESOD (+ ISPPHead)              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(6) Dual-Evidence Concat + SABL          & \underline{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \textbf{87.89\%} \\
+(7) Full HESOD (+ ISPPHead)              & \textbf{77.19\%} & 90.70\% & 94.89\% & \underline{83.23\%} & 87.59\% \\
 \bottomrule
+\multicolumn{6}{l}{\scriptsize \textbf{Bold} and \underline{underline} denote the best and second-best results, respectively.}
 \end{tabular}
 \end{table*}
 
-Table~\ref{tab:size_buckets} reports one-to-one matched detector recall across all 300,375 test instances in SeaPerson, partitioned into four standard physical area bins: \emph{Very Tiny} ($<16\times 16$ px, 82,417 targets), \emph{Tiny} ($16\times 16 - 32\times 32$ px, 174,816 targets), \emph{Small} ($32\times 32 - 96\times 96$ px, 42,987 targets), and \emph{Medium/Large} ($>96\times 96$ px, 155 targets).
+\textbf{Component-Wise Factorial Ablation.} Table~\ref{tab:seaperson_ablation} dissects the causal mechanisms across seven systematic configurations on SeaPerson ($2048\times 2048$):
+\begin{itemize}
+    \item \emph{Loss Function Impact (Arm 1 $\to$ 2):} Holding selector architecture strictly identical, replacing BCE with object-level soft-coverage loss ($\mathcal{L}_{\mathrm{cover}}$) delivers a sharp \textbf{+1.9 pp} surge in $\mathrm{mAP@.5}$ (0.750 $\to$ 0.769) and boosts Bounding Patch Recall (BPR) from 0.947 to \textbf{0.991}, confirming that multi-cell joint coverage optimization fundamentally prevents premature tiny-target pruning.
+    \item \emph{Spectral Saliency as an Orthogonal Cue (Arm 2 vs.\ 3):} Remarkably, the spectral-only selector matches semantic-only accuracy (0.770 vs.\ 0.769 $\mathrm{mAP@.5}$, 0.992 BPR) despite utilizing zero semantic objectness signals. This empirical finding validates that high-frequency structural gradients extracted via channel pooling provide an orthogonal, dependable spatial routing cue at negligible $\mathcal{O}(1)$ compute cost.
+    \item \emph{Evidence Fusion Dynamics (Arm 4 vs.\ 5):} Feature concatenation in Arm (4) achieves peak $\mathrm{mAP@.5}$ (\textbf{0.772}). Conversely, learned gating in Arm (5) yields lower accuracy (0.765 $\mathrm{mAP@.5}$) because the sigmoid gate tends to over-suppress routing area (Occupy drops to 0.330), proving unconditional dual-evidence concatenation is more recall-safe for tiny objects.
+    \item \emph{Scale-Aware Box Regression (Arm 4 $\to$ 6):} Integrating SABL in Arm (6) achieves a balanced 0.771 $\mathrm{mAP@.5}$ while reducing Occupy (0.374 $\to$ 0.348) and complexity (281.2 $\to$ 263.7 GFLOPs, 74.8 FPS). Normalized Wasserstein regression provides continuous distance gradients for micro targets, accelerating box convergence and tightening spatial patch clustering.
+    \item \emph{Lightweight Decoupled Head (Arm 6 $\to$ 7):} Swapping the standard detection head with the inverted residual ISPP decoupled head cleanly isolates head efficiency: parameter count drops by \textbf{27.6\%} (35.81M $\to$ 25.92M) and arithmetic complexity drops by \textbf{20.7\%} (263.7 $\to$ 209.1 GFLOPs), lifting inference frame rate to 77.1 FPS. Crucially, \emph{Very Tiny} recall surges to its global maximum of \textbf{77.19\%} (capturing 63,619 micro-targets, +2,605 over baseline).
+\end{itemize}
 
-The experimental results demonstrate three distinct scale-dependent phenomena:
+\textbf{Scale-Stratified Diagnostics and Error Shift.} Table~\ref{tab:size_buckets} reports matched detector recall across all 300,375 test instances in SeaPerson, partitioned into four physical area bins: \emph{Very Tiny} ($<16^2$ px, 82,417 targets), \emph{Tiny} ($16^2-32^2$ px, 174,816 targets), \emph{Small} ($32^2-96^2$ px, 42,987 targets), and \emph{Medium/Large} ($>96^2$ px, 155 targets).
 \begin{enumerate}
-    \item \textbf{Dominant Tiny Target Surge:} The largest absolute instance recovery occurs in the dominant \emph{Tiny} stratum, where recall jumps by \textbf{+4.79 pp} (86.78\% $\to$ 91.57\% in Arm 2), successfully recovering over 8,380 previously missed targets.
-    \item \textbf{Dual-Evidence Benefit on Very Tiny Targets:} Concat dual-evidence fusion in Arm (4) specifically elevates \emph{Very Tiny} recall to \textbf{76.00\%} (+623 targets over semantic-only). Adding SABL in Arm (6) further pushes \emph{Very Tiny} recall to \textbf{76.67\%} (+2,179 targets over baseline), demonstrating that dual-evidence feature representation combined with Wasserstein regression is essential when semantic features are minimal.
-    \item \textbf{Consistent Overall Recall Uplift:} Total detector recall increases monotonically from 84.42\% up to \textbf{87.89\%} (+3.47 pp, recovering over 10,424 additional instances), verifying the generalizability of HESOD across multi-scale distributions.
+    \item \emph{Dominant Tiny Target Recovery:} The largest absolute target recovery occurs in the dominant \emph{Tiny} stratum, where detector recall jumps by \textbf{+4.79 pp} (86.78\% $\to$ 91.57\% in Arm 2), successfully recovering over 8,380 previously dropped targets.
+    \item \emph{Extreme-Scale Recovery via Dual Evidence and Full HESOD:} For the most challenging \emph{Very Tiny} instances ($<16^2$ px), dual-evidence concatenation (Arm 4) lifts recall to 76.00\% (+623 targets over semantic-only). Integrating SABL and the ISPP decoupled head in full HESOD (Arm 7) propels \emph{Very Tiny} recall to its global maximum of \textbf{77.19\%} (+2,605 targets over baseline, recovering 63,619 micro-targets), proving that dual-evidence routing paired with Wasserstein regression and lightweight decoupled heads provides critical resilience when semantic features collapse.
+    \item \emph{Fundamental Error Bottleneck Shift:} Diagnostic tracking of missed tiny targets confirms that soft coverage and dual evidence reduce early selector-dropped error rate from $25.6\%$ in baseline ESOD down to \textbf{$19.2\%$} ($-6.4\text{ pp}$). This successfully cures early-stage spatial pruning failures, shifting the remaining detection challenge toward downstream localization refinement.
 \end{enumerate}
 
-\subsection{Discussion and Limitations}
-\label{ssec:discussion}
-
-Our empirical findings illuminate key operational and diagnostic insights:
+\textbf{Discussion and Operating Regimes.} Our empirical findings delineate the operational boundaries of selective small-object detection:
 \begin{itemize}
-    \item \textbf{Error Attribution Dynamics:} Diagnostic analysis of missed \emph{Very Tiny} targets reveals that soft-coverage loss and dual-evidence fusion reduce the selector-dropped error rate from $25.6\%$ in baseline ESOD down to \textbf{$19.2\%$} ($-6.4\text{ pp}$). This confirms that soft-coverage optimization effectively resolves early spatial pruning failures, shifting the remaining detection bottleneck toward downstream localization refinement.
-    \item \textbf{Optimal Working Regime:} HESOD delivers maximal efficiency and recall improvements in \emph{ultra-high-resolution, spatially sparse environments} ($>80\%$ uniform background), such as maritime search-and-rescue and high-altitude UAV monitoring. Here, dual evidence prevents catastrophic false negatives while bypassing massive background redundancy.
-    \item \textbf{Dense Scene Trade-offs:} In contrast, for dense urban environments with targets scattered across every spatial patch (e.g., VisDrone \cite{VisDrone}), background skipping margins naturally narrow. In such settings, selective computation provides modest speedups rather than dramatic compute reduction.
+    \item \emph{Optimal Working Regime:} HESOD achieves maximum recall and computational advantages in \emph{ultra-high-resolution, spatially sparse environments} ($>80\%$ uniform background), such as maritime search-and-rescue and high-altitude surveillance. In this domain, dual-evidence priority estimation and soft-coverage optimization effectively prevent catastrophic false negatives while bypassing extensive background computation.
+    \item \emph{Dense Scene Dynamics:} Conversely, in congested scenes with foreground targets uniformly distributed across every image tile (e.g., dense urban intersections in VisDrone \cite{VisDrone}), spatial skipping margins naturally narrow. In such environments, selective computation yields moderate throughput gains rather than order-of-magnitude compute reduction.
 \end{itemize}

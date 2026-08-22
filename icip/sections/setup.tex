@@ -1,18 +1,12 @@
 \section{Experimental Setup}
 \label{sec:setup}
 
-\subsection{Datasets and Evaluation Protocols}
+We evaluate HESOD on two demanding high-resolution remote sensing benchmarks:
+\begin{itemize}
+    \item \textbf{UAVDT} \cite{UAVDT}: An urban aerial vehicle benchmark evaluated on the official test split across three classes (\emph{car}, \emph{truck}, and \emph{bus}) under an input resolution of $1280 \times 1280$ pixels.
+    \item \textbf{SeaPerson (TinyPersonV2)} \cite{TinyPerson,SeaDronesSee}: A maritime search-and-rescue benchmark comprising 300,375 annotated test instances across 5,752 images, with over 85\% of targets falling into the \emph{Very Tiny} and \emph{Tiny} categories ($<32\times 32$ pixels). We process full whole-frame images at $2048 \times 2048$ resolution without artificial pre-cropping or sliding-window tiling.
+\end{itemize}
 
-We evaluate HESOD on two representative, highly demanding small-object detection benchmarks spanning urban and maritime remote sensing domains:
+\textbf{Implementation and Training.} All models are implemented in PyTorch using a standard YOLOv5m architecture as the shared base detector for fair comparison. Models are trained for 50 epochs using SGD with cosine annealing, following standard selective detection training protocols \cite{ESOD}.
 
-\textbf{UAVDT} \cite{UAVDT}: Captured by UAV platforms across varied urban traffic scenarios, UAVDT contains diverse viewing angles, altitudes, and intense scale variations. We evaluate on the official test split across three object classes (\emph{car}, \emph{truck}, and \emph{bus}) under an input resolution of $1280 \times 1280$ pixels.
-
-\textbf{SeaPerson (TinyPersonV2)} \cite{TinyPerson,SeaDronesSee}: A challenging benchmark dedicated to tiny person detection in open water and coastal search-and-rescue contexts. The official test split contains 300,375 annotated instances across 5,752 images, with over 85\% of instances falling into the \emph{Very Tiny} and \emph{Tiny} categories ($<32\times 32$ pixels). In accordance with realistic high-resolution deployment, we process full whole-frame images at $2048 \times 2048$ resolution without artificial pre-tiling.
-
-\subsection{Implementation Details}
-
-All models are implemented in PyTorch and utilize a standard YOLOv5m architecture as the base detection backbone for fair comparison. Models are trained for 50 epochs using the Stochastic Gradient Descent (SGD) optimizer with momentum 0.937, weight decay $5 \times 10^{-4}$, and an initial learning rate of $0.01$ decayed via a cosine annealing schedule. Global batch size is set to 8. Spatial routing is performed using the dual-evidence priority map with fixed thresholding $\tau = 0.5$ (and $\tau = 0.3$ on UAVDT, matching baseline protocols). 
-
-\subsection{Evaluation Metrics}
-
-Model accuracy is evaluated using standard COCO-style metrics, including mean Average Precision at IoU threshold 0.50 ($\mathrm{mAP@.5}$) and averaged over IoU thresholds $0.50:0.05:0.95$ ($\mathrm{mAP@.5:.95}$). To rigorously evaluate tiny-object detection, we report size-bucketed detector recall at IoU 0.50 across four area scales: \emph{Very Tiny} ($<16\times 16$ px), \emph{Tiny} ($16\times 16 - 32\times 32$ px), \emph{Small} ($32\times 32 - 96\times 96$ px), and \emph{Medium/Large} ($>96\times 96$ px). Computational efficiency is measured via total GFLOPs, frame rate (FPS), per-image latency (ms) on an NVIDIA GPU at batch size 1, and the spatial area retention ratio ($\mathrm{Occupy}$).
+\textbf{Evaluation Metrics.} Detection accuracy is measured using standard COCO-style metrics ($\mathrm{mAP@.5}$ and $\mathrm{mAP@.5:.95}$). To rigorously evaluate scale sensitivity, we report size-stratified detector recall across four physical pixel bins: \emph{Very Tiny} ($<16^2$ px), \emph{Tiny} ($16^2-32^2$ px), \emph{Small} ($32^2-96^2$ px), and \emph{Medium/Large} ($>96^2$ px). Efficiency is evaluated via total GFLOPs, frame rate (FPS), Bounding Patch Recall (BPR), and spatial retention ratio ($\mathrm{Occupy}$).

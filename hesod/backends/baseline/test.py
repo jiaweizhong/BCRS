@@ -34,6 +34,7 @@ import time
 
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from coco_utils import build_coco_gt, evaluate_coco  # noqa: E402
@@ -103,7 +104,7 @@ def _write_predictions(
     predictions: list[dict] = []
     seen = 0
     with torch.no_grad():
-        for images, targets in loader:
+        for images, targets in tqdm(loader, desc="predict"):
             images = [img.to(device) for img in images]
             outputs = model(images)
             for target, output in zip(targets, outputs):
