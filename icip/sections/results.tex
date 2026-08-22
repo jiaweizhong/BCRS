@@ -14,7 +14,7 @@
 \textbf{Method} & \textbf{mAP@.5} & \textbf{mAP@.5:.95} & \textbf{Recall} & \textbf{VT-Recall} & \textbf{Occupy} \\
 \midrule
 ESOD Baseline \cite{ESOD} & 0.344 & 0.171 & 84.67\% & 83.63\% & 0.245 \\
-\textbf{DES-ESOD (Ours)}  & \textbf{0.371} & \textbf{0.195} & \textbf{90.17\%} & \textbf{84.20\%} & 0.480 \\
+\textbf{HESOD (Ours)}  & \textbf{0.371} & \textbf{0.195} & \textbf{90.17\%} & \textbf{84.20\%} & 0.480 \\
 \midrule
 \textit{Improvement ($\Delta$)} & \textbf{+2.7\,pp} & \textbf{+2.4\,pp} & \textbf{+5.5\,pp} & \textbf{+0.57\,pp} & -- \\
 \bottomrule
@@ -41,7 +41,7 @@ ESOD Baseline \cite{ESOD} & 0.750 & 0.320 & 69.6\% & 0.947 & 202.4 & 88.9 & 0.22
 }
 \end{table}
 
-Table~\ref{tab:uavdt} presents the primary detection results on the UAVDT benchmark. DES-ESOD demonstrates consistent and substantial improvements across all key evaluation metrics compared to the standard ESOD baseline. In particular, DES-ESOD achieves a \textbf{+2.7 pp} increase in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371), a \textbf{+2.4 pp} increase in $\mathrm{mAP@.5:.95}$ (0.171 vs.\ 0.195), and a remarkable \textbf{+5.5 pp} boost in total detector recall (84.67\% vs.\ 90.17\%). Per-class recall consistently improves across all vehicle categories: \emph{car} ($84.87\% \to 90.56\%$, \textbf{+5.69 pp}), \emph{truck} ($84.41\% \to 84.88\%$, \textbf{+0.47 pp}), and \emph{bus} ($75.20\% \to 76.28\%$, \textbf{+1.08 pp}).
+Table~\ref{tab:uavdt} presents the primary detection results on the UAVDT benchmark. HESOD demonstrates consistent and substantial improvements across all key evaluation metrics compared to the standard ESOD baseline. In particular, HESOD achieves a \textbf{+2.7 pp} increase in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371), a \textbf{+2.4 pp} increase in $\mathrm{mAP@.5:.95}$ (0.171 vs.\ 0.195), and a remarkable \textbf{+5.5 pp} boost in total detector recall (84.67\% vs.\ 90.17\%). Per-class recall consistently improves across all vehicle categories: \emph{car} ($84.87\% \to 90.56\%$, \textbf{+5.69 pp}), \emph{truck} ($84.41\% \to 84.88\%$, \textbf{+0.47 pp}), and \emph{bus} ($75.20\% \to 76.28\%$, \textbf{+1.08 pp}).
 
 Table~\ref{tab:seaperson} evaluates performance on the dense SeaPerson maritime dataset. Incorporating object-level soft-coverage loss into the spatial selector directly improves $\mathrm{mAP@.5}$ by \textbf{+1.9 pp} (0.750 $\to$ 0.769) and overall recall by \textbf{+1.2 pp}, while increasing Bounding Patch Recall (BPR) from 0.947 to 0.991. The system sustains a high frame rate of 75.4 FPS at $2048 \times 2048$ resolution, confirming real-time execution capability.
 
@@ -84,7 +84,7 @@ As shown in Table~\ref{tab:size_buckets}, coverage-guided spatial selection deli
 \toprule
 \textbf{Method} & \shortstack{\textbf{Missed}\\\textbf{Targets}} & \shortstack{\textbf{Selector}\\\textbf{Dropped}} & \shortstack{\textbf{Localization}\\\textbf{Failure}} & \shortstack{\textbf{Other}\\\textbf{Errors}} \\
 \midrule
-ESOD Baseline & 21,388 & 25.6\% & 74.3\% & 0.1\% \\
+ESOD Baseline \cite{ESOD} & 21,388 & 25.6\% & 74.3\% & 0.1\% \\
 \textbf{+ Soft-Coverage} & \textbf{20,181} & \textbf{20.1\%} & 79.7\% & 0.1\% \\
 \midrule
 \textit{Impact ($\Delta$)} & \textbf{-1,207} & \textbf{-5.5\,pp} & +5.4\,pp & 0.0\% \\
@@ -100,8 +100,8 @@ The baseline ESOD model suffered a high selector drop rate of 25.6\% on missed t
 \subsection{Discussion and Limitations}
 \label{ssec:discussion}
 
-While DES-ESOD achieves substantial recall and accuracy gains on UAVDT and SeaPerson, its empirical characteristics illuminate an essential relationship between spatial background sparsity and target scale:
+While HESOD achieves substantial recall and accuracy gains on UAVDT and SeaPerson, its empirical characteristics illuminate an essential relationship between spatial background sparsity and target scale:
 \begin{itemize}
-    \item \textbf{Optimal Working Regime:} DES-ESOD delivers maximum performance and arithmetic savings in \emph{ultra-high-resolution, spatially sparse environments} (e.g., maritime search-and-rescue and high-altitude surveillance), where uniform background dominates ($>80\%$) and genuinely tiny targets ($<32\times 32$ px) suffer severe semantic feature fading. In this regime, dual-evidence priority estimation and soft-coverage optimization effectively prevent premature, catastrophic spatial dropping.
+    \item \textbf{Optimal Working Regime:} HESOD delivers maximum performance and arithmetic savings in \emph{ultra-high-resolution, spatially sparse environments} (e.g., maritime search-and-rescue and high-altitude surveillance), where uniform background dominates ($>80\%$) and genuinely tiny targets ($<32\times 32$ px) suffer severe semantic feature fading. In this regime, dual-evidence priority estimation and soft-coverage optimization effectively prevent premature, catastrophic spatial dropping.
     \item \textbf{Densely Clustered Scenarios:} In contrast, for densely cluttered scenes with mixed target scales (e.g., congested urban intersections like VisDrone \cite{VisDrone}), foreground instances are distributed across nearly every spatial patch, naturally diminishing the available spatial background skipping margin. Furthermore, larger objects already exhibit strong semantic activations, leading to performance parity with dense baselines rather than dramatic recall jumps.
 \end{itemize}

@@ -1,19 +1,19 @@
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.98\textwidth]{figures/DES-ESOD.jpg}
-\caption{Overview of DES-ESOD: (A) End-to-end selective detection pipeline comprising the Stem, Dual-Evidence Priority Head (with Object-Level Soft-Coverage Loss), AdaSlicer patch router, Neck, and ISPP Detection Head; (B) Detailed inner structure of the Dual-Evidence Priority Head (\S\ref{ssec:evidence}).}
+\caption{Overview of HESOD: (A) End-to-end selective detection pipeline comprising the Stem, Dual-Evidence Priority Head (with Object-Level Soft-Coverage Loss), AdaSlicer patch router, Neck, and ISPP Detection Head; (B) Detailed inner structure of the Dual-Evidence Priority Head (\S\ref{ssec:evidence}).}
 \label{fig:overview}
 \end{figure*}
 
 \section{Proposed Method}
 \label{sec:method}
 
-The overall architecture of DES-ESOD is illustrated in Fig.~\ref{fig:overview}(a). Given a high-resolution input image $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow convolutional stem first extracts dense feature representation $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The proposed \emph{Dual-Evidence Spatial Selector} operates in two coordinated stages: (i) a lightweight Dual-Evidence Priority Head (\S\ref{ssec:evidence}, Fig.~\ref{fig:overview}(b)) that fuses semantic objectness with channel-pooled spectral saliency to generate a continuous spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer routing module that uses $\mathbf{S}$ to dynamically crop high-priority candidate feature patches $\mathcal{P}$ directly out of shallow features $\mathbf{F}$. Downstream deep backbone, neck, and lightweight ISPP decoupled detection head modules evaluate only these retained patches, trained end-to-end via an object-level soft-coverage loss and scale-aware regression (\S\ref{ssec:coverage}, \S\ref{ssec:head}).
+The overall architecture of HESOD is illustrated in Fig.~\ref{fig:overview}(a). Given a high-resolution input image $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow convolutional stem first extracts dense feature representation $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The proposed \emph{Dual-Evidence Spatial Selector} operates in two coordinated stages: (i) a lightweight Dual-Evidence Priority Head (\S\ref{ssec:evidence}, Fig.~\ref{fig:overview}(b)) that fuses semantic objectness with channel-pooled spectral saliency to generate a continuous spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer routing module that uses $\mathbf{S}$ to dynamically crop high-priority candidate feature patches $\mathcal{P}$ directly out of shallow features $\mathbf{F}$. Downstream deep backbone, neck, and lightweight ISPP decoupled detection head modules evaluate only these retained patches, trained end-to-end via an object-level soft-coverage loss and scale-aware regression (\S\ref{ssec:coverage}, \S\ref{ssec:head}).
 
 \subsection{Dual-Evidence Priority Estimation}
 \label{ssec:evidence}
 
-Existing selective computation frameworks rely exclusively on semantic objectness, which suffers severe activation degradation for tiny objects after downsampling. To provide an orthogonal, recall-safe signal, DES-ESOD introduces a dual-evidence priority mechanism that combines high-level semantic confidence with low-level spectral saliency.
+Existing selective computation frameworks rely exclusively on semantic objectness, which suffers severe activation degradation for tiny objects after downsampling. To provide an orthogonal, recall-safe signal, HESOD introduces a dual-evidence priority mechanism that combines high-level semantic confidence with low-level spectral saliency.
 
 As depicted in Fig.~\ref{fig:overview}(b), let $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$ denote the shallow feature representation extracted after the initial network stem, and let $f_i \in \mathbb{R}^C$ denote the feature vector at spatial location $i$. 
 
@@ -73,7 +73,7 @@ w_j = \operatorname{clip}\left( \frac{4}{a_j}, 1, 5 \right),
 \end{equation}
 where $a_j$ denotes the bounding box area in selector grid cell units. This weighting assigns higher penalty to tiny targets ($a_j < 4$), ensuring that micro-scale instances receive prioritized gradient backpropagation during training.
 
-The total objective function for training DES-ESOD is defined as:
+The total objective function for training HESOD is defined as:
 \begin{equation}
 \begin{aligned}
 \mathcal{L}_{\mathrm{sel}} &= \mathcal{L}_{\mathrm{BCE}}(u, M; \rho=2) + \lambda_{\mathrm{cov}} \mathcal{L}_{\mathrm{cover}}, \\

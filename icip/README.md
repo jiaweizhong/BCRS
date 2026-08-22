@@ -1,6 +1,6 @@
-# DES-ESOD Paper Submission Workspace (ICIP / ICME / IROS / IGARSS)
+# HESOD Paper Submission Workspace (ICIP / ICME / IROS / IGARSS)
 
-This directory contains the complete IEEE-format manuscript for **DES-ESOD: Dual-Evidence Selection and Coverage Optimization for High-Resolution Small Object Detection**.
+This directory contains the complete IEEE-format manuscript for **HESOD: Dual-Evidence Selection and Coverage Optimization for High-Resolution Efficient Small Object Detection**.
 
 - Target conferences & roadmap: [`../SUBMISSION_TARGETS.md`](file:///c:/Users/jiawe/Repos/BCRS/SUBMISSION_TARGETS.md)
 - Main document: [`paper.tex`](file:///c:/Users/jiawe/Repos/BCRS/icip/paper.tex)
