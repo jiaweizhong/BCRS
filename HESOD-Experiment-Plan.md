@@ -1,6 +1,6 @@
 # HESOD Experiment Plan
 
-**Canonical status: 2026-08-12.** This file is the execution contract, not an
+**Canonical status: 2026-08-22.** This file is the execution contract, not an
 investigation log. Superseded configs, failed-run details, and patch history
 belong in Git history or `ESOD-Baseline-Patches.md`.
 
@@ -11,12 +11,16 @@ belong in Git history or `ESOD-Baseline-Patches.md`.
 | VisDrone | `/root/autodl-tmp/VisDrone_v2.yaml` | 10 | `visdrone_yolov5m.yaml` | `hyp.visdrone.yaml` | 1536 | val: 548 images, 38,759 GT |
 | TinyPerson | protocol-specific audited YAML | 1 | `tinyperson_yolov5m.yaml` | `hyp.tinyperson.yaml` | 2048 | official test: 786 images, no dense images |
 | UAVDT | `/root/autodl-tmp/UAVDT_v3.yaml` | 3 | `uavdt_yolov5m.yaml` | `hyp.uavdt.yaml` | 1280 | test: car/truck/bus |
+| SeaPerson (TinyPersonV2) | `/root/autodl-tmp/seaperson.yaml` (`seaperson_v2/`, via `reorganize_seaperson.py`) | 1 | arm-specific, see SS8 | `hyp.seaperson.yaml` | 2048 | official test: 5752 images |
+
+SeaDronesSeeV2 was evaluated and dropped (SS6.3) -- not a live protocol.
 
 Common training protocol: YOLOv5m, 50 epochs, SGD, global batch 8, cosine
 scheduling, and weight decay 0.0005. TinyPerson's paper-text profile uses
 `lr0=0.01`, `pixl=0.4`, and focal:dice 20:1. Alternate TinyPerson
 hyperparameter profiles are no longer retained. No alternate UAVDT class
-protocol is valid.
+protocol is valid. SeaPerson's `spectral-only` arm is the one documented
+exception to global batch 8 (SS8, OOM at batch 8 and 4; trained at batch 2).
 
 Metric contract:
 
@@ -51,16 +55,29 @@ Metric contract:
   `get_indices(..., thresh=0.3)` applies the same hardcoded second threshold
   inside each fixed-threshold-selected patch with no override, exactly
   matching upstream. HESOD adds a `sparse_all_selected` flag (absent from
-  `hesod/backends/esod/`) specifically
-  to stop that same 0.3 threshold from re-filtering positions inside an
-  exact-K-selected patch, which would otherwise silently break exact K's own
-  "select K patches, evaluate each fully" semantics; `test.py` enables it only
-  when `--top-k` and `--sparse-head` are passed together. So `--sparse-head`
-  alone (no `--top-k`) is the paper-comparable SparseHead test; `--sparse-head
+  `hesod/backends/esod/`) specifically to stop that same 0.3 threshold from
+  re-filtering positions inside an exact-K-selected patch, which would
+  otherwise silently break exact K's own "select K patches, evaluate each
+  fully" semantics; `test.py` enables it only when `--top-k` and
+  `--sparse-head` are passed together. So `--sparse-head` alone (no
+  `--top-k`) is the paper-comparable SparseHead test; `--sparse-head
   --top-k N` measures HESOD's own corrected exact-K mode, a different setup.
   See the Routing contract below for the full Algorithm 1/2 description.
 - Box-regression comparisons additionally report AP75, APs, and size-bin
   detector recall at IoU 0.50 and 0.75. An AP50-only gain is insufficient.
+- `test.py`'s `image_id` field (used only by external tools that
+  re-associate predictions with images by filename -- never by `test.py`'s
+  own internal AP, which is computed from in-memory per-batch tensors) is
+  `path.stem` for every dataset except UAVDT, which reuses frame numbers
+  (`img000001.jpg`, ...) identically across every video and needs
+  `path.parent.stem + '_' + path.stem` to stay unique; `--save-txt`
+  filenames already used this disambiguation, `image_id` now matches it.
+- `vt_diagnose.py --images-dir` tries every common image suffix (`.jpg`,
+  `.jpeg`, `.png`, `.bmp`, `.tif`, `.tiff`), `--image-ext` first, before
+  falling back to `--native-w`/`--native-h` for a genuinely unmatched file --
+  needed for SeaPerson's mixed `.jpg`/`.bmp` images (the `rgb1000/`
+  subfolder ships `.bmp`). `audit_buckets.py` was never affected by either
+  gap above; it already handles both cases.
 
 The paper text and public code define distinct label controls. These masks are
 offline pseudo-label preprocessing (`masks/<split>/<stem>.npy`), not changes to
@@ -98,7 +115,7 @@ Routing contract:
 | VisDrone released SAM hybrid AP / AP50 | 36.0 / 59.7 | 34.6 / 58.4 | -1.4 / -1.3 pp |
 | TinyPerson APt50 / APs50 | 61.3 / 74.4 | pending audited rerun | -- |
 | UAVDT nc=3 AP / AP50 (frozen-tree `run_baseline.sh`) | 22.5 / 40.7 | 20.1 / 37.0 | -2.4 / -3.7 pp |
-| UAVDT nc=3 AP / AP50 (`UAVDT_fresh`, active tree, 2026-08-20/21) | 22.5 / 40.7 | 17.1 / 34.4 | -5.4 / -6.3 pp |
+| UAVDT nc=3 AP / AP50 (`UAVDT_fresh`, active tree) | 22.5 / 40.7 | 17.1 / 34.4 | -5.4 / -6.3 pp |
 
 Interpretation is intentionally narrow:
 
@@ -108,20 +125,14 @@ Interpretation is intentionally narrow:
   reproduction: its retained training log identifies ratio 16 while the
   current source is ratio 8, and no matching official-evaluation log remains.
 - UAVDT nc=3 is paper-comparable; the released nc=1 collapse is another task.
-- UAVDT's fresh reconversion (`UAVDT_fresh`, re-extracted from the raw
-  `M_attr.zip`/`UAV-benchmark-M.zip`/`UAV-benchmark-MOTD_v1.0.zip` this
-  session) widened the residual to the paper rather than confirming the
-  frozen-tree number (-5.4/-6.3pp vs. -2.4/-3.7pp). Ruled out as the cause:
-  the `image_id` disambiguation bug found and fixed in `test.py` (UAVDT
-  reuses frame numbers like `img000001.jpg` across every video, colliding
-  under plain `path.stem`) -- that only affected the *external* audit tools
-  (`audit_buckets.py`/`vt_diagnose.py`), not `test.py`'s own internal AP/AP50,
-  which is computed directly from in-memory per-batch tensors and never
-  re-matches by filename, in either run. Leading candidates, neither
-  confirmed: a real data-provenance difference between `UAVDT_v3` (origin
-  unknown) and `UAVDT_fresh`, or single-seed noise (though a 3pp+ shift on a
-  373,997-box test set is large for noise alone). Open item, not yet
-  resolved.
+- UAVDT's fresh reconversion (`UAVDT_fresh`, re-extracted from raw source
+  archives) widened the residual to the paper rather than confirming the
+  frozen-tree number (-5.4/-6.3pp vs. -2.4/-3.7pp). The `image_id` fix (SS1)
+  is ruled out as the cause -- it never touched `test.py`'s own AP
+  computation, only external audit tools. Leading candidates, neither
+  confirmed: a real data-provenance difference between `UAVDT_v3` and
+  `UAVDT_fresh`, or single-seed noise (a 3pp+ shift on a 373,997-box test
+  set is large for noise alone). Open item.
 - TinyPerson uses only the retained official paper-text two-arm runner. Hardware
   topology (one GPU versus the paper's two V100s at global batch 8) remains a
   documented reproduction variable.
@@ -156,6 +167,10 @@ policy, exact K, SparseHead, evaluation, and measurement path.
 | E2.3 | Semantic + spectral concat | coverage | Full concat fusion |
 | E2.9 | Channel-pooled spectral + semantic concat | coverage | Low-overhead fusion |
 
+E2.1/E2.5/E2.4/E2.3 have never actually been trained/retained for VisDrone in
+isolation (SS9.2) -- only E1.0 and the fully-bundled E2.9+SABL exist under
+`results/visdrone/`.
+
 ### 3.2 Box-regression factorial
 
 SABL is an orthogonal detector-head ablation, not part of the BCRS selector
@@ -189,7 +204,7 @@ The main effects are `R1-R0` and `R3-R2`; the selector-loss interaction is
 `(R3-R2) - (R1-R0)`. Existing E1.0/E2.9 artifacts may serve as R0/R2 only when
 all data, initialization, seed, schedule, routing, and evaluator fields match.
 
-Implementation record (2026-08-12):
+Implementation:
 
 - `hesod/backends/hesod/utils/loss.py` implements SSABNet Equations (10)-(15),
   converts grid-space boxes to input-pixel units only for Wasserstein distance
@@ -323,26 +338,23 @@ Decision order:
 
 No deleted exploratory result meets the bar for a publishable claim.
 
-## 6. SeaDronesSeeV2 reference literature (reported-only, non-reproduction)
+## 6. SeaDronesSeeV2: evaluated and dropped
 
 No YOLOv5m-based, common-protocol baseline exists for SeaDronesSeeV2 within
 this project or in the original SeaDronesSeeV2 paper (its own Table 4
 baselines are Faster R-CNN/CenterNet/EfficientDet, non-YOLO, and its class
 taxonomy predates the V2 revision our `CompressedVersion` download uses --
-confirmed 2026-08-xx: category_id 1-5 = swimmer/boat/jetski/
-life_saving_appliances/buoy, category_id 0 'ignored' never used in any
-annotation). The numbers below are drawn from four papers in
-`reference/HighResolution/` (reviewed for resolution-protocol guidance;
-`run_seadronesseev2.sh`'s img-size=1536 choice cites this section). Per the
-reported-only discipline already established in
-`HESOD-Lightweight-Detector-Review-and-Roadmap.md` SS8: these are
-context/orientation only, never to be mixed into a common-protocol sortable
-column with our own `results/seadronesseev2/*` runs. Confounds that break
-direct comparability, all four papers:
+confirmed: category_id 1-5 = swimmer/boat/jetski/life_saving_appliances/buoy,
+category_id 0 'ignored' never used in any annotation). SS6.1/6.2 below are
+drawn from four papers in `reference/HighResolution/`, reported-only context
+per the discipline in `HESOD-Lightweight-Detector-Review-and-Roadmap.md` SS8
+-- never mixed into a common-protocol sortable column with our own
+`results/seadronesseev2/*` run. Confounds that break direct comparability,
+all four papers:
 
 - **Backbone/scale mismatch**: EUAVDet.pdf and SeaLSOD-YOLO.pdf compare
   against YOLOv5-nano/YOLOv5s; "Maritime Small Object Detection.pdf" uses
-  YOLOv5s. Our own runs use YOLOv5m.
+  YOLOv5s. Our own run used YOLOv5m.
 - **Resolution mismatch**: see SS6.1; none match our chosen 1536.
 - **Metric-definition mismatch**: all four report standard COCO-style
   mAP/AP50/AP75 (area-based small/medium/large bins per COCO convention). Our
@@ -358,10 +370,9 @@ direct comparability, all four papers:
   (embedded boards); SeaLSOD-YOLO.pdf's FPS hardware is unstated in the
   extracted table; our own FPS is measured on an RTX 5090 desktop GPU. None of
   these FPS numbers are comparable to each other or to ours -- same class of
-  issue as the V100-vs-RTX5090 TinyPerson/VisDrone FPS gap already discussed
-  in SS1.
+  issue as the V100-vs-RTX5090 TinyPerson/VisDrone FPS gap in SS1.
 
-### 6.1 Resolution protocol (why SeaDronesSeeV2 runs at img-size=1536)
+### 6.1 Resolution protocol (why SeaDronesSeeV2 ran at img-size=1536)
 
 | Paper | Protocol | Rationale (as stated) |
 |---|---|---|
@@ -373,12 +384,11 @@ direct comparability, all four papers:
 Three of four papers converge on 640 (matched to plain YOLOv5 defaults, no
 dataset-specific reasoning given); YOLOv7-sea.pdf is the outlier, arguing
 explicitly for much higher resolution specifically because these targets are
-small. img-size=1536 for our own runs was chosen as a deliberate middle
-ground -- citing VisDrone's own in-project precedent (same 8x8-patch-grid
-architecture) rather than either literature extreme, since 640 is the same
-order of magnitude as Pest24 (where SS11.2.9-equivalent routing already lost
-to dense) and would risk re-testing nothing new. Not yet validated against a
-2400 run.
+small. img-size=1536 was chosen as a deliberate middle ground -- citing
+VisDrone's own in-project precedent (same 8x8-patch-grid architecture)
+rather than either literature extreme, since 640 is the same order of
+magnitude as Pest24 (where routing already lost to dense) and would risk
+re-testing nothing new.
 
 ### 6.2 Reported accuracy/efficiency (reported-only, not a reproduction target)
 
@@ -424,13 +434,11 @@ GFLOPs/FPS reported anywhere in this paper):
 Matches the paper's own headline claim (3rd place on the SeaDronesSee
 benchmark-server leaderboard, 59% mAP; they cite the then-current top
 leaderboard entry at 36% mAP for context). A separate ablation table
-(their Table 2, ADD-one-module-at-a-time on an internal validation set) also
-exists in this paper but had an internally inconsistent-looking AP50 value at
-one intermediate row during extraction (AP50 dropping from 87.8 to 45.2 then
-recovering to 92.3 while AP moved smoothly) -- not reproduced here; verify
-against the source PDF directly if that specific ablation is needed.
+(their Table 2) also exists but had an internally inconsistent-looking AP50
+value at one intermediate row during extraction -- not reproduced here;
+verify against the source PDF directly if that specific ablation is needed.
 
-### 6.3 Own R0 result and decision to drop the dataset (2026-08-20)
+### 6.3 Own R0 result and decision to drop the dataset
 
 R0 (`seadronesseev2_yolov5m.yaml`, img-size=1536, 50 epochs) trained and
 evaluated cleanly -- no data issues, no pipeline bugs, a legitimate result:
@@ -453,55 +461,27 @@ TinyPerson's ~53%. R0 already recalls 82.5%+ even in the hardest bin, and
 total recall is 95.76% -- there is essentially no accuracy headroom left:
 even a hypothetical 100% Very Tiny recall would only move total recall from
 95.76% to ~96.6% (183 more correct detections out of 9630), since that bin
-is such a small share of the data. This directly confirms the pre-run
-concern raised before any training started -- the dataset's actual object-
-size composition doesn't match the "sparse, genuinely tiny targets" regime
+is such a small share of the data. The dataset's actual object-size
+composition doesn't match the "sparse, genuinely tiny targets" regime
 HESOD's routing thesis needs to show an accuracy advantage, unlike VisDrone/
 TinyPerson.
 
 **Decision: dropped from further HESOD-arm investment.** The queued
 concat+SABL+ISPPHead arm was not run. Same class of finding as Pest24's A0
-result (SS11.2.9 in `HESOD-Agri-Experiment-Plan.md`) -- a legitimate,
+result (`HESOD-Agri-Experiment-Plan.md` SS11.2.9) -- a legitimate,
 informative negative result about where the routing thesis does and doesn't
 have room to operate, not a data or pipeline failure. Retained here rather
 than silently dropped so the reasoning stays traceable.
 
-## 7. UAVDT: first concat-vs-R0 comparison, and an `image_id` fix (2026-08-20/21)
+## 7. UAVDT: R0 vs concat+SABL+ISPPHead
 
-No concat/SABL/lightweight-head arm had ever been run for UAVDT before this
-session (only R0 existed). `UAVDT_fresh` (re-extracted from the raw
-`M_attr.zip`/`UAV-benchmark-M.zip`/`UAV-benchmark-MOTD_v1.0.zip` on the active
+`UAVDT_fresh` (re-extracted from raw source archives on the active
 `hesod/backends/hesod` tree, not the frozen-tree `run_baseline.sh` pipeline)
-ran both R0 and `concat+SABL+ISPPHead` (plain concat+SABL skipped, same
-skip-the-middle-arm reasoning as SeaDronesSeeV2/fresh-TinyPerson).
-
-### 7.1 `image_id` collision bug found and fixed
-
-UAVDT reuses frame numbers (`img000001.jpg`, `img000002.jpg`, ...) identically
-across every video sequence, with no split-level subdirectory separating
-train from test videos in `UAV-benchmark-M/`. `test.py`'s `image_id`
-assignment (`int(path.stem) if path.stem.isnumeric() else path.stem`, used by
-TinyPerson/VisDrone/SeaDronesSeeV2 without issue) collided across videos for
-UAVDT specifically -- predictions from frame 1 of *any* of the ~20 test
-videos all wrote `image_id="img000001"` into `best_predictions.json`,
-indistinguishable to any external tool that re-associates predictions with
-images by that field. Fixed in `test.py` (both the `save_json` and
-`selected_regions` assignments) to use `path.parent.stem + '_' + path.stem`
-for UAVDT specifically -- the same disambiguation pattern the `--save-txt`
-label-filename code already used elsewhere in the same file, just not
-applied to `image_id` itself. A matching symlink farm
-(`images/test/`+`labels/test/`, built from `split/test.txt` with the same
-`{video}_{stem}` naming) was created so `audit_buckets.py`/`vt_diagnose.py`
-can resolve images by this same key.
-
-**Scope of the bug, precisely: this never affected `test.py`'s own internal
-AP/AP50** (computed directly from in-memory per-batch tensors during the
-dataloader loop, never re-matched by filename) -- only the external audit
-tools, which previously either crashed outright or silently reported 0%
-recall (predictions and GT never matched at all under the old plain-stem
-symlink layout).
-
-### 7.2 R0 vs concat+SABL+ISPPHead (`UAVDT_fresh`, both size-bin audits confirmed consistent)
+is the first concat/SABL/lightweight-head comparison ever run for UAVDT in
+this project -- previously only R0 existed. It ran R0 and
+`concat+SABL+ISPPHead` (plain concat+SABL was skipped at the time; SS9.2
+revisits that gap now that SeaPerson's own concat-only result turned out to
+be non-obvious).
 
 | | R0 | Concat+SABL+ISPPHead | Delta |
 |---|---:|---:|---:|
@@ -512,41 +492,36 @@ symlink layout).
 | car / truck / bus recall | 84.87 / 84.41 / 75.20 | 90.56 / 84.88 / 76.28 | +5.7 / +0.5 / +1.1pp |
 | Occupy | 0.245 | 0.48 | ~2x |
 
-audit_buckets.py and vt_diagnose.py's independently-computed Very Tiny
-recall figures agree closely for both arms (83.63/83.64 and 84.18/84.21),
-a useful cross-check that the fixed `image_id` pipeline is now self-
-consistent.
+`audit_buckets.py` and `vt_diagnose.py`'s independently-computed Very Tiny
+recall figures agree closely for both arms (83.63/83.64 and 84.18/84.21), a
+useful cross-check that the `image_id` disambiguation (SS1) leaves the
+pipeline self-consistent.
 
 **Clear, consistent win for concat+SABL+ISPPHead** across mAP, total
-recall, and Very Tiny recall -- not just a tradeoff on one axis. This is
-the first-ever arm-vs-R0 comparison run for UAVDT in this project.
+recall, and Very Tiny recall -- not just a tradeoff on one axis.
 
 **Caveat, not yet isolated: Occupy nearly doubled (0.245 -> 0.48).** The
 concat selector routes to roughly twice as much image area as R0's
 semantic-only selector -- some of this accuracy gain is plausibly "seeing
 more of the image," not purely smarter patch selection. Same class of
-open question as Pest24's R2 result (HESOD-Agri-Experiment-Plan.md
+open question as Pest24's R2 result (`HESOD-Agri-Experiment-Plan.md`
 SS11.2.2's "smarter selection vs. selecting more area" caveat). A
 matched-Occupy or matched-GFLOPs comparison would be needed to isolate the
 selection-quality effect from the budget-increase effect; not run here.
 
-### 7.3 R0-vs-paper gap widened, not confirmed (see SS2)
+`UAVDT_fresh` R0's residual to the paper (-5.4/-6.3pp AP/AP50, SS2) is
+larger than the previously-accepted frozen-tree number's residual
+(-2.4/-3.7pp), not a confirmation of it -- see SS2 for the still-open
+provenance-vs-noise question.
 
-`UAVDT_fresh` R0's residual to the paper (-5.4/-6.3pp AP/AP50) is larger
-than the previously-accepted frozen-tree number's residual (-2.4/-3.7pp),
-not a confirmation of it. The `image_id` fix in SS7.1 does not explain this
-gap (it never touched `test.py`'s own AP computation). Leading candidates
--- a real data-provenance difference between `UAVDT_v3` and `UAVDT_fresh`,
-or single-seed noise -- are both unconfirmed. Open item.
-
-## 8. SeaPerson (aka TinyPersonV2): 6-arm roster, in progress (2026-08-20/21)
+## 8. SeaPerson (aka TinyPersonV2): 7-arm roster
 
 A further-validation dataset requested after the TinyPerson protocol rework
-(SS1/SS2) -- same schema lineage as TinyPerson (JSON image/annotation keys
-verified identical, including `ignore`/`uncertain`/`in_dense_image`), much
-denser (5711 train images, 262,063 annotations, ~45.9 boxes/image vs
-TinyPerson's own 794/~much sparser), and ships a genuine official 3-way
-split (`train`/`valid`/`test`; confirmed `train_ids | valid_ids ==
+-- same schema lineage as TinyPerson (JSON image/annotation keys verified
+identical, including `ignore`/`uncertain`/`in_dense_image`), much denser
+(5711 train images, 262,063 annotations, ~45.9 boxes/image vs TinyPerson's
+own 794/~much sparser), and ships a genuine official 3-way split
+(`train`/`valid`/`test`; confirmed `train_ids | valid_ids ==
 trainvalid_ids` exactly and zero train/test id overlap) -- unlike TinyPerson,
 which has to manufacture its own random valid slice.
 
@@ -558,13 +533,14 @@ which has to manufacture its own random valid slice.
 - img-size=2048, matching TinyPerson's own choice, justified by SeaPerson's
   own resolution distribution (92.9% of train images at 1920x1080).
 - No erase-preprocessed image variant ships with this release (only raw
-  `imgs_rgb.zip`), unlike TinyPerson, which was just reworked specifically
+  `imgs_rgb.zip`), unlike TinyPerson, which was reworked specifically
   *toward* the erase-preprocessed protocol. Rather than fall back to
   label-level-only `ignore`/`uncertain` filtering on unmodified pixels (the
-  approach TinyPerson's own protocol was reworked away from), `prepare_seaperson()`
-  erases those box regions directly into the image (mid-gray fill, same
-  convention `prepare_visdrone()` already uses for its `ignored`/`others`
-  classes), writing an `_erased` copy only when erasing actually occurred.
+  approach TinyPerson's own protocol was reworked away from),
+  `prepare_seaperson()` erases those box regions directly into the image
+  (mid-gray fill, same convention `prepare_visdrone()` already uses for its
+  `ignored`/`others` classes), writing an `_erased` copy only when erasing
+  actually occurred.
 - Labels/masks are written in-place per source video subfolder (same
   convention as `prepare_uavdt()`/`prepare_tinyperson()`), which leaves no
   flat directory for `audit_buckets.py`/`vt_diagnose.py`'s `--labels`/
@@ -576,8 +552,8 @@ which has to manufacture its own random valid slice.
   tree that `data/seaperson.yaml` points at directly.
 
 **Roster (7 arms; 6 confirmed distinct by the user, gated-fusion added
-2026-08-22 after concat-only's per-bucket trade-off, SS8.2, motivated adding
-VisDrone's own long-defined but never-isolated E2.4 arm):**
+after concat-only's per-bucket trade-off below motivated adding VisDrone's
+own long-defined but never-isolated E2.4 arm):**
 
 | Arm | Selector | Loss | Box |
 |---|---|---|---|
@@ -591,11 +567,11 @@ VisDrone's own long-defined but never-isolated E2.4 arm):**
 
 R0 and semantic-only share the same model config (`seaperson_yolov5m.yaml`)
 and differ only in `--selector-loss`, matching VisDrone's own E1.0/E2.1 pair
-(`run_visdrone_roster.sh`) -- deliberately isolating the loss-function effect
-from the selector-architecture effect. concat-only and concat+SABL likewise
-share one config (`seaperson_yolov5m_channel_pooled_concat.yaml`), differing
-only in `--box-loss`. gated-fusion shares concat-only's evidence branches
-(same channel-pooled spectral filter, same semantic head) via
+-- deliberately isolating the loss-function effect from the
+selector-architecture effect. concat-only and concat+SABL likewise share one
+config (`seaperson_yolov5m_channel_pooled_concat.yaml`), differing only in
+`--box-loss`. gated-fusion shares concat-only's evidence branches (same
+channel-pooled spectral filter, same semantic head) via
 `seaperson_yolov5m_channel_pooled_dual_evidence.yaml`, differing only in the
 fusion op (`GatedEvidenceFusion`'s learned sigmoid gate vs. concat-only's
 fixed 1x1 conv over concatenated logits) -- isolates the fusion mechanism
@@ -603,42 +579,17 @@ itself, holding evidence sources fixed, directly testing whether a gate can
 recover concat-only's Tiny/Small/Medium-Large losses without giving up its
 Very Tiny gain.
 
-**Status (2026-08-22): roster running. R0, semantic-only, spectral-only,
-concat-only complete; gated-fusion, concat+SABL, concat+SABL+ISPPHead in
-progress/queued.**
+`spectral-only` (full-channel `SpectralOnlySegmenter`, unlike the
+channel-pooled variant the concat/gated arms use) OOM'd at the shared
+batch=8 and at batch=4; it trained successfully only at batch=2, a
+documented protocol deviation for this one arm (SS1). Given its result
+below already lands essentially on par with semantic-only despite the
+handicap, the smaller batch is not an obvious confound in its favor.
 
-### 8.1 `vt_diagnose.py` mixed-image-format bug found and fixed
+**Status: R0, semantic-only, spectral-only, concat-only, gated-fusion,
+concat+SABL complete; concat+SABL+ISPPHead in progress/queued.**
 
-`vt_diagnose.py --images-dir` matched each label file to its image via a
-single hardcoded `--image-ext` (default `.jpg`). SeaPerson mixes formats --
-most images are `.jpg`, but the `rgb1000/` subfolder ships `.bmp` -- so every
-`.bmp` image failed to match and silently fell back to an assumed native size
-of 800x600 for size-bucket classification. Confirmed systematic, not random:
-exactly 1000/5752 test label files hit the fallback on both R0 and
-semantic-only. Real actual resolution for these images is far from 800x600
-(SeaPerson is 92.9% 1920x1080), so every fallback image's GT boxes were
-bucketed against the wrong denominator.
-
-**Impact, precisely:** this only ever corrupted `vt_diagnose.py`'s own
-standalone Very Tiny/Tiny/etc. bucket counts -- `audit_buckets.py` was never
-affected (it already tries multiple image suffixes) and its numbers below are
-unchanged by the fix. Before the fix, `vt_diagnose.py` reported Very Tiny
-recall of 52.79% (R0) / 53.12% (semantic-only) against 74.03%/75.49% from
-`audit_buckets.py` on the same predictions -- a stark disagreement that was
-the actual tell something was wrong, matching the cross-tool-agreement check
-already established for UAVDT (SS7.2).
-
-**Fix:** `vt_diagnose.py` now tries every common image suffix (`.jpg`,
-`.jpeg`, `.png`, `.bmp`, `.tif`, `.tiff`), `--image-ext` first, before
-falling back to `--native-w`/`--native-h`. Re-run against the existing
-`best_predictions.json` for both completed arms confirmed agreement with
-`audit_buckets.py` to within 0.02pp (Table below) -- exact Very Tiny GT count
-also now matches exactly (82417 both tools, was 113672 vt_diagnose vs 82417
-audit_buckets before the fix, since the wrong denominator also pulled boxes
-into/out of the Very Tiny bucket incorrectly, not just misclassifying which
-image they belonged to).
-
-### 8.2 Full per-arm results (test split unless noted; updated as each arm completes)
+### 8.1 Results (test split unless noted; updated as each arm completes)
 
 **Size-bucket recall** (`audit_buckets.py`, test split, 300375 total GT
 targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
@@ -649,8 +600,8 @@ targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 | semantic-only | 75.49% (62217/82417) | 91.57% (160087/174816) | 95.71% (41141/42987) | 81.94% (127/155) | 87.75% (263572/300375) |
 | spectral-only | 75.23% (62006/82417) | 91.69% (160286/174816) | 95.89% (41220/42987) | 86.45% (134/155) | 87.77% (263646/300375) |
 | concat-only | 76.00% (62637/82417) | 91.50% (159962/174816) | 95.68% (41131/42987) | 80.00% (124/155) | 87.84% (263854/300375) |
-| gated-fusion | pending | | | | |
-| concat+SABL | pending | | | | |
+| gated-fusion | 75.49% (62219/82417) | 90.79% (158711/174816) | 95.50% (41052/42987) | 86.45% (134/155) | 87.26% (262116/300375) |
+| concat+SABL | 76.67% (63193/82417) | 91.49% (159935/174816) | 94.77% (40740/42987) | 80.65% (125/155) | 87.89% (263993/300375) |
 | concat+SABL+ISPPHead | pending | | | | |
 
 **Accuracy + efficiency** (mAP/P/R/BPR/Occupy from `test.py --task test`;
@@ -662,12 +613,12 @@ GFLOPs/FPS/latency from `test.py --task measure`, valid split, batch=1):
 | semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 266.8 | 75.4 | 13.3/1.2/14.4 |
 | spectral-only | 0.770 | 0.327 | 0.829 | 0.705 | 0.992 | 0.335 | 267.4 | 72.6 | 13.8/1.2/15.0 |
 | concat-only | 0.772 | 0.326 | 0.825 | 0.707 | 0.986 | 0.374 | 281.2 | 72.4 | 13.8/1.2/15.0 |
-| gated-fusion | pending | | | | | | | | |
-| concat+SABL | pending | | | | | | | | |
+| gated-fusion | 0.765 | 0.324 | 0.824 | 0.704 | 0.990 | 0.330 | 261.5 | 76.8 | 13.0/1.2/14.2 |
+| concat+SABL | 0.771 | 0.323 | 0.820 | 0.713 | 0.990 | 0.348 | 263.7 | 74.8 | 13.4/1.3/14.6 |
 | concat+SABL+ISPPHead | pending | | | | | | | | |
 
-**Very Tiny miss-reason breakdown** (`vt_diagnose.py`, post mixed-format fix,
-SS8.1; percentages are of that arm's own missed-Very-Tiny count):
+**Very Tiny miss-reason breakdown** (`vt_diagnose.py`; percentages are of
+that arm's own missed-Very-Tiny count):
 
 | Arm | Missed Very Tiny GT | `right_class_low_iou` (localization failure) | `no_nearby_prediction` (selector-dropped) | `matched_but_stolen_by_other_gt` |
 |---|---:|---:|---:|---:|
@@ -675,51 +626,47 @@ SS8.1; percentages are of that arm's own missed-Very-Tiny count):
 | semantic-only | 20181 | 79.7% | 20.1% | 0.1% |
 | spectral-only | 20395 | 79.7% | 20.1% | 0.2% |
 | concat-only | 19760 | 80.6% | 19.2% | 0.2% |
-| gated-fusion | pending | | | |
-| concat+SABL | pending | | | |
+| gated-fusion | 20181 | 79.5% | 20.4% | 0.1% |
+| concat+SABL | 19215 | 79.6% | 20.3% | 0.1% |
 | concat+SABL+ISPPHead | pending | | | |
 
-**Interpretation so far** (3 of 6 arms; will be revisited once the roster
-completes): semantic-only (same `Segmenter` architecture as R0, coverage
+**Interpretation (6 of 7 arms; will be revisited once the roster
+completes):** semantic-only (same `Segmenter` architecture as R0, coverage
 loss instead of upstream weighted BCE) improves every accuracy metric over
 R0, isolating the loss-function effect cleanly since the selector
-architecture is unchanged. As with UAVDT's concat comparison (SS7.2), Occupy
+architecture is unchanged. As with UAVDT's concat comparison (SS7), Occupy
 increased alongside accuracy -- the same "smarter selection vs. selecting
-more area" caveat applies here and is not yet isolated. For all three arms
+more area" caveat applies here and is not yet isolated. For all four arms
 so far, localization failure dominates missed Very Tiny objects, not
-selector drops -- coverage supervision is doing exactly what SS3.3/H4
-predict: it reduces selector-caused misses (R0's 25.6% -> ~20.1% for both
-coverage-loss arms, of a smaller total) and shifts the remaining bottleneck
-further toward detection-head localization precision at very tiny scale.
-This suggests headroom in this roster is more likely in box-regression
-quality (SABL, evaluated in a later arm) than in further selector tuning
+selector drops -- coverage supervision reduces selector-caused misses (R0's
+25.6% -> ~20% for every coverage-loss arm, of a smaller total) and shifts
+the remaining bottleneck further toward detection-head localization
+precision at very tiny scale. This suggests headroom in this roster is more
+likely in box-regression quality (SABL) than in further selector tuning
 alone -- a hypothesis the remaining arms will test directly.
 
 **spectral-only is essentially on par with semantic-only** (total recall
-87.77% vs 87.75%, Very Tiny recall 75.23%/75.25% vs 75.49%/75.51%, mAP@.5
-0.770 vs 0.769) despite using no semantic evidence at all -- spectral
-evidence alone, with the coverage loss, recovers about as many real tiny
-targets as the semantic-only baseline architecture does. This is a genuine
-H2 data point (spectral evidence can substitute for, not just supplement,
-semantic evidence for tiny-target selection) and should be highlighted, not
-buried, when concat-only's result comes in -- if concat-only does not clearly
-beat both single-evidence arms, that would call the fusion architecture's
-value into question rather than confirm it. Medium/Large recall is notably
-higher for spectral-only (86.45% vs 79.35%/81.94%), but N=155 GT is small
-enough (a 7-11 detection swing moves the percentage several points) that
-this should not be over-interpreted without a multi-seed check.
+87.77% vs 87.75%, Very Tiny recall ~75.2% vs ~75.5%, mAP@.5 0.770 vs 0.769)
+despite using no semantic evidence at all, and despite training at 1/4 the
+batch size -- spectral evidence alone, with the coverage loss, recovers
+about as many real tiny targets as the semantic-only baseline architecture
+does. This is a genuine H2 data point (spectral evidence can substitute
+for, not just supplement, semantic evidence for tiny-target selection).
+Medium/Large recall is notably higher for spectral-only (86.45% vs
+79.35%/81.94%), but N=155 GT is small enough (a 7-11 detection swing moves
+the percentage several points) that this should not be over-interpreted
+without a multi-seed check.
 
 **concat-only did not clearly beat either single-evidence arm on aggregate,
-and per-bucket it is a genuine trade-off, not a uniform improvement -- this
-is the predicted negative/mixed result, not a confirmation of fusion
-value.** Total recall (87.84%) is only +0.07pp over spectral-only (87.77%)
-and +0.09pp over semantic-only (87.75%); mAP@.5 (0.772) is +0.002/+0.003
-over the same two arms. Breaking the aggregate down by bucket (recalled
-counts): concat wins Very Tiny by a real margin (62637 vs 62006
-spectral-only vs 62217 semantic-only, +420 to +631 objects), but *loses* to
-**both** single-evidence arms on Tiny (159962, worst of the three), Small
-(41131, worst), and Medium/Large (124, worst). The small aggregate win exists
-only because Very Tiny's gain outweighs the losses in every larger bucket
+and per-bucket it is a genuine trade-off, not a uniform improvement.**
+Total recall (87.84%) is only +0.07pp over spectral-only (87.77%) and
++0.09pp over semantic-only (87.75%); mAP@.5 (0.772) is +0.002/+0.003 over
+the same two arms. Breaking the aggregate down by bucket (recalled counts):
+concat wins Very Tiny by a real margin (62637 vs 62006 spectral-only vs
+62217 semantic-only, +420 to +631 objects), but *loses* to **both**
+single-evidence arms on Tiny (159962, worst of the three), Small (41131,
+worst), and Medium/Large (124, worst). The small aggregate win exists only
+because Very Tiny's gain outweighs the losses in every larger bucket
 combined. Read plainly: concat is not "semantic + spectral, strictly
 better" -- it is a redistribution of selector sensitivity toward the very
 smallest objects at a measurable cost everywhere else, and the net is only
@@ -729,37 +676,150 @@ loss alone, architecture unchanged) -- essentially all of this roster's
 gain so far comes from switching to the coverage loss, not from fusing
 evidence. It is also not free: Occupy 0.374/0.488, higher than
 spectral-only's 0.335/0.420 and close to semantic-only's 0.363/0.457. This
-should be reported as a genuine, structured data point for the
-"dual-evidence fusion" framing -- a real Very-Tiny-specific effect, not
-noise (both audit_buckets.py and vt_diagnose.py agree to within 0.02pp), but
-not the unqualified win a fusion-improves-everything narrative would need --
-not smoothed over. Matches the falsifiable spirit of H2/H3 in
+is a genuine, structured data point for the "dual-evidence fusion" framing
+-- a real Very-Tiny-specific effect, not noise (both audit tools agree to
+within 0.02pp), but not the unqualified win a fusion-improves-everything
+narrative would need. Matches the falsifiable spirit of H2/H3 in
 `HESOD-Proposal.md` SS6. concat+SABL and concat+SABL+ISPPHead may still
 separately justify themselves on box-regression and head-efficiency grounds
 respectively, but neither should be framed as validating fusion-over-single-
 evidence unless their own per-bucket deltas over concat-only (not over R0)
 show it.
 
-### 8.3 spectral-only: CUDA OOM, resolved via reduced batch size
+**gated-fusion refutes the hypothesis that motivated it: the learned gate
+does not recover concat-only's Tiny/Small/Medium-Large losses, and gives up
+part of its Very Tiny gain too.** Same evidence branches as concat-only
+(SS8, `ChannelPooledDualEvidenceSegmenter` vs. `ChannelPooledConcatEvidenceSegmenter`),
+only the fusion op differs -- a learned per-location sigmoid gate instead
+of a fixed 1x1 conv over concatenated logits. Every accuracy metric is
+worse than concat-only: total recall 87.26% vs 87.84% (-0.58pp), Very Tiny
+75.49% vs 76.00% (-0.51pp), Tiny 90.79% vs 91.50% (-0.71pp), mAP@.5 0.765
+vs 0.772. gated-fusion is in fact the worst of all five coverage-loss arms
+on total recall and mAP@.5, beating only R0's plain upstream-loss baseline
+-- worse than semantic-only and spectral-only alone, not just worse than
+concat-only. Occupy (test) dropped further still (0.330, lowest of any
+coverage-loss arm) alongside GFLOPs (261.5, also lowest) and the highest
+FPS (76.8) -- the gate learned to suppress evidence and route to less area
+than the fixed concatenation does, and that reduction cost accuracy across
+almost every bucket rather than sharpening selection. The one bucket where
+it wins is Medium/Large (86.45% vs 80.00%), but N=155 GT makes that a
+10-detection swing, not a reliable signal. Read plainly: for this task, a
+fixed, unconditional fusion of both evidence sources beats a learned gate
+that gets to suppress one -- the gate's extra flexibility did not pay for
+itself. This is a genuine negative result for the fusion-mechanism
+ablation, not a data or pipeline issue (both audit tools agree to within
+0.02pp, same as every other arm).
 
-`SpectralOnlySegmenter` (E2.5-style, full-channel `SpectralBranch` --
-`MultiKernelSpectralFilter` runs its depthwise 3x3/5x5 filters on the full
-P3 channel width, unlike the channel-pooled variant the concat arms use)
-OOM'd at epoch 0/batch 0 on the same batch=8 that trained R0 and
-semantic-only cleanly: "31.30 GiB memory in use" out of a 31.36 GiB RTX 5090,
-failing to allocate 48 MiB more. AMP is already on by default
-(`half_precision = not opt.disable_half`, no `--disable-half` passed), so
-this isn't an unused lever. A retry at `--batch-size 4` reproduced the same
-OOM. Training ultimately completed successfully at `--batch-size 2` (4x
-smaller than every other arm's batch=8); this is a real, documented protocol
-deviation for this one arm specifically, not a silent inconsistency --
-matches the same-class caveat already applied to R1/R3 in SS3.2 when a
-treatment arm needs a setting its control didn't. Whether the smaller batch
-(fewer gradient-averaged samples per step, same 50 epochs, same effective
-LR since `hyp.seaperson.yaml` was not re-tuned for batch=2) had any
-measurable effect on this arm's own numbers relative to what a batch=8 run
-would have produced is unconfirmed and not correctable after the fact
-without retraining at the original batch size. Given spectral-only's result
-(SS8.2) already lands essentially on par with semantic-only despite this
-handicap, the batch-size deviation is not an obvious confound in its favor --
-if anything it makes the tied result slightly more notable, not less.
+**concat+SABL over concat-only (its matched control, same selector/evidence,
+only the box loss changed) is a small, mixed result, not a clean win.**
+Very Tiny recall improves (+0.67pp, 62637->63193) and total recall ticks up
+(+0.05pp, 263854->263993), but Small recall drops (-0.91pp, 41131->40740)
+and mAP@.5/mAP@.5:.95 are flat-to-slightly-down (0.772->0.771,
+0.326->0.323) -- box-loss precision gains at the smallest scale did not
+translate into an aggregate accuracy improvement. The one clear, consistent
+change is efficiency: Occupy (test) dropped from 0.374 to 0.348 and
+measured GFLOPs from 281.2 to 263.7 (FPS 72.4->74.8), even though only the
+regression loss changed and the selector's own supervision
+(`--selector-loss coverage`) is identical between the two arms -- a real,
+if indirect, training-dynamics interaction between the box and selector
+losses, not something to over-read as SABL "learning to select better."
+Very Tiny miss-reason mix is essentially unchanged (localization failure
+80.6%->79.6%, selector-dropped 19.2%->20.3%, on 545 fewer total misses),
+so SABL is not resolving the localization-failure bottleneck the SS8.1
+interpretation above flagged as the roster's main remaining headroom --
+that hypothesis stays open for concat+SABL+ISPPHead to test.
+
+## 9. Known gaps: missing head-swap controls and competitor baselines
+
+Audited directly (grep over every model cfg, `results/`, and the codebase),
+not from memory, in response to a direct question about whether the paper's
+claimed comparisons actually exist. Recorded here as placeholders so the gap
+stays visible and tracked rather than silently assumed-covered; none of
+these are built or scheduled yet -- SeaPerson's roster (SS8) is the current
+priority.
+
+### 9.1 "ESOD + ISPPHead" head-only control -- missing for every dataset
+
+Every dataset's "final method" arm (`*_channel_pooled_concat_sabl_isphead`)
+is currently compared only against plain R0, which bundles three
+simultaneous changes at once: selector architecture (`Segmenter` ->
+`ChannelPooledConcatEvidenceSegmenter`), loss (`upstream` -> `coverage` +
+`sabl`), and head (`YOLOv6Head` -> `ISPPHead`). There is no arm anywhere
+that swaps only the head, holding R0's selector and loss fixed, so none of
+the reported "+ISPPHead" gains can currently be attributed to the head swap
+specifically rather than the selector/loss changes bundled alongside it.
+Confirmed via `grep -rl ISPPHead hesod/backends/hesod/models/cfg/esod/*.yaml`
+-- exactly 3 configs use it (SeaPerson, TinyPerson, UAVDT; none for
+VisDrone), and every one pairs it with
+`ChannelPooledConcatEvidenceSegmenter`, never plain `Segmenter`.
+
+**Placeholder arm, per dataset:** `{dataset}_yolov5m_baseline_isphead`
+-- R0's exact config (plain `Segmenter`, `--selector-loss upstream
+--box-loss upstream`) with only `Detect, [nc, anchors, 'ISPPHead']` swapped
+in for the head. Cheap to build once scheduled: no new code, `ISPPHead`
+already exists and is wired into `parse_model`'s dispatch; one new `.yaml`
+per dataset plus one `run_arm()` line. Not yet built for any dataset.
+
+### 9.2 "BCRS selector + original head" -- incomplete outside SeaPerson
+
+SeaPerson's `concat-only` (SS8.1, `ChannelPooledConcatEvidenceSegmenter`,
+coverage loss, CIoU, default `YOLOv6Head`) is the only complete instance of
+this control across all four datasets:
+
+- **VisDrone**: defined as R2/E2.9 in SS3.1/3.2, but never actually trained
+  -- `results/visdrone/` has only `baseline`, `channel_pooled_concat_sabl`
+  (already bundled with SABL), and `reliability_gate_sabl`. No plain
+  concat-only (no SABL) result exists to retrieve; this needs a real
+  training run against the already-existing
+  `visdrone_yolov5m_channel_pooled_concat.yaml` config, not new code.
+- **UAVDT**: never run in isolation -- SS7 only ever trained R0 and the
+  fully-bundled `concat_sabl_isphead`. Revisit that skip now that
+  SeaPerson's own concat-only result turned out to be non-obvious (SS8.1's
+  per-bucket trade-off) rather than assuming UAVDT would show the same
+  pattern.
+- **TinyPerson**: only concat**+SABL** exists (the H1a/H1b head comparison
+  in `HESOD-Lightweight-Detector-Review-and-Roadmap.md` SS5.2 used it as the
+  baseline row); a plain concat-only (no SABL) arm was never isolated.
+
+### 9.3 QueryDet, Faster R-CNN, RetinaNet
+
+Zero training or evaluation of any of these three had happened in this
+project under our own protocol as of the previous pass through this
+section. Every `grep` hit for these names resolved to either the
+*pristine, vendored* TinyPerson benchmark toolkit
+(`hesod/backends/esod/evaluation/tiny_benchmark/`, an unmodified Detectron1-
+era `maskrcnn_benchmark` codebase shipped with the original ESOD release,
+never adapted or run by us) or GPViT's own reference configs -- not
+something integrated with our datasets, splits, or eval tooling.
+`HESOD-Proposal.md` SS7.3 lists all three as required baselines
+conceptually, but they are not equally cheap to add:
+
+- **Faster R-CNN and RetinaNet** ship as ready-to-use COCO-pretrained
+  detectors in `torchvision.models.detection` -- no custom framework
+  integration needed. Infra now exists under `hesod/backends/baseline/`
+  (new 2026-08-22, UAVDT + SeaPerson only, VisDrone/TinyPerson deferred but
+  not blocked -- see that directory's README.md for full protocol notes:
+  COCO-pretrained fine-tune matching this project's own convention,
+  torchvision resize geometry instead of YOLOv5 letterboxing, pycocotools
+  COCOeval as a separate code path from this doc's `ap_per_class()` mAP
+  column, `fvcore`-based GFLOPs). `scripts/esod_baseline/audit_buckets.py`
+  and `vt_diagnose.py` run against it completely unmodified, so its
+  recall-bucket numbers are directly comparable to every arm in SS7/SS8.
+  **Pending its first run** (GPU busy finishing SeaPerson's
+  `concat+SABL+ISPPHead`, SS8) -- no results yet, placeholder rows only:
+
+  | Arm | Very Tiny recall | Total recall | mAP@.5 | mAP@.5:.95 | GFLOPs | FPS |
+  |---|---:|---:|---:|---:|---:|---:|
+  | uavdt_fasterrcnn | pending | | | | | |
+  | uavdt_retinanet | pending | | | | | |
+  | seaperson_fasterrcnn | pending | | | | | |
+  | seaperson_retinanet | pending | | | | | |
+
+- **QueryDet** has no off-the-shelf package -- it needs a real
+  from-scratch implementation (its sparse/selective inference mechanism is
+  the whole point of comparing against it, not something a pretrained
+  torchvision model can stand in for). Getting it onto common footing (same
+  data conversion, same evaluator, same hardware) is a multi-day
+  integration effort, a different class of work than everything else in
+  this document. Not scheduled; still requires its own explicit separate
+  scoping decision before starting.
