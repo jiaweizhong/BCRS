@@ -7,8 +7,8 @@ To eliminate redundant computations, \emph{selective computation} has emerged as
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{hesod_overview.pdf}
-\caption{System overview of DES-ESOD. High-resolution input features are processed by the dual-evidence priority head (\S\ref{ssec:evidence}), which fuses semantic objectness with channel-pooled spectral saliency. Dynamic patch routing selects high-priority candidate regions for deep backbone and lightweight ISPP decoupled detection head processing, optimized via object-level soft-coverage loss (\S\ref{ssec:coverage}).}
+\includegraphics[width=0.98\textwidth]{figures/DES-ESOD.jpg}
+\caption{Architectural comparison between: (A) the proposed DES-ESOD framework featuring the Dual-Evidence Priority Head (combining semantic and spectral signals) and AdaSlicer to sparsely route high-priority patches to the neck and lightweight ISPP detection head; and (B) conventional dense object detection, which uniformly executes heavy full-resolution computations across redundant background regions.}
 \label{fig:overview}
 \end{figure*}
 

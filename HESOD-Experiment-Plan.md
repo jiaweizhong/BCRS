@@ -636,7 +636,7 @@ targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 |---|---:|---:|---:|---:|---:|
 | R0 | 74.03% (61014/82417) | 86.78% (151707/174816) | 94.74% (40725/42987) | 79.35% (123/155) | 84.42% (253569/300375) |
 | semantic-only | 75.49% (62217/82417) | 91.57% (160087/174816) | 95.71% (41141/42987) | 81.94% (127/155) | 87.75% (263572/300375) |
-| spectral-only | pending (OOM on first attempt, SS8.3) | | | | |
+| spectral-only | 75.23% (62006/82417) | 91.69% (160286/174816) | 95.89% (41220/42987) | 86.45% (134/155) | 87.77% (263646/300375) |
 | concat-only | pending | | | | |
 | concat+SABL | pending | | | | |
 | concat+SABL+ISPPHead | pending | | | | |
@@ -648,7 +648,7 @@ GFLOPs/FPS/latency from `test.py --task measure`, valid split, batch=1):
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | R0 | 0.750 | 0.320 | 0.827 | 0.696 | 0.947 | 0.228 | 202.4 | 88.9 | 11.2/1.2/12.4 |
 | semantic-only | 0.769 | 0.325 | 0.825 | 0.708 | 0.991 | 0.363 | 266.8 | 75.4 | 13.3/1.2/14.4 |
-| spectral-only | pending | | | | | | | | |
+| spectral-only | 0.770 | 0.327 | 0.829 | 0.705 | 0.992 | 0.335 | 267.4 | 72.6 | 13.8/1.2/15.0 |
 | concat-only | pending | | | | | | | | |
 | concat+SABL | pending | | | | | | | | |
 | concat+SABL+ISPPHead | pending | | | | | | | | |
@@ -660,27 +660,42 @@ SS8.1; percentages are of that arm's own missed-Very-Tiny count):
 |---|---:|---:|---:|---:|
 | R0 | 21388 | 74.3% | 25.6% | 0.1% |
 | semantic-only | 20181 | 79.7% | 20.1% | 0.1% |
-| spectral-only | pending | | | |
+| spectral-only | 20395 | 79.7% | 20.1% | 0.2% |
 | concat-only | pending | | | |
 | concat+SABL | pending | | | |
 | concat+SABL+ISPPHead | pending | | | |
 
-**Interpretation so far** (2 of 6 arms; will be revisited once the roster
+**Interpretation so far** (3 of 6 arms; will be revisited once the roster
 completes): semantic-only (same `Segmenter` architecture as R0, coverage
-loss instead of upstream weighted BCE) improves every accuracy metric,
-isolating the loss-function effect cleanly since the selector architecture is
-unchanged. As with UAVDT's concat comparison (SS7.2), Occupy increased
-alongside accuracy -- the same "smarter selection vs. selecting more area"
-caveat applies here and is not yet isolated. More notably, for both arms
-localization failure dominates missed Very Tiny objects, not selector drops
--- coverage supervision is doing exactly what SS3.3/H4 predict: it reduces
-selector-caused misses (25.6%->20.1% of a smaller total) and shifts the
-remaining bottleneck further toward detection-head localization precision at
-very tiny scale. This suggests headroom in this roster is more likely in
-box-regression quality (SABL, evaluated in a later arm) than in further
-selector tuning alone -- a hypothesis the remaining arms will test directly.
+loss instead of upstream weighted BCE) improves every accuracy metric over
+R0, isolating the loss-function effect cleanly since the selector
+architecture is unchanged. As with UAVDT's concat comparison (SS7.2), Occupy
+increased alongside accuracy -- the same "smarter selection vs. selecting
+more area" caveat applies here and is not yet isolated. For all three arms
+so far, localization failure dominates missed Very Tiny objects, not
+selector drops -- coverage supervision is doing exactly what SS3.3/H4
+predict: it reduces selector-caused misses (R0's 25.6% -> ~20.1% for both
+coverage-loss arms, of a smaller total) and shifts the remaining bottleneck
+further toward detection-head localization precision at very tiny scale.
+This suggests headroom in this roster is more likely in box-regression
+quality (SABL, evaluated in a later arm) than in further selector tuning
+alone -- a hypothesis the remaining arms will test directly.
 
-### 8.3 spectral-only: CUDA OOM, unresolved as of this writing
+**spectral-only is essentially on par with semantic-only** (total recall
+87.77% vs 87.75%, Very Tiny recall 75.23%/75.25% vs 75.49%/75.51%, mAP@.5
+0.770 vs 0.769) despite using no semantic evidence at all -- spectral
+evidence alone, with the coverage loss, recovers about as many real tiny
+targets as the semantic-only baseline architecture does. This is a genuine
+H2 data point (spectral evidence can substitute for, not just supplement,
+semantic evidence for tiny-target selection) and should be highlighted, not
+buried, when concat-only's result comes in -- if concat-only does not clearly
+beat both single-evidence arms, that would call the fusion architecture's
+value into question rather than confirm it. Medium/Large recall is notably
+higher for spectral-only (86.45% vs 79.35%/81.94%), but N=155 GT is small
+enough (a 7-11 detection swing moves the percentage several points) that
+this should not be over-interpreted without a multi-seed check.
+
+### 8.3 spectral-only: CUDA OOM, resolved via reduced batch size
 
 `SpectralOnlySegmenter` (E2.5-style, full-channel `SpectralBranch` --
 `MultiKernelSpectralFilter` runs its depthwise 3x3/5x5 filters on the full
@@ -690,9 +705,16 @@ semantic-only cleanly: "31.30 GiB memory in use" out of a 31.36 GiB RTX 5090,
 failing to allocate 48 MiB more. AMP is already on by default
 (`half_precision = not opt.disable_half`, no `--disable-half` passed), so
 this isn't an unused lever. A retry at `--batch-size 4` reproduced the same
-OOM; `--batch-size 2` is queued next, not yet confirmed. If this arm needs a
-smaller batch than every other arm to complete, that is a real, documented
-protocol deviation for this one arm specifically (its own row in SS8.2's
-tables should note the batch size actually used), not a silent
-inconsistency -- matches the same-class caveat already applied to R1/R3 in
-SS3.2 when a treatment arm needs a setting its control didn't.
+OOM. Training ultimately completed successfully at `--batch-size 2` (4x
+smaller than every other arm's batch=8); this is a real, documented protocol
+deviation for this one arm specifically, not a silent inconsistency --
+matches the same-class caveat already applied to R1/R3 in SS3.2 when a
+treatment arm needs a setting its control didn't. Whether the smaller batch
+(fewer gradient-averaged samples per step, same 50 epochs, same effective
+LR since `hyp.seaperson.yaml` was not re-tuned for batch=2) had any
+measurable effect on this arm's own numbers relative to what a batch=8 run
+would have produced is unconfirmed and not correctable after the fact
+without retraining at the original batch size. Given spectral-only's result
+(SS8.2) already lands essentially on par with semantic-only despite this
+handicap, the batch-size deviation is not an obvious confound in its favor --
+if anything it makes the tied result slightly more notable, not less.

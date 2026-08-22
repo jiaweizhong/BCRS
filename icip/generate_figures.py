@@ -13,9 +13,9 @@ plt.rcParams["mathtext.fontset"] = "cm"
 
 
 def create_system_overview(save_path):
-    fig, ax = plt.subplots(figsize=(12, 3.8), dpi=300)
-    ax.set_xlim(0, 100)
-    ax.set_ylim(0, 36)
+    fig, ax = plt.subplots(figsize=(12.8, 4.0), dpi=300)
+    ax.set_xlim(0, 102)
+    ax.set_ylim(0, 38)
     ax.axis("off")
 
     # Color Palette (Publication Grade)
@@ -97,7 +97,7 @@ def create_system_overview(save_path):
     # 1. Input Image
     draw_box(
         1.5,
-        12,
+        13,
         10.5,
         12,
         c_img,
@@ -111,17 +111,15 @@ def create_system_overview(save_path):
     # Arrow 1->2
     ax.annotate(
         "",
-        xy=(15.5, 18),
-        xytext=(12.3, 18),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=14
-        ),
+        xy=(15.2, 19),
+        xytext=(12.3, 19),
+        arrowprops=dict(arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=14),
     )
 
     # 2. Shallow Stem
     draw_box(
-        16,
-        12,
+        15.5,
+        13,
         11.5,
         12,
         c_stem,
@@ -133,92 +131,140 @@ def create_system_overview(save_path):
         sub_color="#1D4ED8",
     )
 
-    # Arrow from Stem down to Dual-Evidence Head
-    ax.annotate(
-        "",
-        xy=(34, 18),
-        xytext=(27.8, 18),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=14
-        ),
+    # Big bounding box encompassing Dual-Evidence Priority Head + AdaSlicer = Dual-Evidence Spatial Selector
+    selector_bg = patches.FancyBboxPatch(
+        (31.5, 6.5),
+        39.5,
+        25.5,
+        boxstyle="round,pad=0.3,rounding_size=1.2",
+        facecolor="#FAFAFA",
+        edgecolor="#A855F7",
+        linewidth=1.2,
+        linestyle="--",
+        zorder=1,
+    )
+    ax.add_patch(selector_bg)
+    ax.text(
+        51.25,
+        30.5,
+        "Dual-Evidence Spatial Selector (Proposed Subsystem)",
+        ha="center",
+        va="center",
+        fontsize=8.5,
+        fontweight="bold",
+        color="#7E22CE",
     )
 
-    # 3. Dual-Evidence Priority Head (OURS)
+    # Arrow from Stem into Dual-Evidence Head
+    ax.annotate(
+        "",
+        xy=(33.2, 19),
+        xytext=(27.3, 19),
+        arrowprops=dict(arrowstyle="-|>", color="#2563EB", lw=1.8, mutation_scale=14),
+    )
+
+    # Bypass arrow from Stem (features F) directly into AdaSlicer
+    ax.annotate(
+        "",
+        xy=(59.0, 24.5),
+        xytext=(27.3, 23.5),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="#2563EB",
+            lw=1.2,
+            linestyle=":",
+            connectionstyle="arc3,rad=-0.15",
+            mutation_scale=12,
+        ),
+    )
+    ax.text(
+        42,
+        27.5,
+        r"Shallow Features $\mathbf{F}$",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+        color="#1D4ED8",
+        style="italic",
+    )
+
+    # 3. Dual-Evidence Priority Head
     draw_box(
-        34.5,
-        8,
-        19,
-        20,
+        33.5,
+        8.5,
+        18,
+        18,
         c_dual,
         b_dual,
         "Dual-Evidence Priority Head",
-        "Semantic Objectness Branch\n+\nChannel-Pooled Spectral Branch\n"
-        + r"$\mathbf{S} = \sigma(\mathrm{Conv}_{1\times 1}([z^{\mathrm{sem}} \,\|\, z^{\mathrm{spec}}]))$",
+        r"Semantic Branch ($z^{\mathrm{sem}}$)"
+        + "\n+\n"
+        + r"Spectral Branch ($z^{\mathrm{spec}}$)"
+        + "\n"
+        + r"$\mathbf{S} = \sigma(\mathrm{Conv}_{1\times 1}([z^{\mathrm{sem}}\|z^{\mathrm{spec}}]))$",
         title_color="#6B21A8",
         sub_color="#7E22CE",
-        title_fs=10,
-        sub_fs=8,
-        lw=2.0,
+        title_fs=9.0,
+        sub_fs=7.5,
+        lw=1.8,
     )
 
-    # Label on top of Dual Evidence Box
-    ax.text(
-        44,
-        29.5,
-        "PROPOSED MODULE",
-        ha="center",
-        va="center",
-        fontsize=7.5,
-        fontweight="bold",
-        color="#9333EA",
-        bbox=dict(
-            boxstyle="square,pad=0.2",
-            facecolor="#F3E8FF",
-            edgecolor="#9333EA",
-            lw=1,
-        ),
-    )
-
-    # Arrow Dual-Evidence -> Slicer
+    # Arrow Dual-Evidence Head -> AdaSlicer with Priority Map S label
     ax.annotate(
         "",
-        xy=(57.5, 18),
-        xytext=(53.8, 18),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=14
-        ),
+        xy=(59.0, 16.5),
+        xytext=(51.8, 16.5),
+        arrowprops=dict(arrowstyle="-|>", color="#9333EA", lw=1.8, mutation_scale=14),
+    )
+    ax.text(
+        55.4,
+        18.5,
+        r"$\mathbf{S} \in [0, 1]$",
+        ha="center",
+        va="center",
+        fontsize=8.0,
+        fontweight="bold",
+        color="#9333EA",
     )
 
-    # 4. Dynamic Slicer / Selector
+    # 4. AdaSlicer (Patch Router)
     draw_box(
-        58,
-        13,
-        10,
-        10,
+        59.5,
+        11.5,
+        10.0,
+        14,
         c_slicer,
         b_slicer,
         "AdaSlicer",
-        r"$\mathcal{S} = \{i : s_i > \tau\}$" + "\nSpatial Patch Routing",
+        r"$\mathcal{S} = \{i : s_i > \tau\}$" + "\nDynamic Patch\nSlicing & Routing",
         title_color="#854D0E",
         sub_color="#A16207",
-        title_fs=9,
-        sub_fs=7.5,
+        title_fs=9.0,
+        sub_fs=7.2,
     )
 
-    # Arrow Slicer -> Backbone
+    # Arrow AdaSlicer -> Backbone (Selected Patches)
     ax.annotate(
         "",
-        xy=(71.8, 18),
-        xytext=(68.3, 18),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=14
-        ),
+        xy=(74.5, 19),
+        xytext=(70.0, 19),
+        arrowprops=dict(arrowstyle="-|>", color="#CA8A04", lw=1.8, mutation_scale=14),
+    )
+    ax.text(
+        72.2,
+        21.2,
+        r"Patches $\mathcal{P}$",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+        fontweight="bold",
+        color="#854D0E",
     )
 
     # 5. Deep Backbone & Neck
     draw_box(
-        72.2,
-        12,
+        74.8,
+        13,
         11.5,
         12,
         c_backbone,
@@ -234,36 +280,34 @@ def create_system_overview(save_path):
     # Arrow Backbone -> Head
     ax.annotate(
         "",
-        xy=(87.2, 18),
-        xytext=(84.0, 18),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=14
-        ),
+        xy=(89.5, 19),
+        xytext=(86.6, 19),
+        arrowprops=dict(arrowstyle="-|>", color="#16A34A", lw=1.8, mutation_scale=14),
     )
 
     # 6. Decoupled Head + SABL
     draw_box(
-        87.6,
+        89.8,
+        11.5,
         10.5,
-        11,
         15,
         c_head,
         b_head,
         "ISPP Decoupled\nDetection Head",
-        "Partial Conv Shared Stem\n+\n"
+        "Partial Conv Stem\n+\n"
         + r"$\mathcal{L}_{\mathrm{box}}$ (SABL) & $\mathcal{L}_{\mathrm{cls}}$",
         title_color="#9D174D",
         sub_color="#BE185D",
-        title_fs=9,
-        sub_fs=7.5,
+        title_fs=8.5,
+        sub_fs=7.2,
         lw=1.8,
     )
 
     # Supervisory loss annotations at the bottom
     loss_box = patches.FancyBboxPatch(
-        (18, 1.5),
-        64,
-        4.5,
+        (20, 1.2),
+        62,
+        4.2,
         boxstyle="round,pad=0.2,rounding_size=0.8",
         facecolor="#F8FAFC",
         edgecolor="#CBD5E1",
@@ -272,8 +316,8 @@ def create_system_overview(save_path):
     )
     ax.add_patch(loss_box)
     ax.text(
-        50,
-        3.75,
+        51,
+        3.3,
         r"$\mathbf{Joint \; Multi-Task \; Training \; Optimization:}$  "
         + r"$\mathcal{L} = \mathcal{L}_{\mathrm{det}} + \lambda_{\mathrm{sel}}(\mathcal{L}_{\mathrm{BCE}} + \lambda_{\mathrm{cov}}\mathcal{L}_{\mathrm{cover}})$",
         ha="center",
@@ -283,10 +327,10 @@ def create_system_overview(save_path):
     )
 
     # Connecting dashed lines from losses to modules
-    ax.plot([44, 44], [8, 6.2], color="#9333EA", linestyle="--", lw=1.2)
+    ax.plot([42.5, 42.5], [8.5, 5.5], color="#9333EA", linestyle="--", lw=1.2)
     ax.plot(
-        [93.1, 93.1, 82, 82],
-        [10.5, 3.75, 3.75, 6.2],
+        [95.0, 95.0, 82.0, 82.0],
+        [11.5, 3.3, 3.3, 5.5],
         color="#DB2777",
         linestyle="--",
         lw=1.2,
@@ -395,17 +439,13 @@ def create_segmenter_diagram(save_path):
         "",
         xy=(19.5, 38),
         xytext=(15.2, 28),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#2563EB", lw=1.5, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#2563EB", lw=1.5, mutation_scale=12),
     )
     ax.annotate(
         "",
         xy=(19.5, 12),
         xytext=(15.2, 22),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#059669", lw=1.5, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.5, mutation_scale=12),
     )
 
     # --- TOP: Semantic Branch ---
@@ -441,9 +481,7 @@ def create_segmenter_diagram(save_path):
         "",
         xy=(40.5, 12),
         xytext=(37.2, 12),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#059669", lw=1.4, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.4, mutation_scale=12),
     )
 
     # Step 2: Depthwise Laplacian & Sobel
@@ -455,8 +493,7 @@ def create_segmenter_diagram(save_path):
         c_spec,
         b_spec,
         "Trainable Filter Bank",
-        r"$\mathrm{DWConv}_{3\times 3} \; (2 \to 6)$"
-        + "\nLaplacian + Sobel-x/y",
+        r"$\mathrm{DWConv}_{3\times 3} \; (2 \to 6)$" + "\nLaplacian + Sobel-x/y",
         title_color="#065F46",
         sub_color="#047857",
         title_fs=8,
@@ -467,9 +504,7 @@ def create_segmenter_diagram(save_path):
         "",
         xy=(63.5, 12),
         xytext=(60.2, 12),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#059669", lw=1.4, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.4, mutation_scale=12),
     )
 
     # Step 3: Projection & Spectral Logits
@@ -491,17 +526,13 @@ def create_segmenter_diagram(save_path):
         "",
         xy=(84.5, 27),
         xytext=(48.5, 38),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#2563EB", lw=1.5, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#2563EB", lw=1.5, mutation_scale=12),
     )
     ax.annotate(
         "",
         xy=(84.5, 23),
         xytext=(81.3, 12),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#059669", lw=1.5, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#059669", lw=1.5, mutation_scale=12),
     )
 
     # Concat & Fusion
@@ -530,9 +561,7 @@ def create_segmenter_diagram(save_path):
         "",
         xy=(91.5, 25),
         xytext=(89.2, 25),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#7C3AED", lw=1.5, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#7C3AED", lw=1.5, mutation_scale=12),
     )
 
     # Output Fusion
@@ -668,9 +697,7 @@ def create_sabl_diagram(save_path):
         "",
         xy=(20, 24),
         xytext=(14.8, 14),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#D97706", lw=1.4, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#D97706", lw=1.4, mutation_scale=12),
     )
 
     # Scale computation & Gate
@@ -692,17 +719,13 @@ def create_sabl_diagram(save_path):
         "",
         xy=(47, 36),
         xytext=(41.8, 26),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#EA580C", lw=1.4, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.4, mutation_scale=12),
     )
     ax.annotate(
         "",
         xy=(47, 12),
         xytext=(41.8, 22),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#475569", lw=1.4, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#475569", lw=1.4, mutation_scale=12),
     )
 
     # Direct arrows from boxes to terms
@@ -710,9 +733,7 @@ def create_sabl_diagram(save_path):
         "",
         xy=(47, 40),
         xytext=(14.8, 34),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#EA580C", lw=1.4, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.4, mutation_scale=12),
     )
 
     # Top: Wasserstein Penalty
@@ -768,17 +789,13 @@ def create_sabl_diagram(save_path):
         "",
         xy=(81.5, 25),
         xytext=(75.0, 35),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#EA580C", lw=1.5, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.5, mutation_scale=12),
     )
     ax.annotate(
         "",
         xy=(81.5, 23),
         xytext=(75.0, 13),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#475569", lw=1.5, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#475569", lw=1.5, mutation_scale=12),
     )
 
     # Summation node
@@ -807,9 +824,7 @@ def create_sabl_diagram(save_path):
         "",
         xy=(90.5, 24),
         xytext=(86.8, 24),
-        arrowprops=dict(
-            arrowstyle="-|>", color="#DB2777", lw=1.6, mutation_scale=12
-        ),
+        arrowprops=dict(arrowstyle="-|>", color="#DB2777", lw=1.6, mutation_scale=12),
     )
 
     # Output Box Loss

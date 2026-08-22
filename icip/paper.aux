@@ -28,18 +28,18 @@
 \citation{SET}
 \citation{SSABNet}
 \citation{SET}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces System overview of DES-ESOD. High-resolution input features are processed by the dual-evidence priority head (\S  \ref {ssec:evidence}), which fuses semantic objectness with channel-pooled spectral saliency. Dynamic patch routing selects high-priority candidate regions for deep backbone and lightweight ISPP decoupled detection head processing, optimized via object-level soft-coverage loss (\S  \ref {ssec:coverage}).}}{2}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Architectural comparison between: (A) the proposed DES-ESOD framework featuring the Dual-Evidence Priority Head (combining semantic and spectral signals) and AdaSlicer to sparsely route high-priority patches to the neck and lightweight ISPP detection head; and (B) conventional dense object detection, which uniformly executes heavy full-resolution computations across redundant background regions.}}{2}{}\protected@file@percent }
 \newlabel{fig:overview}{{1}{2}{}{figure.1}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {2} Related Work}{2}{}\protected@file@percent }
 \newlabel{sec:related}{{2}{2}{}{section.2}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {3} Proposed Method}{2}{}\protected@file@percent }
 \newlabel{sec:method}{{3}{2}{}{section.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1} Dual-Evidence Priority Estimation}{2}{}\protected@file@percent }
-\newlabel{ssec:evidence}{{3.1}{2}{}{subsection.3.1}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Systematic comparison of related detection paradigms and the proposed DES-ESOD framework.}}{3}{}\protected@file@percent }
 \newlabel{tab:related}{{1}{3}{}{table.1}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Architecture of the dual-evidence priority head. The semantic branch (top) captures category-level objectness, while the channel-pooled spectral branch (bottom) extracts directional gradient and high-frequency saliency via trainable Laplacian and Sobel filter banks. The two representations are fused via a $1\times 1$ convolution.}}{3}{}\protected@file@percent }
 \newlabel{fig:evidence}{{2}{3}{}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1} Dual-Evidence Priority Estimation}{3}{}\protected@file@percent }
+\newlabel{ssec:evidence}{{3.1}{3}{}{subsection.3.1}{}}
 \newlabel{eq:sem_logit}{{1}{3}{}{equation.1}{}}
 \newlabel{eq:channel_pool}{{2}{3}{}{equation.2}{}}
 \newlabel{eq:kernels}{{3}{3}{}{equation.3}{}}
@@ -50,14 +50,14 @@
 \citation{SSABNet}
 \citation{UAVDT}
 \citation{TinyPerson,SeaDronesSee}
-\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Illustration of the Scale-Aware Balancing Loss (SABL). The scale gating function $\mu (s)$ adaptively balances the Normalized Gaussian Wasserstein distance for micro-scale targets and CIoU for larger objects.}}{4}{}\protected@file@percent }
-\newlabel{fig:sabl}{{3}{4}{}{figure.3}{}}
 \newlabel{eq:cover_prob}{{5}{4}{}{equation.5}{}}
 \newlabel{eq:cover_loss}{{6}{4}{}{equation.6}{}}
 \newlabel{eq:weight}{{7}{4}{}{equation.7}{}}
 \newlabel{eq:total_loss}{{8}{4}{}{equation.8}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3} Efficient Decoupled Head and Scale-Aware Loss}{4}{}\protected@file@percent }
 \newlabel{ssec:head}{{3.3}{4}{}{subsection.3.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Illustration of the Scale-Aware Balancing Loss (SABL). The scale gating function $\mu (s)$ adaptively balances the Normalized Gaussian Wasserstein distance for micro-scale targets and CIoU for larger objects.}}{4}{}\protected@file@percent }
+\newlabel{fig:sabl}{{3}{4}{}{figure.3}{}}
 \newlabel{eq:scale_gate}{{9}{4}{}{equation.9}{}}
 \newlabel{eq:sabl_loss}{{10}{4}{}{equation.10}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {4} Experimental Setup}{4}{}\protected@file@percent }
@@ -77,9 +77,8 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1} Quantitative Results on UAVDT and SeaPerson}{5}{}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Detailed size-bucket recall comparison across 300,375 ground-truth test instances on SeaPerson.}}{5}{}\protected@file@percent }
 \newlabel{tab:size_buckets}{{4}{5}{}{table.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Diagnostic breakdown of missed Very Tiny instances ($<16^2$ px).}}{5}{}\protected@file@percent }
-\newlabel{tab:error_breakdown}{{5}{5}{}{table.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2} Size-Stratified Recall Analysis across Scale Strata}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3} Error Attribution and Recall Safety Diagnostics}{5}{}\protected@file@percent }
 \citation{VisDrone}
 \bibstyle{IEEEbib}
 \bibdata{strings,refs}
@@ -89,13 +88,14 @@
 \bibcite{TinyPerson}{4}
 \bibcite{AutoFocus}{5}
 \bibcite{QueryDet}{6}
-\bibcite{CEASC}{7}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3} Error Attribution and Recall Safety Diagnostics}{6}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Diagnostic breakdown of missed Very Tiny instances ($<16^2$ px).}}{6}{}\protected@file@percent }
+\newlabel{tab:error_breakdown}{{5}{6}{}{table.5}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.4} Discussion and Limitations}{6}{}\protected@file@percent }
 \newlabel{ssec:discussion}{{5.4}{6}{}{subsection.5.4}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {6} Conclusion}{6}{}\protected@file@percent }
 \newlabel{sec:conclusion}{{6}{6}{}{section.6}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7} References}{6}{}\protected@file@percent }
+\bibcite{CEASC}{7}
 \bibcite{SET}{8}
 \bibcite{SSABNet}{9}
 \bibcite{SeaDronesSee}{10}
