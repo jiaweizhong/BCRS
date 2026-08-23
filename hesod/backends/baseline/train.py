@@ -53,7 +53,20 @@ def _build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--img-size", type=int, default=1280, help="long-side target; see models.py")
-    parser.add_argument("--lr", type=float, default=0.005)
+    parser.add_argument(
+        "--lr", type=float, default=0.0005,
+        help=(
+            "0.005 (the old default) was confirmed too high for fine-tuning "
+            "from a COCO-pretrained checkpoint at small batch sizes: "
+            "seaperson_fasterrcnn's first real run (2026-08-23, batch=2) "
+            "diverged from epoch 0 onward (val_loss 0.696 -> 1.08 over 50 "
+            "epochs, best.pt stuck at epoch 0), consistent with the LR being "
+            "too aggressive for fine-tuning rather than from-scratch training. "
+            "0.0005 is an order of magnitude lower, a standard fine-tuning "
+            "magnitude at this batch size -- not independently verified "
+            "optimal, just the first thing worth trying."
+        ),
+    )
     parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--weight-decay", type=float, default=0.0005)
     parser.add_argument("--workers", type=int, default=4)

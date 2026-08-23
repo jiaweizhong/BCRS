@@ -1184,13 +1184,673 @@ def create_sabl_diagram(save_path):
     )
 
     plt.tight_layout()
-    plt.savefig(save_path, format="pdf", bbox_inches="tight")
+    if save_path.endswith(".jpg"):
+        plt.savefig(save_path, format="jpg", dpi=300, bbox_inches="tight")
+    else:
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
+    plt.close()
+    print(f"Created {save_path}")
+
+
+def create_ispphead_diagram(save_path):
+    fig, ax = plt.subplots(figsize=(11.0, 4.8), dpi=300)
+    ax.set_xlim(0, 108)
+    ax.set_ylim(0, 52)
+    ax.axis("off")
+
+    def iso_proj(x, y, z, d_scale=0.45):
+        return x + z * d_scale * 0.866, y + z * d_scale * 0.5
+
+    def draw_3d_tensor(
+        x0,
+        y0,
+        w,
+        h,
+        d,
+        c_front,
+        c_top,
+        c_side,
+        edge_color="#1E293B",
+        lw=1.3,
+        alpha=0.95,
+        dashed=False,
+        draw_kernel_grid=False,
+    ):
+        p0 = iso_proj(x0, y0, 0)
+        p1 = iso_proj(x0 + w, y0, 0)
+        p2 = iso_proj(x0 + w, y0 + h, 0)
+        p3 = iso_proj(x0, y0 + h, 0)
+
+        p4 = iso_proj(x0, y0, d)
+        p5 = iso_proj(x0 + w, y0, d)
+        p6 = iso_proj(x0 + w, y0 + h, d)
+        p7 = iso_proj(x0, y0 + h, d)
+
+        # Drop Shadow
+        shadow_poly = patches.Polygon(
+            [
+                (p0[0] - 0.4, p0[1] - 0.6),
+                (p1[0] + 0.4, p1[1] - 0.6),
+                (p5[0] + 0.4, p5[1] - 0.6),
+                (p4[0] - 0.4, p4[1] - 0.6),
+            ],
+            closed=True,
+            facecolor="#94A3B8",
+            edgecolor="none",
+            alpha=0.25,
+            zorder=1,
+        )
+        ax.add_patch(shadow_poly)
+
+        # Top Face
+        top_poly = patches.Polygon(
+            [p3, p2, p6, p7],
+            closed=True,
+            facecolor=c_top,
+            edgecolor=edge_color,
+            linewidth=lw,
+            linestyle="--" if dashed else "-",
+            alpha=alpha,
+            zorder=3,
+        )
+        ax.add_patch(top_poly)
+
+        # Right Face
+        side_poly = patches.Polygon(
+            [p1, p5, p6, p2],
+            closed=True,
+            facecolor=c_side,
+            edgecolor=edge_color,
+            linewidth=lw,
+            linestyle="--" if dashed else "-",
+            alpha=alpha,
+            zorder=3,
+        )
+        ax.add_patch(side_poly)
+
+        # Front Face
+        front_poly = patches.Polygon(
+            [p0, p1, p2, p3],
+            closed=True,
+            facecolor=c_front,
+            edgecolor=edge_color,
+            linewidth=lw,
+            linestyle="--" if dashed else "-",
+            alpha=alpha,
+            zorder=4,
+        )
+        ax.add_patch(front_poly)
+
+        # Optional 3x3 Conv grid on Front Face
+        if draw_kernel_grid:
+            for i in range(1, 3):
+                gx = x0 + i * (w / 3.0)
+                gy = y0 + i * (h / 3.0)
+                ax.plot(
+                    [gx, gx],
+                    [y0, y0 + h],
+                    color="#FFFFFF",
+                    lw=0.9,
+                    linestyle=":",
+                    zorder=5,
+                )
+                ax.plot(
+                    [x0, x0 + w],
+                    [gy, gy],
+                    color="#FFFFFF",
+                    lw=0.9,
+                    linestyle=":",
+                    zorder=5,
+                )
+
+        return p2, p6, p5
+
+    # --- 1. Input Tensor X ---
+    draw_3d_tensor(
+        2.5,
+        17.0,
+        3.6,
+        14.0,
+        7.0,
+        c_front="#0284C7",
+        c_top="#38BDF8",
+        c_side="#0369A1",
+        edge_color="#0C4A6E",
+    )
+    ax.text(
+        4.3,
+        24.0,
+        r"$C_1$",
+        ha="center",
+        va="center",
+        fontsize=9.5,
+        fontweight="bold",
+        color="#FFFFFF",
+        zorder=6,
+    )
+    ax.text(
+        4.3,
+        34.5,
+        r"$\mathbf{X} \in \mathbb{R}^{C_1 \times H \times W}$",
+        ha="center",
+        va="center",
+        fontsize=8.5,
+        fontweight="bold",
+        color="#0369A1",
+        zorder=6,
+    )
+    ax.text(
+        4.3,
+        13.5,
+        "Input Feature\n(Neck $P_3/P_4/P_5$)",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+        color="#334155",
+        zorder=6,
+    )
+
+    # Arrow Input -> Expand
+    ax.annotate(
+        "",
+        xy=(15.2, 24.0),
+        xytext=(8.8, 24.0),
+        arrowprops=dict(arrowstyle="-|>", color="#0284C7", lw=1.8, mutation_scale=13),
+        zorder=6,
+    )
+    ax.text(
+        12.0,
+        26.5,
+        r"$1\times 1\text{ Conv}$",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+        fontweight="bold",
+        color="#0284C7",
+        zorder=6,
+    )
+
+    # --- 2. Inverted Expansion (2 * C1) ---
+    draw_3d_tensor(
+        16.2,
+        17.0,
+        3.6,
+        14.0,
+        14.0,
+        c_front="#059669",
+        c_top="#34D399",
+        c_side="#047857",
+        edge_color="#064E3B",
+    )
+    ax.text(
+        18.0,
+        24.0,
+        r"$2C_1$",
+        ha="center",
+        va="center",
+        fontsize=9.5,
+        fontweight="bold",
+        color="#FFFFFF",
+        zorder=6,
+    )
+    ax.text(
+        18.0,
+        13.5,
+        r"$\mathbf{1\times 1\ Expansion}$" + "\n" + r"($C_{\mathrm{exp}} = 2C_1$)",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+        color="#334155",
+        zorder=6,
+    )
+
+    # Channel Split Arrows (Diverging)
+    ax.annotate(
+        "",
+        xy=(31.8, 34.0),
+        xytext=(26.2, 26.5),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.8, mutation_scale=13),
+        zorder=6,
+    )
+    ax.text(
+        27.2,
+        33.2,
+        r"$1/4\ \text{Split}$",
+        ha="center",
+        va="center",
+        fontsize=7.0,
+        fontweight="bold",
+        color="#EA580C",
+        zorder=6,
+    )
+
+    ax.annotate(
+        "",
+        xy=(31.8, 13.5),
+        xytext=(26.2, 21.5),
+        arrowprops=dict(arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=13),
+        zorder=6,
+    )
+    ax.text(
+        27.2,
+        14.8,
+        r"$3/4\ \text{Split}$",
+        ha="center",
+        va="center",
+        fontsize=7.0,
+        fontweight="bold",
+        color="#475569",
+        zorder=6,
+    )
+
+    # --- 3A. Active Partial Conv Branch (1/4 Channels, Cp = 0.5 C1) ---
+    draw_3d_tensor(
+        32.6,
+        27.5,
+        3.6,
+        11.5,
+        4.0,
+        c_front="#EA580C",
+        c_top="#FB923C",
+        c_side="#C2410C",
+        edge_color="#7C2D12",
+        draw_kernel_grid=True,
+    )
+    ax.text(
+        34.4,
+        33.2,
+        r"$C_p$",
+        ha="center",
+        va="center",
+        fontsize=9.0,
+        fontweight="bold",
+        color="#FFFFFF",
+        zorder=6,
+    )
+    ax.text(
+        34.4,
+        42.2,
+        r"$C_p = 0.25 C_{\mathrm{exp}} = 0.5 C_1$",
+        ha="center",
+        va="center",
+        fontsize=7.6,
+        fontweight="bold",
+        color="#C2410C",
+        zorder=6,
+    )
+    ax.text(
+        34.4,
+        24.6,
+        r"$\mathbf{3\times 3\ Partial\ Conv\ (PConv)}$" + "\n(Spatial Context)",
+        ha="center",
+        va="center",
+        fontsize=7.0,
+        fontweight="bold",
+        color="#9A3412",
+        zorder=6,
+    )
+
+    # --- 3B. Identity Passthrough Branch (3/4 Channels, 1.5 C1) ---
+    draw_3d_tensor(
+        32.6,
+        6.5,
+        3.6,
+        11.5,
+        10.5,
+        c_front="#94A3B8",
+        c_top="#CBD5E1",
+        c_side="#64748B",
+        edge_color="#334155",
+        alpha=0.75,
+        dashed=True,
+    )
+    ax.text(
+        34.4,
+        12.2,
+        r"$1.5 C_1$",
+        ha="center",
+        va="center",
+        fontsize=8.5,
+        fontweight="bold",
+        color="#FFFFFF",
+        zorder=6,
+    )
+    ax.text(
+        34.4,
+        20.8,
+        r"$0.75 C_{\mathrm{exp}} = 1.5 C_1$",
+        ha="center",
+        va="center",
+        fontsize=7.8,
+        fontweight="bold",
+        color="#475569",
+        zorder=6,
+    )
+    ax.text(
+        34.4,
+        3.5,
+        r"$\mathbf{Identity\ Passthrough}$" + "\n(0 FLOPs / 0 Params)",
+        ha="center",
+        va="center",
+        fontsize=7.0,
+        color="#475569",
+        zorder=6,
+    )
+
+    # Channel Merge Arrows to Concat + Project
+    ax.annotate(
+        "",
+        xy=(50.8, 26.5),
+        xytext=(41.5, 33.5),
+        arrowprops=dict(arrowstyle="-|>", color="#EA580C", lw=1.8, mutation_scale=13),
+        zorder=6,
+    )
+    ax.annotate(
+        "",
+        xy=(50.8, 22.0),
+        xytext=(41.5, 14.5),
+        arrowprops=dict(arrowstyle="-|>", color="#64748B", lw=1.8, mutation_scale=13),
+        zorder=6,
+    )
+
+    # --- 4. Concat + Linear Projection (1x1 Conv, 2C1 -> C1) ---
+    draw_3d_tensor(
+        51.6,
+        17.0,
+        3.6,
+        14.0,
+        7.0,
+        c_front="#9333EA",
+        c_top="#C084FC",
+        c_side="#7E22CE",
+        edge_color="#581C87",
+    )
+    ax.text(
+        53.4,
+        24.0,
+        r"$C_1$",
+        ha="center",
+        va="center",
+        fontsize=9.5,
+        fontweight="bold",
+        color="#FFFFFF",
+        zorder=6,
+    )
+    ax.text(
+        53.4,
+        13.5,
+        r"$\mathbf{Concat + 1\times 1\ Proj}$"
+        + "\n"
+        + r"($\mathbf{F}_{\mathrm{proj}} \in \mathbb{R}^{C_1 \times H \times W}$)",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+        color="#334155",
+        zorder=6,
+    )
+
+    # Arrow to Sum Node
+    ax.annotate(
+        "",
+        xy=(63.0, 24.0),
+        xytext=(58.8, 24.0),
+        arrowprops=dict(arrowstyle="-|>", color="#9333EA", lw=1.8, mutation_scale=13),
+        zorder=6,
+    )
+
+    # --- 5. Residual Sum Node (+) ---
+    sum_circle = patches.Circle(
+        (65.5, 24.0),
+        radius=2.4,
+        facecolor="#FCE7F3",
+        edgecolor="#DB2777",
+        linewidth=1.8,
+        zorder=7,
+    )
+    ax.add_patch(sum_circle)
+    ax.text(
+        65.5,
+        24.0,
+        r"$+$",
+        ha="center",
+        va="center",
+        fontsize=13.0,
+        fontweight="bold",
+        color="#DB2777",
+        zorder=8,
+    )
+
+    # Residual Skip Connection Arc from Input X to Sum Node (+) (Clearance above blocks)
+    ax.annotate(
+        "",
+        xy=(65.5, 26.8),
+        xytext=(4.3, 31.5),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            color="#2563EB",
+            lw=2.2,
+            connectionstyle="arc3,rad=-0.48",
+            linestyle="-",
+            mutation_scale=14,
+        ),
+        zorder=6,
+    )
+    # Residual Label Pill Badge
+    res_badge = patches.FancyBboxPatch(
+        (25.0, 48.0),
+        26.0,
+        3.5,
+        boxstyle="round,pad=0.2,rounding_size=0.8",
+        facecolor="#EFF6FF",
+        edgecolor="#2563EB",
+        linewidth=1.2,
+        zorder=7,
+    )
+    ax.add_patch(res_badge)
+    ax.text(
+        38.0,
+        49.75,
+        r"$\mathbf{+}$ Residual Skip Connection ($\mathbf{X}$)",
+        ha="center",
+        va="center",
+        fontsize=8.0,
+        fontweight="bold",
+        color="#1E40AF",
+        zorder=8,
+    )
+
+    # Arrows from Sum to Decoupled Heads
+    ax.annotate(
+        "",
+        xy=(73.5, 38.0),
+        xytext=(68.2, 25.5),
+        arrowprops=dict(arrowstyle="-|>", color="#7C3AED", lw=1.6, mutation_scale=12),
+        zorder=6,
+    )
+    ax.annotate(
+        "",
+        xy=(73.5, 24.0),
+        xytext=(68.2, 24.0),
+        arrowprops=dict(arrowstyle="-|>", color="#D97706", lw=1.6, mutation_scale=12),
+        zorder=6,
+    )
+    ax.annotate(
+        "",
+        xy=(73.5, 10.0),
+        xytext=(68.2, 22.5),
+        arrowprops=dict(arrowstyle="-|>", color="#16A34A", lw=1.6, mutation_scale=12),
+        zorder=6,
+    )
+
+    # --- 6. Decoupled 3D Heads (Cls / Reg / Obj) ---
+    # 6A. Classification Branch
+    draw_3d_tensor(
+        74.5,
+        33.5,
+        3.2,
+        9.0,
+        5.0,
+        c_front="#7C3AED",
+        c_top="#A78BFA",
+        c_side="#6D28D9",
+        edge_color="#4C1D95",
+    )
+    ax.text(
+        76.1,
+        45.8,
+        r"$\mathbf{Cls\ Head}$" + "\n" + r"$1\times 1 \to N_c \cdot N_a$",
+        ha="center",
+        va="center",
+        fontsize=7.0,
+        fontweight="bold",
+        color="#5B21B6",
+        zorder=6,
+    )
+
+    # 6B. Bounding Box Regression Branch (SABL)
+    draw_3d_tensor(
+        74.5,
+        19.5,
+        3.2,
+        9.0,
+        5.0,
+        c_front="#D97706",
+        c_top="#FBBF24",
+        c_side="#B45309",
+        edge_color="#78350F",
+    )
+    ax.text(
+        76.1,
+        31.8,
+        r"$\mathbf{Reg\ Head\ (SABL)}$" + "\n" + r"$1\times 1 \to 4 \cdot N_a$",
+        ha="center",
+        va="center",
+        fontsize=7.0,
+        fontweight="bold",
+        color="#92400E",
+        zorder=6,
+    )
+
+    # 6C. Objectness Branch
+    draw_3d_tensor(
+        74.5,
+        5.5,
+        3.2,
+        9.0,
+        4.0,
+        c_front="#16A34A",
+        c_top="#4ADE80",
+        c_side="#15803D",
+        edge_color="#14532D",
+    )
+    ax.text(
+        76.1,
+        17.8,
+        r"$\mathbf{Obj\ Head}$" + "\n" + r"$1\times 1 \to 1 \cdot N_a$",
+        ha="center",
+        va="center",
+        fontsize=7.0,
+        fontweight="bold",
+        color="#166534",
+        zorder=6,
+    )
+
+    # Output Arrows to Final Unified Tensor
+    ax.annotate(
+        "",
+        xy=(90.0, 27.5),
+        xytext=(82.5, 38.0),
+        arrowprops=dict(arrowstyle="-|>", color="#7C3AED", lw=1.6, mutation_scale=12),
+        zorder=6,
+    )
+    ax.annotate(
+        "",
+        xy=(90.0, 24.0),
+        xytext=(82.5, 24.0),
+        arrowprops=dict(arrowstyle="-|>", color="#D97706", lw=1.6, mutation_scale=12),
+        zorder=6,
+    )
+    ax.annotate(
+        "",
+        xy=(90.0, 20.5),
+        xytext=(82.5, 10.0),
+        arrowprops=dict(arrowstyle="-|>", color="#16A34A", lw=1.6, mutation_scale=12),
+        zorder=6,
+    )
+
+    # --- 7. Final Prediction Tensor Output ---
+    draw_3d_tensor(
+        91.0,
+        14.0,
+        4.2,
+        20.0,
+        9.0,
+        c_front="#DB2777",
+        c_top="#F472B6",
+        c_side="#BE185D",
+        edge_color="#831843",
+    )
+    ax.text(
+        93.1,
+        39.5,
+        r"$\mathbf{Y}_{\mathrm{pred}}$",
+        ha="center",
+        va="center",
+        fontsize=9.5,
+        fontweight="bold",
+        color="#9D174D",
+        zorder=6,
+    )
+    ax.text(
+        93.1,
+        9.5,
+        r"$(N_c + 5)N_a$" + "\n" + r"$\times H \times W$" + "\n(Detections)",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+        fontweight="bold",
+        color="#831843",
+        zorder=6,
+    )
+
+    # --- 8. Bottom Key Metrics & Efficiency Callout Banner ---
+    callout_bg = patches.FancyBboxPatch(
+        (2.5, 0.4),
+        103.0,
+        2.5,
+        boxstyle="round,pad=0.2,rounding_size=0.6",
+        facecolor="#F8FAFC",
+        edgecolor="#CBD5E1",
+        linewidth=1.0,
+        zorder=2,
+    )
+    ax.add_patch(callout_bg)
+    ax.text(
+        54.0,
+        1.65,
+        "Whole-Model Impact (SeaPerson): -27.6% Params (35.78M -> 25.92M)  |  -20.7% GFLOPs (263.7 -> 209.1)  |  77.1 FPS Real-Time  |  77.19% Very Tiny Recall",
+        ha="center",
+        va="center",
+        fontsize=6.8,
+        fontweight="bold",
+        color="#1E293B",
+        zorder=4,
+    )
+
+    plt.tight_layout()
+    if save_path.endswith(".jpg"):
+        plt.savefig(save_path, format="jpg", dpi=300, bbox_inches="tight")
+    else:
+        plt.savefig(save_path, format="pdf", bbox_inches="tight")
     plt.close()
     print(f"Created {save_path}")
 
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    create_system_overview(os.path.join(base_dir, "hesod_overview.pdf"))
-    create_segmenter_diagram(os.path.join(base_dir, "hesod_segmenter_block.pdf"))
-    create_sabl_diagram(os.path.join(base_dir, "hesod_sabl_block.pdf"))
+    fig_dir = os.path.join(base_dir, "figures")
+    os.makedirs(fig_dir, exist_ok=True)
+
+    create_ispphead_diagram(os.path.join(fig_dir, "ISPPHead.jpg"))
+    create_ispphead_diagram(os.path.join(fig_dir, "ISPPHead.pdf"))
+    print("ISPPHead figures successfully generated in figures/ directory.")

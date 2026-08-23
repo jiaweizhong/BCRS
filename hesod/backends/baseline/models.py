@@ -23,7 +23,12 @@ MODEL_NAMES = ("fasterrcnn", "retinanet")
 
 
 def build_model(
-    name: str, num_classes: int, *, min_size: int = 800, max_size: int = 1333
+    name: str,
+    num_classes: int,
+    *,
+    min_size: int = 800,
+    max_size: int = 1333,
+    detections_per_img: int = 500,
 ) -> nn.Module:
     """`num_classes` excludes background; torchvision adds it internally.
     `min_size`/`max_size` control the aspect-ratio-preserving resize
@@ -31,12 +36,27 @@ def build_model(
     LONGER image side equals that value (see HESOD-Experiment-Plan.md SS9.3
     for why this isn't pixel-identical to the YOLOv5 letterbox convention
     used by every other arm).
+
+    `detections_per_img` overrides torchvision's per-image output cap
+    (Faster R-CNN default 100, RetinaNet default 300) -- confirmed too low
+    for SeaPerson: `seaperson_fasterrcnn`'s first real run (2026-08-23)
+    showed 57.66% total recall vs 84%+ for every YOLOv5 arm, with
+    `vt_diagnose.py`'s "no_nearby_prediction" (no prediction anywhere near
+    a missed GT box, not a localization error) at 62.1% of misses -- the
+    inverse of every YOLOv5 arm's failure-mode mix (localization failure
+    dominant there). SeaPerson averages ~52 GT boxes/image with a dense
+    long tail; a 100-box cap silently discards real detections in crowded
+    images regardless of model quality. Not needed for UAVDT (car/truck/bus,
+    far sparser), but set generously here for both datasets/models since
+    it costs nothing when unneeded.
     """
     if name == "fasterrcnn":
         model = fasterrcnn_resnet50_fpn_v2(
             weights=FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1,
             min_size=min_size,
             max_size=max_size,
+            box_detections_per_img=detections_per_img,
+            rpn_post_nms_top_n_test=max(2000, detections_per_img * 2),
         )
         in_features = model.roi_heads.box_predictor.cls_score.in_features
         model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes + 1)
@@ -46,6 +66,7 @@ def build_model(
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             min_size=min_size,
             max_size=max_size,
+            detections_per_img=detections_per_img,
         )
         num_anchors = model.head.classification_head.num_anchors
         in_channels = model.backbone.out_channels

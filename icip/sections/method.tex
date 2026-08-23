@@ -88,12 +88,21 @@ where $M$ denotes the target selector masks, $\rho$ is the positive-class BCE lo
 
 \begin{figure}[t]
 \centering
+\includegraphics[width=\columnwidth]{figures/ISPPHead.jpg}
+\caption{Architecture of the Inverted Residual Decoupled Head (ISPPHead) with Partial Convolution (\S\ref{ssec:head}).}
+\label{fig:ispphead}
+\end{figure}
+
+\begin{figure}[t]
+\centering
 \includegraphics[width=\columnwidth]{figures/SABL.jpg}
 \caption{Scale-Aware Balancing Loss (SABL) workflow (\S\ref{ssec:head}).}
 \label{fig:sabl}
 \end{figure}
 
-In high-resolution detection, standard decoupled detection heads (e.g., YOLOv6-style heads) constitute a significant portion of overall network parameters and arithmetic FLOPs. To maintain high detection throughput, we introduce an inverted residual partial-convolution (ISPP) decoupled head \cite{ESODYOLO}. Specifically, the ISPP head expands channels via a $1\times 1$ convolution, executes a lightweight $3\times 3$ partial convolution on a quarter of the expanded channels, and projects back with a residual connection, reducing parameter cost and FLOPs while maintaining rich representation capacity.
+In high-resolution detection, standard decoupled detection heads (e.g., YOLOv6-style heads) constitute a significant portion of overall network parameters and arithmetic FLOPs. To maintain high detection throughput, we introduce an inverted residual partial-convolution (ISPP) decoupled head \cite{ESODYOLO}. 
+
+As illustrated in Fig.~\ref{fig:ispphead}, given an input feature $\mathbf{X} \in \mathbb{R}^{C_1 \times H \times W}$ from the neck ($P_3, P_4, P_5$), the ISPP head first expands channels via a $1\times 1$ convolution to $C_{\mathrm{exp}} = 2C_1$. The expanded feature is then partitioned into two subsets: an active branch $C_p = 0.25 C_{\mathrm{exp}}$ processed by a $3\times 3$ Partial Convolution (PConv) to capture localized spatial context, and an identity passthrough branch ($0.75 C_{\mathrm{exp}}$) that incurs zero compute and parameter overhead. After concatenation and $1\times 1$ linear projection back to $C_1$, a residual skip connection $+ \mathbf{X}$ stabilizes gradient propagation. Finally, three decoupled $1\times 1$ convolutional heads output classification, bounding-box regression, and objectness predictions independently, eliminating cross-task gradient interference.
 
 Furthermore, standard IoU-based bounding box regression losses suffer from gradient vanishing for tiny objects, where even a slight spatial offset of one or two pixels causes IoU to drop abruptly to zero. To address this, we integrate the Scale-Aware Balancing Loss (SABL) \cite{SSABNet}. 
 
