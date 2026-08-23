@@ -605,11 +605,10 @@ documented protocol deviation for this one arm (SS1). Given its result
 below already lands essentially on par with semantic-only despite the
 handicap, the smaller batch is not an obvious confound in its favor.
 
-**Status: first 7 arms complete (2026-08-23), all results downloaded and
+**Status: all 8 arms complete (2026-08-23), all results downloaded and
 independently re-verified against the raw logs (`results/seaperson_raw/`)
 -- see the Accuracy + efficiency table's note for the one correction that
-came out of that audit (Params methodology). 8th arm (concat+ISPPHead)
-added 2026-08-23, queued/in progress.**
+came out of that audit (Params methodology).**
 
 ### 8.1 Results (test split unless noted; updated as each arm completes)
 
@@ -625,7 +624,7 @@ targets: 82417 Very Tiny / 174816 Tiny / 42987 Small / 155 Medium-Large):
 | gated-fusion | 75.49% (62219/82417) | 90.79% (158711/174816) | 95.50% (41052/42987) | 86.45% (134/155) | 87.26% (262116/300375) |
 | concat+SABL | 76.67% (63193/82417) | 91.49% (159935/174816) | 94.77% (40740/42987) | 80.65% (125/155) | 87.89% (263993/300375) |
 | concat+SABL+ISPPHead | 77.19% (63619/82417) | 90.70% (158562/174816) | 94.89% (40792/42987) | 83.23% (129/155) | 87.59% (263102/300375) |
-| concat+ISPPHead | pending | | | | |
+| concat+ISPPHead | 75.18% (61959/82417) | 91.05% (159169/174816) | 95.19% (40921/42987) | 71.61% (111/155) | 87.28% (262160/300375) |
 
 **Accuracy + efficiency** (mAP/P/R/BPR/Occupy from `test.py --task test`;
 Params/GFLOPs/FPS/latency from `test.py --task measure`, valid split,
@@ -657,7 +656,7 @@ measurement) rather than mixing an older single R0 measurement in:
 | gated-fusion | 0.765 | 0.324 | 0.824 | 0.704 | 0.990 | 0.330 | 35.86 | 261.5 | 74.3 | 13.5/1.2/14.7 |
 | concat+SABL | 0.771 | 0.323 | 0.820 | 0.713 | 0.990 | 0.348 | 35.79 | 263.7 | 73.4 | 13.6/1.3/14.9 |
 | concat+SABL+ISPPHead | 0.769 | 0.323 | 0.815 | 0.716 | 0.990 | 0.340 | 25.92 | 209.1 | 77.1 | 13.0/1.2/14.2 |
-| concat+ISPPHead | pending | | | | | | | | | |
+| concat+ISPPHead | 0.759 | 0.315 | 0.818 | 0.689 | 0.993 | 0.335 | 25.92 | 207.9 | 78.1 | 12.8/1.1/13.9 |
 
 **Very Tiny miss-reason breakdown** (`vt_diagnose.py`; percentages are of
 that arm's own missed-Very-Tiny count):
@@ -671,9 +670,9 @@ that arm's own missed-Very-Tiny count):
 | gated-fusion | 20181 | 79.5% | 20.4% | 0.1% |
 | concat+SABL | 19215 | 79.6% | 20.3% | 0.1% |
 | concat+SABL+ISPPHead | 18780 | 79.8% | 20.1% | 0.1% |
-| concat+ISPPHead | pending | | | |
+| concat+ISPPHead | 20442 | 80.0% | 19.9% | 0.1% |
 
-**Interpretation (7 of 8 arms; concat+ISPPHead queued):**
+**Interpretation (all 8 arms):**
 semantic-only (same `Segmenter` architecture as R0, coverage loss instead
 of upstream weighted BCE) improves every accuracy metric over R0, isolating
 the loss-function effect cleanly since the selector architecture is
@@ -808,6 +807,38 @@ roster either. Report both numbers together -- neither "the final method
 has 28% fewer parameters" nor "the final method is faster than R0" is true
 in isolation without the other.
 
+**concat+ISPPHead (dropping SABL, added specifically to test whether SABL
+could be removed without cost) shows a real-looking cost, but at single-run
+deltas this project's own acceptance bar (SS4: >=0.5pp AP / >=1.0pp AP75,
+confirmed with >=3 seeds before treating a delta as real) would not yet
+call confirmed -- flagged here as suggestive, not concluded.** Against its
+matched control concat+SABL+ISPPHead (identical selector, evidence, and
+head; only the box loss differs), removing SABL costs total recall -0.31pp
+(87.28% vs 87.59%), mAP@.5 -0.010 (0.759 vs 0.769), and Very Tiny recall
+-2.01pp (75.18% vs 77.19%) -- larger than concat+SABL's own isolated
++0.67pp Very Tiny gain over concat-only (no ISPPHead) earlier in this
+section, which would suggest SABL matters more paired with ISPPHead than
+without it. Read against concat-only directly (isolating ISPPHead alone,
+no SABL at all): concat+ISPPHead trades -0.56pp total recall and -0.82pp
+Very Tiny recall for a 27.6% Params / 26.1% GFLOPs cut and +11.9% FPS
+(35.79M/281.2/69.8 -> 25.92M/207.9/78.1). Every arm in this roster is a
+single run, though (no seed control exists yet in `run_seaperson.sh`'s
+training path), and the Medium/Large bucket's own -8.39pp swing (155 GT,
+an 13-detection difference) in this same comparison is a visible reminder
+that small buckets swing a lot on pure run-to-run noise -- the 0.31-2.01pp
+deltas above are plausible but not yet distinguished from single-seed
+variance. **Before trusting either the "ISPPHead has a real cost without
+SABL" or "SABL matters more with ISPPHead" readings, re-run concat+ISPPHead
+with a second seed** (it's the pivot of both comparisons above, the
+highest-value single re-run); re-running concat-only too would give a
+proper paired second-seed delta rather than a one-sided shift. Net,
+provisional conclusion for this roster: **concat+SABL+ISPPHead (the full
+recipe, all three ingredients together) remains the best arm** -- neither
+ablation tried against it this session (swapping in gated-fusion, or
+dropping SABL) beat it on a single run; whether the gap is a real,
+reproducible SABL-ISPPHead interaction or single-seed noise is open until
+re-run.
+
 ## 9. Known gaps: missing head-swap controls and competitor baselines
 
 Audited directly (grep over every model cfg, `results/`, and the codebase),
@@ -884,15 +915,41 @@ conceptually, but they are not equally cheap to add:
   column, `fvcore`-based GFLOPs). `scripts/esod_baseline/audit_buckets.py`
   and `vt_diagnose.py` run against it completely unmodified, so its
   recall-bucket numbers are directly comparable to every arm in SS7/SS8.
-  **Pending its first run** (GPU busy finishing SeaPerson's
-  `concat+SABL+ISPPHead`, SS8) -- no results yet, placeholder rows only:
+  mAP columns come from pycocotools COCOeval (AP50/AP), a different code
+  path from this doc's `ap_per_class()` elsewhere -- not claimed identical.
 
-  | Arm | Very Tiny recall | Total recall | mAP@.5 | mAP@.5:.95 | GFLOPs | FPS |
-  |---|---:|---:|---:|---:|---:|---:|
-  | uavdt_fasterrcnn | pending | | | | | |
-  | uavdt_retinanet | pending | | | | | |
-  | seaperson_fasterrcnn | pending | | | | | |
-  | seaperson_retinanet | pending | | | | | |
+  `seaperson_fasterrcnn`'s first real run (2026-08-23) exposed two real
+  bugs in `hesod/backends/baseline/`, both fixed before the result below:
+  (1) `--lr 0.005` (the original default, sized for from-scratch training)
+  was too aggressive for fine-tuning a COCO-pretrained checkpoint at
+  batch=2 -- `results.txt` showed `val_loss` diverging essentially from
+  epoch 0 (0.696 -> 1.08 over 50 epochs) with `best.pt` stuck at the very
+  first epoch; default lowered to `0.0005`. (2) `models.py::build_model()`
+  used torchvision's default `box_detections_per_img=100`, far too low for
+  SeaPerson's ~52 GT boxes/image average with a dense long tail -- silently
+  discarding real detections in crowded images regardless of model
+  quality, confirmed by `vt_diagnose.py`'s `no_nearby_prediction` (no
+  prediction anywhere near a missed box) share sitting at 62.1% pre-fix,
+  the inverse of every YOLOv5 arm's failure-mode mix; raised to 500 (with
+  `rpn_post_nms_top_n_test` raised to keep enough proposals upstream).
+  Retraining with both fixes raised total recall 57.66% -> 67.27%
+  (+9.6pp) and AP50 0.534 -> 0.551, confirming both were real. The
+  remaining large gap to every YOLOv5 arm (67.27% total, 46.11% Very Tiny,
+  vs 84%+ / 74%+ for every HESOD/ESOD arm) looks architectural, not a bug:
+  torchvision's Faster R-CNN uses COCO-pretrained RPN anchor scales never
+  adapted to SeaPerson's <16x16px targets, unlike every other arm's
+  purpose-built tiny-object anchors and coverage-loss selector routing.
+  Further RPN anchor tuning could likely close more of this gap but would
+  cross from "fix real bugs, report a fair off-the-shelf baseline" into
+  separately optimizing the competitor -- not done, flagged as a boundary
+  choice, open to revisiting if a tighter comparison is wanted later.
+
+  | Arm | Very Tiny recall | Total recall | AP50 | AP | Params (M) | GFLOPs | FPS |
+  |---|---:|---:|---:|---:|---:|---:|---:|
+  | uavdt_fasterrcnn | pending | | | | | | |
+  | uavdt_retinanet | pending | | | | | | |
+  | seaperson_fasterrcnn | 46.11% (38002/82417) | 67.27% (202056/300375) | 0.551 | 0.246 | 43.26 | 1546.8 | 23.1 |
+  | seaperson_retinanet | pending | | | | | | |
 
 - **QueryDet** has no off-the-shelf package -- it needs a real
   from-scratch implementation (its sparse/selective inference mechanism is

@@ -214,6 +214,22 @@ run_arm "seaperson_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
 run_arm "seaperson_yolov5m_channel_pooled_concat_isphead${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_concat_isphead.yaml" coverage upstream
 
+# --- Noise-check re-runs (2026-08-23), NOT part of the roster proper ---
+# concat+ISPPHead's single-run delta vs concat-only/concat+SABL+ISPPHead
+# (HESOD-Experiment-Plan.md SS8.1) is within this project's own <3-seed
+# "not yet confirmed" band (SS4). init_seeds(2) is fixed in train.py, but
+# cudnn.benchmark=True/deterministic=False (also train.py) means a second
+# run still isn't byte-identical -- gives a real, independent second data
+# point without needing --seed plumbing. spectral-only queued right after,
+# same reasoning (its near-parity with semantic-only is a small enough
+# margin to be worth a stability check too). Separate _run2 names so the
+# original results (already recorded in the doc) are never overwritten.
+run_arm "seaperson_yolov5m_channel_pooled_concat_isphead_run2${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_concat_isphead.yaml" coverage upstream
+
+run_arm "seaperson_yolov5m_spectral_only_run2${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_spectral_only.yaml" coverage upstream
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/seaperson_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/seaperson_yolov5m_semantic_coverage${SUFFIX}/"
