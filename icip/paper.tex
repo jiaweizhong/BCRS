@@ -13,7 +13,7 @@
 \maketitle
 
 \begin{abstract}
-High-resolution aerial and maritime imagery presents severe computational challenges for small-object detection due to pervasive background redundancy. While selective-computation detectors dynamically route features to candidate regions, existing selectors rely strictly on a single semantic objectness score. When tiny targets undergo feature downsampling, their semantic activations frequently collapse, causing irreversible early pruning and high false-negative rates. In this paper, we propose HESOD, an efficient dual-evidence selection framework tailored for recall-safe small object detection. HESOD introduces a dual-evidence priority head that fuses semantic objectness with channel-pooled spectral saliency at negligible constant compute overhead, recovering weak semantic targets. Furthermore, we formulate an object-level soft-coverage loss that directly maximizes joint instance coverage probability, preventing premature false negatives. Paired with a lightweight inverted residual decoupled head and scale-aware Wasserstein regression, HESOD achieves a 2.7\% improvement in mAP and a 5.5\% boost in total recall on UAVDT while sustaining real-time throughput.
+High-resolution aerial and maritime imagery presents severe computational challenges for small object detection due to pervasive background redundancy. While selective-computation detectors dynamically route processing to candidate regions, existing selectors rely strictly on a single semantic objectness score. When tiny targets undergo feature downsampling, their semantic activations frequently collapse, causing irreversible early pruning under an asymmetric selection cost. In this paper, we propose HESOD, an efficient dual-evidence selection framework tailored for recall-safe small object detection. HESOD introduces a dual-evidence priority head that fuses semantic objectness with channel-pooled spectral saliency at negligible $\mathcal{O}(1)$ compute overhead, recovering weak semantic targets. Furthermore, we formulate an object-level soft-coverage loss that directly maximizes joint instance coverage probability, fundamentally preventing premature false negatives. Paired with a lightweight inverted residual decoupled head and scale-aware Wasserstein regression, HESOD achieves +2.7\,pp mAP and +5.5\,pp total recall gains on UAVDT, and improves mAP by +1.9\,pp on SeaPerson with 27.6\% fewer parameters while sustaining real-time throughput at 77.1 FPS.
 \end{abstract}
 
 \begin{keywords}
@@ -23,8 +23,7 @@ Small object detection, selective computation, spectral saliency, coverage optim
 \input{sections/intro}
 \input{sections/related}
 \input{sections/method}
-\input{sections/setup}
-\input{sections/results}
+\input{sections/experiments}
 \input{sections/conclusion}
 
 \bibliographystyle{IEEEbib}

@@ -77,7 +77,17 @@ log "epochs=$EPOCHS img-size=$IMG_SIZE batch=$BATCH data=$DATA_YAML"
 ARMS="${ARMS:-}"
 
 run_arm() {
-  local run_name="$1" model_cfg="$2" selector_loss="$3" box_loss="${4:-upstream}"
+  # $5 is an optional per-arm batch-size override (falls back to the shared
+  # $BATCH otherwise) -- needed for spectral-only's SpectralOnlySegmenter
+  # (full-width, unpooled spectral branch), which OOMs at the shared
+  # batch=8/4 and only trains at batch=2 (HESOD-Experiment-Plan.md SS8);
+  # every other arm shares $BATCH. Added 2026-08-23 after
+  # seaperson_yolov5m_spectral_only_run2 OOM'd immediately (0/714, 6s in)
+  # re-running under a shared ARMS invocation that left $BATCH at its
+  # default 8 -- the original spectral-only run avoided this only because
+  # it was launched as its own separate `BATCH=2 bash run_seaperson.sh`
+  # invocation, not mixed into one ARMS call with batch=8 arms.
+  local run_name="$1" model_cfg="$2" selector_loss="$3" box_loss="${4:-upstream}" batch="${5:-$BATCH}"
 
   if [ -n "$ARMS" ]; then
     case ",$ARMS," in
@@ -108,13 +118,13 @@ run_arm() {
     log "FATAL: $run_name is incomplete ($done_epochs/$EPOCHS epochs) but $last_ckpt is missing"
     exit 1
   else
-    log "===== Training $run_name (selector_loss=$selector_loss, box_loss=$box_loss) ====="
+    log "===== Training $run_name (selector_loss=$selector_loss, box_loss=$box_loss, batch=$batch) ====="
     python train.py \
       --data "$DATA_YAML" \
       --cfg "$model_cfg" \
       --weights weights/pretrained/yolov5m.pt \
       --hyp "$HYP" \
-      --batch-size "$BATCH" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
+      --batch-size "$batch" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
       --selector-loss "$selector_loss" --box-loss "$box_loss" \
       --project "$RUN_ROOT/train" --name "$run_name" --exist-ok \
       2>&1 | tee "$results_dir/${run_name}_train.log"
@@ -139,7 +149,7 @@ run_arm() {
     log "Evaluating $run_name"
     python test.py \
       --data "$DATA_YAML" --weights "$ckpt" --task "$VAL_SPLIT" \
-      --batch-size "$BATCH" --img-size "$IMG_SIZE" --device "$GPU" --save-json --save-regions \
+      --batch-size "$batch" --img-size "$IMG_SIZE" --device "$GPU" --save-json --save-regions \
       --project "$RUN_ROOT/test" --name "$run_name" --exist-ok \
       2>&1 | tee "$results_dir/${run_name}_test.log"
 
@@ -178,9 +188,11 @@ run_arm "seaperson_yolov5m_baseline${SUFFIX}" \
 run_arm "seaperson_yolov5m_semantic_coverage${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m.yaml" coverage upstream
 
-# spectral-only: no semantic head contributes to the routing logit
+# spectral-only: no semantic head contributes to the routing logit. Forced
+# batch=2 override (5th arg) -- full-width unpooled SpectralBranch OOMs at
+# the shared batch=8 (see run_arm()'s own comment above).
 run_arm "seaperson_yolov5m_spectral_only${SUFFIX}" \
-  "models/cfg/esod/seaperson_yolov5m_spectral_only.yaml" coverage upstream
+  "models/cfg/esod/seaperson_yolov5m_spectral_only.yaml" coverage upstream 2
 
 # concat-only: channel-pooled concat evidence, CIoU box (no SABL)
 run_arm "seaperson_yolov5m_channel_pooled_concat${SUFFIX}" \
@@ -227,8 +239,16 @@ run_arm "seaperson_yolov5m_channel_pooled_concat_isphead${SUFFIX}" \
 run_arm "seaperson_yolov5m_channel_pooled_concat_isphead_run2${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_concat_isphead.yaml" coverage upstream
 
+# channel-pooled-spectral-only: NEW arm (2026-08-23, not a rerun), isolates
+# the capacity-vs-evidence-sufficiency confound in spectral-only's own
+# strong result -- see the yaml's own header comment for the full
+# reasoning. Should run at the shared batch=8 (pooled, unlike spectral-only
+# itself), not spectral-only's forced batch=2.
+run_arm "seaperson_yolov5m_channel_pooled_spectral_only${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_spectral_only.yaml" coverage upstream
+
 run_arm "seaperson_yolov5m_spectral_only_run2${SUFFIX}" \
-  "models/cfg/esod/seaperson_yolov5m_spectral_only.yaml" coverage upstream
+  "models/cfg/esod/seaperson_yolov5m_spectral_only.yaml" coverage upstream 2
 
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/seaperson_yolov5m_baseline${SUFFIX}/"
