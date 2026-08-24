@@ -65,11 +65,12 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 
 | Method | mAP@.5 | mAP@.5:.95 | Total Recall | Car Recall | Truck Recall | Bus Recall | Params (M) |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **ESOD Baseline (R0)** | 0.344 | 0.171 | 84.67% | 84.87% | 84.41% | 75.20% | 35.78 |
-| **HESOD (Ours)** | **0.371** | **0.195** | **90.17%** | **90.56%** | **84.88%** | **76.28%** | **25.92** |
-| **Improvement ($\Delta$)** | **+2.7 pp** | **+2.4 pp** | **+5.5 pp** | **+5.69 pp** | **+0.47 pp** | **+1.08 pp** | **-27.6%** |
+| **ESOD Baseline (R0)** | 0.344 | 0.171 | 84.67% | 84.87% | 84.41% | 75.20% | 35.87$^\dagger$ |
+| **HESOD (Ours)** | **0.371** | **0.195** | **90.17%** | **90.56%** | **84.88%** | **76.28%** | **26.01**$^\dagger$ |
+| **Improvement ($\Delta$)** | **+2.7 pp** | **+2.4 pp** | **+5.5 pp** | **+5.69 pp** | **+0.47 pp** | **+1.08 pp** | **-27.5%** |
 
-- **Key Takeaway**: HESOD delivers a substantial **+2.7 pp mAP@.5** and **+5.5 pp total recall** surge across urban traffic categories while simultaneously shedding **27.6% of network parameters**.
+- **Key Takeaway**: HESOD delivers a substantial **+2.7 pp mAP@.5** and **+5.5 pp total recall** surge across urban traffic categories while simultaneously shedding **27.5% of network parameters**.
+- $^\dagger$ UAVDT Params are an architecture-only estimate (unfused graph, not yet re-measured through `test.py --task measure`'s deployed/post-`.fuse()` count the way every SeaPerson row below is) -- treat as approximate pending that re-run.
 
 ---
 
@@ -82,7 +83,7 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | Method | Type | mAP@.5 | mAP@.5:.95 | Params (M) | GFLOPs | FPS |
 |---|---|:---:|:---:|:---:|:---:|:---:|
 | **Faster R-CNN** (ResNet-50-FPN) | Dense Two-Stage | 0.551 | 0.246 | 43.26 | 1546.8 | 23.1 |
-| **RetinaNet** (ResNet-50-FPN) | Dense One-Stage | *[Queued]* | *[Queued]* | 34.01 | *[Queued]* | *[Queued]* |
+| **RetinaNet** (ResNet-50-FPN) | Dense One-Stage | *[Queued]* | *[Queued]* | 36.35 | *[Queued]* | *[Queued]* |
 | **ESOD Baseline (R0)** | Selective Single-Evidence | 0.750 | 0.320 | 35.78 | **202.4** | **85.7** |
 | **HESOD (Ours, Dual+ISPP)** | Selective Dual-Evidence | **0.771** | **0.328** | **25.92** | 217.6 | 77.3 |
 | **HESOD (Ours, Full +SABL)** | Selective Dual-Evidence | 0.769 | 0.323 | **25.92** | 209.1 | 77.1 |
@@ -97,12 +98,15 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | Arm | Module Configuration | Selector Loss | Box Loss | Head | mAP@.5 | mAP@.5:.95 | BPR | GFLOPs | FPS |
 |---|---|---|---|---|:---:|:---:|:---:|:---:|:---:|
 | **(1)** | **ESOD Baseline (R0)** | Upstream BCE | CIoU | Coupled | 0.750 | 0.320 | 0.947 | **202.4** | **85.7** |
-| **(2)** | **Semantic-only$^*$** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.769 | 0.325 | 0.991 | 266.8 | 73.5 |
+| **(2)** | **Semantic-only$^*$** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.769 | 0.325 | \underline{0.991} | 266.8 | 73.5 |
 | **(3)** | **Spectral-only$^*$** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.770 | 0.327 | **0.992** | 267.4 | 71.7 |
-| **(4)** | **Dual-Concat** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | **0.772** | 0.326 | 0.986 | 281.2 | 69.8 |
-| **(5)** | **Dual+SABL** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | Coupled | 0.771 | 0.323 | 0.990 | 263.7 | 73.4 |
-| **(6)** | **Dual+ISPP** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | ISPPHead | 0.771 | **0.328** | 0.988 | 217.6 | 77.3 |
-| **(7)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.769 | 0.323 | 0.990 | 209.1 | 77.1 |
+| **(4)** | **Spectral-only (Pooled)** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.767 | 0.324 | 0.988 | 263.4 | 72.7 |
+| **(5)** | **Dual-Concat** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | **0.772** | 0.326 | 0.986 | 281.2 | 69.8 |
+| **(6)** | **Dual+SABL** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | Coupled | 0.771 | 0.323 | 0.990 | 263.7 | 73.4 |
+| **(7)** | **Dual+ISPP** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | ISPPHead | 0.771 | **0.328** | 0.988 | 217.6 | \underline{77.3} |
+| **(8)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.769 | 0.323 | 0.990 | \underline{209.1} | 77.1 |
+
+- **(4)** channel-pools the spectral branch the same way arms (5)-(8) do, isolating whether (3)'s strong result came from spectral evidence itself or from its extra (unpooled) capacity -- trains at the shared batch=8, unlike (3)'s forced batch=2 for the full-width branch. Params 35.79M vs (3)'s 35.94M.
 
 ---
 
@@ -113,10 +117,11 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | **(1) ESOD (R0)** | 74.03% (61,014) | 86.78% (151,707) | 94.74% (40,725) | 79.35% (123) | 84.42% (253,569) |
 | **(2) Semantic-only$^*$** | 75.49% (62,217) | 91.57% (160,087) | 95.71% (41,141) | 81.94% (127) | 87.75% (263,572) |
 | **(3) Spectral-only$^*$** | 75.23% (62,006) | **91.69% (160,286)** | **95.89% (41,220)** | 86.45% (134) | 87.77% (263,646) |
-| **(4) Dual-Concat** | 76.00% (62,637) | 91.50% (159,962) | 95.68% (41,131) | 80.00% (124) | 87.84% (263,854) |
-| **(5) Dual+SABL** | 76.67% (63,193) | 91.49% (159,935) | 94.77% (40,740) | 80.65% (125) | **87.89% (263,993)** |
-| **(6) Dual+ISPP** | 75.86% (62,521) | 91.25% (159,516) | 95.85% (41,204) | **87.10% (135)** | 87.68% (263,376) |
-| **(7) HESOD (Full)** | **77.19% (63,619)** | 90.70% (158,562) | 94.89% (40,792) | 83.23% (129) | 87.59% (263,102) |
+| **(4) Spectral-only (Pooled)** | 76.13% (62,748) | 91.36% (159,705) | 95.50% (41,051) | **87.10% (135)** | 87.77% (263,639) |
+| **(5) Dual-Concat** | 76.00% (62,637) | 91.50% (159,962) | 95.68% (41,131) | 80.00% (124) | 87.84% (263,854) |
+| **(6) Dual+SABL** | \underline{76.67\%} (63,193) | 91.49% (159,935) | 94.77% (40,740) | 80.65% (125) | **87.89% (263,993)** |
+| **(7) Dual+ISPP** | 75.86% (62,521) | 91.25% (159,516) | \underline{95.85\%} (41,204) | **87.10% (135)** | 87.68% (263,376) |
+| **(8) HESOD (Full)** | **77.19% (63,619)** | 90.70% (158,562) | 94.89% (40,792) | 83.23% (129) | 87.59% (263,102) |
 
 ---
 
@@ -135,7 +140,8 @@ To maintain rigorous scientific standards, all negative exploratory results are 
 
 1. **Gated Evidence Fusion (Dual-Gated)**: Replacing fixed $1\times 1$ concatenation with a learned sigmoid gate (`ChannelPooledDualEvidenceSegmenter`) caused the network to suppress candidate evidence, degrading mAP@.5 to **0.765** and total recall to **87.26%** (worst among all coverage-loss arms). Fixed unconditional fusion is strictly superior.
 2. **SeaDronesSeeV2**: Evaluated under YOLOv5m at $1536\times 1536$. The dataset was dropped because Very Tiny targets represent merely **1.9%** of annotations; baseline R0 already achieved **95.76% total recall** and **0.894 mAP@.5**, leaving no headroom for spatial routing benefits.
-3. **Pest24**: Evaluated on dense agricultural insect imagery. Dropped because objects are tightly packed across low-resolution inputs, where dense uniform convolutions outperform patch routing.
+
+Pest24 (dense agricultural insect imagery, same "no headroom for routing" class of finding) belongs to the separate `HESOD-Agri-Experiment-Plan.md` project, not this document's own dataset scope (VisDrone/TinyPerson/UAVDT/SeaPerson/SeaDronesSeeV2) -- not reproduced here.
 
 ---
 
