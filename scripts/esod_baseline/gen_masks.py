@@ -63,7 +63,9 @@ def generate(
 ) -> None:
     sys.path.insert(0, str(esod_repo))
     cwd = os.getcwd()
-    os.chdir(esod_repo)  # data_prepare.py resolves `utils.general` relative to repo root
+    os.chdir(
+        esod_repo
+    )  # data_prepare.py resolves `utils.general` relative to repo root
     try:
         # HESOD local patch: same PyTorch 2.6+ weights_only=True default issue
         # documented in ESOD-Baseline-Patches.md, hit here because data_prepare.py
@@ -99,7 +101,9 @@ def generate(
             print(f"[skip] {img_dir} does not exist")
             continue
         if not lbl_dir.is_dir():
-            print(f"[skip] {lbl_dir} does not exist (labels required to generate masks)")
+            print(
+                f"[skip] {lbl_dir} does not exist (labels required to generate masks)"
+            )
             continue
 
         images = sorted(p for p in img_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS)
@@ -158,24 +162,48 @@ def verify(dataset_root: Path, splits: list[str]) -> bool:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--esod-repo", required=True, type=Path, help="Path to the official alibaba/esod checkout")
-    ap.add_argument("--dataset-root", required=True, type=Path, help="Dataset root with images/<split>, labels/<split>")
+    ap.add_argument(
+        "--esod-repo",
+        required=True,
+        type=Path,
+        help="Path to the official alibaba/esod checkout",
+    )
+    ap.add_argument(
+        "--dataset-root",
+        required=True,
+        type=Path,
+        help="Dataset root with images/<split>, labels/<split>",
+    )
     ap.add_argument("--splits", nargs="+", default=["train", "val"])
-    ap.add_argument("--cls-ratio", action="store_true", help="Per-class weight boosting (VisDrone only, matches prepare_visdrone())")
+    ap.add_argument(
+        "--cls-ratio",
+        action="store_true",
+        help="Per-class weight boosting (VisDrone only, matches prepare_visdrone())",
+    )
     ap.add_argument(
         "--mask-mode",
         choices=("gaussian", "released-hybrid"),
         default="gaussian",
         help="Explicit pseudo-mask implementation; never infer the protocol from installed packages",
     )
-    ap.add_argument("--overwrite", action="store_true", help="Regenerate masks even if the .npy already exists")
-    ap.add_argument("--verify-only", action="store_true", help="Skip generation, only check for missing masks")
+    ap.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Regenerate masks even if the .npy already exists",
+    )
+    ap.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Skip generation, only check for missing masks",
+    )
     args = ap.parse_args()
 
     esod_repo = args.esod_repo.resolve()
     dataset_root = args.dataset_root.resolve()
     if not (esod_repo / "scripts" / "data_prepare.py").is_file():
-        raise SystemExit(f"--esod-repo does not look like the official ESOD checkout: {esod_repo}")
+        raise SystemExit(
+            f"--esod-repo does not look like the official ESOD checkout: {esod_repo}"
+        )
 
     if not args.verify_only:
         generate(

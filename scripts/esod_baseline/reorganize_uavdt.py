@@ -54,7 +54,9 @@ def _flat_name(img_path: Path) -> str:
     return f"{img_path.parent.name}_{img_path.name}"
 
 
-def reorganize(raw_root: Path, out_root: Path, split: str, split_file_name: str) -> list[Path]:
+def reorganize(
+    raw_root: Path, out_root: Path, split: str, split_file_name: str
+) -> list[Path]:
     split_file = raw_root / "split" / split_file_name
     if not split_file.is_file():
         raise SystemExit(f"missing {split_file} -- did prepare_uavdt() run?")
@@ -98,7 +100,9 @@ def reorganize(raw_root: Path, out_root: Path, split: str, split_file_name: str)
             _link(mask_path, mask_out / Path(flat).with_suffix(".npy").name)
             n_masks += 1
 
-    print(f"[{split}] {n_images} image/label pairs, {n_masks} masks -> {out_root}/*/{split}")
+    print(
+        f"[{split}] {n_images} image/label pairs, {n_masks} masks -> {out_root}/*/{split}"
+    )
     if n_masks != n_images:
         print(
             f"[{split}] NOTE: {n_images - n_masks} image(s) have no mask yet "
@@ -109,9 +113,21 @@ def reorganize(raw_root: Path, out_root: Path, split: str, split_file_name: str)
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--raw-root", required=True, type=Path, help="dir containing UAV-benchmark-M/, M_attr/, split/")
-    ap.add_argument("--out-root", required=True, type=Path, help="target dataset root (images/labels/masks per split)")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--raw-root",
+        required=True,
+        type=Path,
+        help="dir containing UAV-benchmark-M/, M_attr/, split/",
+    )
+    ap.add_argument(
+        "--out-root",
+        required=True,
+        type=Path,
+        help="target dataset root (images/labels/masks per split)",
+    )
     args = ap.parse_args()
 
     raw_root = args.raw_root.resolve()
@@ -129,7 +145,9 @@ def main() -> None:
     (split_dir / "train_ds.txt").write_text(
         "".join(str(p) + "\n" for p in train_ds), encoding="utf-8"
     )
-    print(f"[train_ds] {len(train_ds)} images (every 10th of {len(flat_by_split['train'])}) -> {split_dir}/train_ds.txt")
+    print(
+        f"[train_ds] {len(train_ds)} images (every 10th of {len(flat_by_split['train'])}) -> {split_dir}/train_ds.txt"
+    )
 
 
 if __name__ == "__main__":

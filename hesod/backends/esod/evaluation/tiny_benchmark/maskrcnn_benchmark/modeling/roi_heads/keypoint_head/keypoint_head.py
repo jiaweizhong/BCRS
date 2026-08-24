@@ -12,7 +12,8 @@ class ROIKeypointHead(torch.nn.Module):
         self.cfg = cfg.clone()
         self.feature_extractor = make_roi_keypoint_feature_extractor(cfg, in_channels)
         self.predictor = make_roi_keypoint_predictor(
-            cfg, self.feature_extractor.out_channels)
+            cfg, self.feature_extractor.out_channels
+        )
         self.post_processor = make_roi_keypoint_post_processor(cfg)
         self.loss_evaluator = make_roi_keypoint_loss_evaluator(cfg)
 

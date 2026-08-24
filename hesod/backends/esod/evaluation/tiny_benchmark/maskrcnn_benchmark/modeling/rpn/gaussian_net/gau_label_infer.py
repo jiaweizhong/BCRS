@@ -9,21 +9,22 @@ def generate_score_map(image_size, boxes, beta, sigma, step=1):
 
     X = torch.arange(0, w).float()
     Y = torch.arange(0, h).float()
-    Y, X = torch.meshgrid(Y, X)   # X, Y shape is (len(arg1), len(arg2), ...len(arg_n))
+    Y, X = torch.meshgrid(Y, X)  # X, Y shape is (len(arg1), len(arg2), ...len(arg_n))
 
-    X, Y = X.reshape((-1, )), Y.reshape((-1,))
+    X, Y = X.reshape((-1,)), Y.reshape((-1,))
 
     x1, y1, W, H = boxes.transpose(0, 1)
-    cx = x1 + (W-1) / 2
-    cy = y1 + (H-1) / 2
-    D = ((X[:, None] - cx[None]) / (sigma * W[None, :])) ** beta + \
-        ((Y[:, None] - cy[None]) / (sigma * H[None, :])) ** beta
+    cx = x1 + (W - 1) / 2
+    cy = y1 + (H - 1) / 2
+    D = ((X[:, None] - cx[None]) / (sigma * W[None, :])) ** beta + (
+        (Y[:, None] - cy[None]) / (sigma * H[None, :])
+    ) ** beta
     Q = torch.exp(-D)
 
     label = Q.max(dim=1)[0]
     score_map = label.reshape((1, 1, h, w))
 
-    return score_map[:, :, ::step, :: step]
+    return score_map[:, :, ::step, ::step]
 
 
 def add_noise(I, std=0.1):
@@ -39,7 +40,7 @@ def add_boxes(ax, boxes):
 
 def three_points_solve1(li, lj, lk, a, b, eps=1e-6):
     """
-        (1) + (2)
+    (1) + (2)
     """
     lkj, lji = lk - lj, lj - li
     w2 = (a + b) / (lkj / b - lji / a + eps)
@@ -79,16 +80,16 @@ def three_points_solve(li, lj, lk, a, b, return_w2=False, eps=1e-6, solver=1):
         return w2, dx
     else:
         w2 = w2.clamp(0)
-        w = w2 ** 0.5
+        w = w2**0.5
         return w, dx
 
 
 def cross_points_set_solve_2d(L, points, a, b, step=1):
     # points_set: (N, 2)
     """
-                        L[yj-a, xj]
-           L[yj, xj-a]  L[yj, xj]   L[yj, xj + b]
-                        L[yj+b, xj]
+                 L[yj-a, xj]
+    L[yj, xj-a]  L[yj, xj]   L[yj, xj + b]
+                 L[yj+b, xj]
     """
     xj, yj = points[:, 0], points[:, 1]
     idx = torch.arange(len(points))
@@ -109,17 +110,19 @@ def cross_points_set_solve_2d(L, points, a, b, step=1):
 
     # x1 + x2 = 2*x1 + w - 1 = 2*cx
     # cx = x1 + (w-1)/2
-    x1 = cx - (w-1/step) / 2     # notice here
-    y1 = cy - (h-1/step) / 2
-    return torch.stack([x1 * step, y1 * step, w * step, h * step, lxj], dim=1)  # lxj == lyj
+    x1 = cx - (w - 1 / step) / 2  # notice here
+    y1 = cy - (h - 1 / step) / 2
+    return torch.stack(
+        [x1 * step, y1 * step, w * step, h * step, lxj], dim=1
+    )  # lxj == lyj
 
 
 def cross_points_set_solve_3d(L, points, a, b, step=1, solver=1):
     # points_set: (N, 3), # (c, y, x)
     """
-                             L[cj, yj-a, xj]
-           L[cj, yj, xj-a]   L[cj, yj, xj]    L[cj, yj, xj + b]
-                             L[cj, yj+b, xj]
+                      L[cj, yj-a, xj]
+    L[cj, yj, xj-a]   L[cj, yj, xj]    L[cj, yj, xj + b]
+                      L[cj, yj+b, xj]
     """
     cj, yj, xj = points[:, 0], points[:, 1], points[:, 2]
     idx = torch.arange(len(points))
@@ -140,9 +143,11 @@ def cross_points_set_solve_3d(L, points, a, b, step=1, solver=1):
 
     # x1 + x2 = 2*x1 + w - 1 = 2*cx
     # cx = x1 + (w-1)/2
-    x1 = cx - (w-1/step) / 2     # notice here
-    y1 = cy - (h-1/step) / 2
-    return torch.stack([x1 * step, y1 * step, w * step, h * step, lxj], dim=1)  # lxj == lyj
+    x1 = cx - (w - 1 / step) / 2  # notice here
+    y1 = cy - (h - 1 / step) / 2
+    return torch.stack(
+        [x1 * step, y1 * step, w * step, h * step, lxj], dim=1
+    )  # lxj == lyj
     # return torch.stack([x1, y1, w, h, lxj], dim=1)  # lxj == lyj
 
 
@@ -203,7 +208,7 @@ if __name__ == "__main__":
 
     step = 4
     # generate fake score map
-    gts1 = torch.Tensor([[200, 300, 101, 91]]).float()     # boxes: (N, 4), (x1 y1, w, h)
+    gts1 = torch.Tensor([[200, 300, 101, 91]]).float()  # boxes: (N, 4), (x1 y1, w, h)
     S1 = generate_score_map((800, 1333), gts1, beta, sigma, step=step)
     gts2 = torch.Tensor([[300, 200, 51, 67]]).float()
     S2 = generate_score_map((800, 1333), gts2, beta, sigma, step=step)
@@ -224,7 +229,4 @@ if __name__ == "__main__":
     points[:, 2] += x1[points[:, 0]].long()
     points[:, [1, 2]] /= step
     boxes = cross_points_set_solve_3d(L[0], points, 1, 1, step=step)
-    print(torch.cat([
-        boxes[:, :4] - gts[points[:, 0]],
-        boxes[:, -1:]
-    ], dim=1))
+    print(torch.cat([boxes[:, :4] - gts[points[:, 0]], boxes[:, -1:]], dim=1))

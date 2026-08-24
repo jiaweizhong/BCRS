@@ -7,7 +7,6 @@ from maskrcnn_benchmark.modeling import registry
 from maskrcnn_benchmark.modeling.poolers import Pooler
 from maskrcnn_benchmark.modeling.make_layers import make_conv3x3
 
-
 registry.ROI_MASK_FEATURE_EXTRACTORS.register(
     "ResNet50Conv5ROIFeatureExtractor", ResNet50Conv5ROIFeatureExtractor
 )
@@ -48,8 +47,7 @@ class MaskRCNNFPNFeatureExtractor(nn.Module):
         for layer_idx, layer_features in enumerate(layers, 1):
             layer_name = "mask_fcn{}".format(layer_idx)
             module = make_conv3x3(
-                next_feature, layer_features,
-                dilation=dilation, stride=1, use_gn=use_gn
+                next_feature, layer_features, dilation=dilation, stride=1, use_gn=use_gn
             )
             self.add_module(layer_name, module)
             next_feature = layer_features

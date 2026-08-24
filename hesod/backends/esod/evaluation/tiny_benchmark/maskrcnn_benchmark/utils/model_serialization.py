@@ -82,7 +82,13 @@ def load_state_dict(model, loaded_state_dict):
         model.load_state_dict(model_state_dict)
     except RuntimeError as r:
         import sys
-        print("RuntimeError in {}".format('maskrcnn_benchmark/utils/model_serialization.py:line 81'), file=sys.stderr)
+
+        print(
+            "RuntimeError in {}".format(
+                "maskrcnn_benchmark/utils/model_serialization.py:line 81"
+            ),
+            file=sys.stderr,
+        )
         print(r, file=sys.stderr)
         # raise r
     ##################################################################################################################

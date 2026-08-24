@@ -26,7 +26,6 @@ from pathlib import Path, PurePosixPath
 import cv2
 import numpy as np
 
-
 SPLITS = {
     "train": {
         "archive": "train.tar.gz",
@@ -95,7 +94,10 @@ def erase_regions(image: np.ndarray, annotations: list[dict]) -> tuple[np.ndarra
     erased = 0
 
     for annotation in annotations:
-        if not any(bool(annotation.get(flag, False)) for flag in ("ignore", "uncertain", "logo")):
+        if not any(
+            bool(annotation.get(flag, False))
+            for flag in ("ignore", "uncertain", "logo")
+        ):
             continue
         x, y, box_width, box_height = map(float, annotation["bbox"])
         x1 = max(0, min(width, math.floor(x)))
@@ -141,14 +143,19 @@ def prepare_split(root: Path, split: str) -> dict:
     for image in target["images"]:
         name = safe_relative_file_name(image["file_name"]).as_posix()
         if name not in name_to_id:
-            raise ValueError(f"{target_annotation} references image absent from {source_annotation}: {name}")
+            raise ValueError(
+                f"{target_annotation} references image absent from {source_annotation}: {name}"
+            )
         target_names.append(name)
     if len(target_names) != len(set(target_names)):
         raise ValueError(f"duplicate target image names in {target_annotation}")
 
     protocol_regions_total = sum(
         sum(
-            any(bool(annotation.get(flag, False)) for flag in ("ignore", "uncertain", "logo"))
+            any(
+                bool(annotation.get(flag, False))
+                for flag in ("ignore", "uncertain", "logo")
+            )
             for annotation in annotations[name_to_id[name]]
         )
         for name in target_names
@@ -157,7 +164,11 @@ def prepare_split(root: Path, split: str) -> dict:
     output_root.mkdir(parents=True, exist_ok=True)
     written = skipped = erased_regions_count = 0
     with tarfile.open(archive_path, "r:gz") as archive:
-        members = {member.name.lstrip("./"): member for member in archive.getmembers() if member.isfile()}
+        members = {
+            member.name.lstrip("./"): member
+            for member in archive.getmembers()
+            if member.isfile()
+        }
         for index, name in enumerate(target_names, 1):
             archive_name = f"{split}/{name}"
             member = members.get(archive_name)
@@ -173,7 +184,9 @@ def prepare_split(root: Path, split: str) -> dict:
             if source_file is None:
                 raise RuntimeError(f"could not read {archive_name} from {archive_path}")
             payload = source_file.read()
-            image = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
+            image = cv2.imdecode(
+                np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR
+            )
             if image is None:
                 raise RuntimeError(f"could not decode {archive_name}")
 
@@ -189,9 +202,14 @@ def prepare_split(root: Path, split: str) -> dict:
             if index % 50 == 0 or index == len(target_names):
                 print(f"[{split}] {index}/{len(target_names)} images")
 
-    present = sum((output_root.joinpath(*PurePosixPath(name).parts)).is_file() for name in target_names)
+    present = sum(
+        (output_root.joinpath(*PurePosixPath(name).parts)).is_file()
+        for name in target_names
+    )
     if present != len(target_names):
-        raise RuntimeError(f"{split}: only {present}/{len(target_names)} target images are present")
+        raise RuntimeError(
+            f"{split}: only {present}/{len(target_names)} target images are present"
+        )
 
     return {
         "images": len(target_names),
@@ -231,7 +249,9 @@ def main() -> None:
         },
         "splits": stats,
     }
-    manifest_path = root / "erase_with_uncertain_dataset" / "tinyperson_erasure_manifest.json"
+    manifest_path = (
+        root / "erase_with_uncertain_dataset" / "tinyperson_erasure_manifest.json"
+    )
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {manifest_path}")
 

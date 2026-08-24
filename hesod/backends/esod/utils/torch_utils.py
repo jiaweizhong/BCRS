@@ -49,43 +49,55 @@ def init_torch_seeds(seed=0):
 def date_modified(path=__file__):
     # return human-readable file modification date, i.e. '2021-3-26'
     t = datetime.datetime.fromtimestamp(Path(path).stat().st_mtime)
-    return f'{t.year}-{t.month}-{t.day}'
+    return f"{t.year}-{t.month}-{t.day}"
 
 
 def git_describe(path=Path(__file__).parent):  # path must be a directory
     # return human-readable git description, i.e. v5.0-5-g3e25f1e https://git-scm.com/docs/git-describe
-    s = f'git -C {path} describe --tags --long --always'
+    s = f"git -C {path} describe --tags --long --always"
     try:
-        return subprocess.check_output(s, shell=True, stderr=subprocess.STDOUT).decode()[:-1]
+        return subprocess.check_output(
+            s, shell=True, stderr=subprocess.STDOUT
+        ).decode()[:-1]
     except subprocess.CalledProcessError as e:
-        return ''  # not a git repository
+        return ""  # not a git repository
 
 
-def select_device(device='', batch_size=None):
+def select_device(device="", batch_size=None):
     # device = 'cpu' or '0' or '0,1,2,3'
-    s = f'YOLOv5 🚀 {git_describe() or date_modified()} torch {torch.__version__} '  # string
-    cpu = device.lower() == 'cpu'
+    s = f"YOLOv5 🚀 {git_describe() or date_modified()} torch {torch.__version__} "  # string
+    cpu = device.lower() == "cpu"
     if cpu:
-        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # force torch.cuda.is_available() = False
+        os.environ["CUDA_VISIBLE_DEVICES"] = (
+            "-1"  # force torch.cuda.is_available() = False
+        )
     elif device:  # non-cpu device requested
-        os.environ['CUDA_VISIBLE_DEVICES'] = device  # set environment variable
-        assert torch.cuda.is_available(), f'CUDA unavailable, invalid device {device} requested'  # check availability
+        os.environ["CUDA_VISIBLE_DEVICES"] = device  # set environment variable
+        assert (
+            torch.cuda.is_available()
+        ), f"CUDA unavailable, invalid device {device} requested"  # check availability
 
     cuda = not cpu and torch.cuda.is_available()
     if cuda:
-        devices = device.split(',') if device else range(torch.cuda.device_count())  # i.e. 0,1,6,7
+        devices = (
+            device.split(",") if device else range(torch.cuda.device_count())
+        )  # i.e. 0,1,6,7
         n = len(devices)  # device count
         if n > 1 and batch_size:  # check batch_size is divisible by device_count
-            assert batch_size % n == 0, f'batch-size {batch_size} not multiple of GPU count {n}'
-        space = ' ' * len(s)
+            assert (
+                batch_size % n == 0
+            ), f"batch-size {batch_size} not multiple of GPU count {n}"
+        space = " " * len(s)
         for i, d in enumerate(devices):
             p = torch.cuda.get_device_properties(i)
             s += f"{'' if i == 0 else space}CUDA:{d} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
     else:
-        s += 'CPU\n'
+        s += "CPU\n"
 
-    logger.info(s.encode().decode('ascii', 'ignore') if platform.system() == 'Windows' else s)  # emoji-safe
-    return torch.device('cuda:0' if cuda else 'cpu')
+    logger.info(
+        s.encode().decode("ascii", "ignore") if platform.system() == "Windows" else s
+    )  # emoji-safe
+    return torch.device("cuda:0" if cuda else "cpu")
 
 
 def time_synchronized():
@@ -102,17 +114,29 @@ def profile(x, ops, n=100, device=None):
     #     m2 = nn.SiLU()
     #     profile(x, [m1, m2], n=100)  # profile speed over 100 iterations
 
-    device = device or torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = device or torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     x = x.to(device)
     x.requires_grad = True
-    print(torch.__version__, device.type, torch.cuda.get_device_properties(0) if device.type == 'cuda' else '')
-    print(f"\n{'Params':>12s}{'GFLOPs':>12s}{'forward (ms)':>16s}{'backward (ms)':>16s}{'input':>24s}{'output':>24s}")
+    print(
+        torch.__version__,
+        device.type,
+        torch.cuda.get_device_properties(0) if device.type == "cuda" else "",
+    )
+    print(
+        f"\n{'Params':>12s}{'GFLOPs':>12s}{'forward (ms)':>16s}{'backward (ms)':>16s}{'input':>24s}{'output':>24s}"
+    )
     for m in ops if isinstance(ops, list) else [ops]:
-        m = m.to(device) if hasattr(m, 'to') else m  # device
-        m = m.half() if hasattr(m, 'half') and isinstance(x, torch.Tensor) and x.dtype is torch.float16 else m  # type
-        dtf, dtb, t = 0., 0., [0., 0., 0.]  # dt forward, backward
+        m = m.to(device) if hasattr(m, "to") else m  # device
+        m = (
+            m.half()
+            if hasattr(m, "half")
+            and isinstance(x, torch.Tensor)
+            and x.dtype is torch.float16
+            else m
+        )  # type
+        dtf, dtb, t = 0.0, 0.0, [0.0, 0.0, 0.0]  # dt forward, backward
         try:
-            flops = thop.profile(m, inputs=(x,), verbose=False)[0] / 1E9 * 2  # GFLOPs
+            flops = thop.profile(m, inputs=(x,), verbose=False)[0] / 1e9 * 2  # GFLOPs
         except:
             flops = 0
 
@@ -124,19 +148,28 @@ def profile(x, ops, n=100, device=None):
                 _ = y.sum().backward()
                 t[2] = time_synchronized()
             except:  # no backward method
-                t[2] = float('nan')
+                t[2] = float("nan")
             dtf += (t[1] - t[0]) * 1000 / n  # ms per op forward
             dtb += (t[2] - t[1]) * 1000 / n  # ms per op backward
 
-        s_in = tuple(x.shape) if isinstance(x, torch.Tensor) else 'list'
-        s_out = tuple(y.shape) if isinstance(y, torch.Tensor) else 'list'
-        p = sum(list(x.numel() for x in m.parameters())) if isinstance(m, nn.Module) else 0  # parameters
-        print(f'{p:12}{flops:12.4g}{dtf:16.4g}{dtb:16.4g}{str(s_in):>24s}{str(s_out):>24s}')
+        s_in = tuple(x.shape) if isinstance(x, torch.Tensor) else "list"
+        s_out = tuple(y.shape) if isinstance(y, torch.Tensor) else "list"
+        p = (
+            sum(list(x.numel() for x in m.parameters()))
+            if isinstance(m, nn.Module)
+            else 0
+        )  # parameters
+        print(
+            f"{p:12}{flops:12.4g}{dtf:16.4g}{dtb:16.4g}{str(s_in):>24s}{str(s_out):>24s}"
+        )
 
 
 def is_parallel(model):
     # Returns True if model is of type DP or DDP
-    return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+    return type(model) in (
+        nn.parallel.DataParallel,
+        nn.parallel.DistributedDataParallel,
+    )
 
 
 def de_parallel(model):
@@ -144,16 +177,19 @@ def de_parallel(model):
     return model.module if is_parallel(model) else model
 
 
-def intersect_dicts(da, db, exclude=(), cfg_path:str=""):
+def intersect_dicts(da, db, exclude=(), cfg_path: str = ""):
     # Dictionary intersection of matching keys and shapes, omitting 'exclude' keys, using da values
-    
-    if 'esod' not in cfg_path.lower():
-        print(f'Unknown ESOD model type: {cfg_path}. Load pretrained weights directly.')
-        intersect_dict = {k: v for k, v in da.items() \
-                            if k in db and not any(x in k for x in exclude) and v.shape == db[k].shape}
+
+    if "esod" not in cfg_path.lower():
+        print(f"Unknown ESOD model type: {cfg_path}. Load pretrained weights directly.")
+        intersect_dict = {
+            k: v
+            for k, v in da.items()
+            if k in db and not any(x in k for x in exclude) and v.shape == db[k].shape
+        }
         return intersect_dict
     else:
-        print(f'Try to load pretrained weights for {cfg_path}.')
+        print(f"Try to load pretrained weights for {cfg_path}.")
 
     # load pretrained weights for ESOD models
     if "yolo" in cfg_path.lower():
@@ -165,21 +201,29 @@ def intersect_dicts(da, db, exclude=(), cfg_path:str=""):
     elif "gpvit" in cfg_path.lower():
         extra_start_layer, extra_num_layer = 1, 5
     else:
-        raise NotImplementedError(f"Loading from pretrained weights for {cfg_path} needs to be specified.")
-    
-    intersect_dict = {}        
+        raise NotImplementedError(
+            f"Loading from pretrained weights for {cfg_path} needs to be specified."
+        )
+
+    intersect_dict = {}
     for k, v in db.items():
         if any(x in k for x in exclude):
             continue
-        items = k.split('.')
+        items = k.split(".")
         layer_number = int(items[1])
         if extra_start_layer <= layer_number < extra_start_layer + extra_num_layer:
             continue
-        k_ = k if layer_number < extra_start_layer else '.'.join([items[0], str(layer_number - extra_num_layer), *items[2:]])
+        k_ = (
+            k
+            if layer_number < extra_start_layer
+            else ".".join([items[0], str(layer_number - extra_num_layer), *items[2:]])
+        )
         if k_ in da and v.shape == da[k_].shape:
             intersect_dict[k] = da[k_]
     if len(intersect_dict) / len(db) < 0.6:
-        warnings.warn(f'Only {len(intersect_dict)/len(db)} items are loaded from pretrained weights.')
+        warnings.warn(
+            f"Only {len(intersect_dict)/len(db)} items are loaded from pretrained weights."
+        )
 
     return intersect_dict
 
@@ -204,7 +248,7 @@ def find_modules(model, mclass=nn.Conv2d):
 
 def sparsity(model):
     # Return global model sparsity
-    a, b = 0., 0.
+    a, b = 0.0, 0.0
     for p in model.parameters():
         a += p.numel()
         b += (p == 0).sum()
@@ -214,24 +258,31 @@ def sparsity(model):
 def prune(model, amount=0.3):
     # Prune model to requested global sparsity
     import torch.nn.utils.prune as prune
-    print('Pruning model... ', end='')
+
+    print("Pruning model... ", end="")
     for name, m in model.named_modules():
         if isinstance(m, nn.Conv2d):
-            prune.l1_unstructured(m, name='weight', amount=amount)  # prune
-            prune.remove(m, 'weight')  # make permanent
-    print(' %.3g global sparsity' % sparsity(model))
+            prune.l1_unstructured(m, name="weight", amount=amount)  # prune
+            prune.remove(m, "weight")  # make permanent
+    print(" %.3g global sparsity" % sparsity(model))
 
 
 def fuse_conv_and_bn(conv, bn):
     # Fuse convolution and batchnorm layers https://tehnokv.com/posts/fusing-batchnorm-and-conv/
-    fusedconv = nn.Conv2d(conv.in_channels,
-                          conv.out_channels,
-                          kernel_size=conv.kernel_size,
-                          stride=conv.stride,
-                          dilation=conv.dilation,  # 可能对空洞卷积不适用，先注释掉
-                          padding=conv.padding,
-                          groups=conv.groups,
-                          bias=True).requires_grad_(False).to(conv.weight.device)
+    fusedconv = (
+        nn.Conv2d(
+            conv.in_channels,
+            conv.out_channels,
+            kernel_size=conv.kernel_size,
+            stride=conv.stride,
+            dilation=conv.dilation,  # 可能对空洞卷积不适用，先注释掉
+            padding=conv.padding,
+            groups=conv.groups,
+            bias=True,
+        )
+        .requires_grad_(False)
+        .to(conv.weight.device)
+    )
 
     # prepare filters
     w_conv = conv.weight.clone().view(conv.out_channels, -1)
@@ -239,8 +290,14 @@ def fuse_conv_and_bn(conv, bn):
     fusedconv.weight.copy_(torch.mm(w_bn, w_conv).view(fusedconv.weight.shape))
 
     # prepare spatial bias
-    b_conv = torch.zeros(conv.weight.size(0), device=conv.weight.device) if conv.bias is None else conv.bias
-    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+    b_conv = (
+        torch.zeros(conv.weight.size(0), device=conv.weight.device)
+        if conv.bias is None
+        else conv.bias
+    )
+    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(
+        torch.sqrt(bn.running_var + bn.eps)
+    )
     fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
 
     return fusedconv
@@ -249,32 +306,59 @@ def fuse_conv_and_bn(conv, bn):
 def model_info(model, verbose=False, img_size=640, inputs=None):
     # Model information. img_size may be int or list, i.e. img_size=640 or img_size=[640, 320]
     n_p = sum(x.numel() for x in model.parameters())  # number parameters
-    n_g = sum(x.numel() for x in model.parameters() if x.requires_grad)  # number gradients
+    n_g = sum(
+        x.numel() for x in model.parameters() if x.requires_grad
+    )  # number gradients
     if verbose:
-        print('%5s %40s %9s %12s %20s %10s %10s' % ('layer', 'name', 'gradient', 'parameters', 'shape', 'mu', 'sigma'))
+        print(
+            "%5s %40s %9s %12s %20s %10s %10s"
+            % ("layer", "name", "gradient", "parameters", "shape", "mu", "sigma")
+        )
         for i, (name, p) in enumerate(model.named_parameters()):
-            name = name.replace('module_list.', '')
-            print('%5g %40s %9s %12g %20s %10.3g %10.3g' %
-                  (i, name, p.requires_grad, p.numel(), list(p.shape), p.mean(), p.std()))
+            name = name.replace("module_list.", "")
+            print(
+                "%5g %40s %9s %12g %20s %10.3g %10.3g"
+                % (
+                    i,
+                    name,
+                    p.requires_grad,
+                    p.numel(),
+                    list(p.shape),
+                    p.mean(),
+                    p.std(),
+                )
+            )
 
     # try:  # FLOPs
     from thop import profile
+
     if inputs is None:
-        stride = max(int(model.stride.max()), 32) if hasattr(model, 'stride') else 32
-        img = torch.zeros((1, model.yaml.get('ch', 3), stride, stride), device=next(model.parameters()).device)  # input
-        flops = profile(deepcopy(model), inputs=(img,), verbose=False)[0] / 1E9 * 2  # stride GFLOPs
-        img_size = img_size if isinstance(img_size, list) else [img_size, img_size]  # expand if int/float
-        fs = ', %.1f GFLOPs' % (flops * img_size[0] / stride * img_size[1] / stride)  # 640x640 GFLOPs
+        stride = max(int(model.stride.max()), 32) if hasattr(model, "stride") else 32
+        img = torch.zeros(
+            (1, model.yaml.get("ch", 3), stride, stride),
+            device=next(model.parameters()).device,
+        )  # input
+        flops = (
+            profile(deepcopy(model), inputs=(img,), verbose=False)[0] / 1e9 * 2
+        )  # stride GFLOPs
+        img_size = (
+            img_size if isinstance(img_size, list) else [img_size, img_size]
+        )  # expand if int/float
+        fs = ", %.1f GFLOPs" % (
+            flops * img_size[0] / stride * img_size[1] / stride
+        )  # 640x640 GFLOPs
         # except (ImportError, Exception) as e:
         #     print(e)
         #     fs = ''
 
-        logger.info(f"Model Summary: {len(list(model.modules()))} layers, {n_p} parameters, {n_g} gradients{fs}")
+        logger.info(
+            f"Model Summary: {len(list(model.modules()))} layers, {n_p} parameters, {n_g} gradients{fs}"
+        )
     else:
-        return profile(model, inputs=inputs, verbose=False)[0] / 1E9 * 2
+        return profile(model, inputs=inputs, verbose=False)[0] / 1e9 * 2
 
 
-def load_classifier(name='resnet101', n=2):
+def load_classifier(name="resnet101", n=2):
     # Loads a pretrained model reshaped to n-class output
     model = torchvision.models.__dict__[name](pretrained=True)
 
@@ -300,23 +384,25 @@ def scale_img(img, ratio=1.0, same_shape=False, gs=32):  # img(16,3,256,416)
     else:
         h, w = img.shape[2:]
         s = (int(h * ratio), int(w * ratio))  # new size
-        img = F.interpolate(img, size=s, mode='bilinear', align_corners=False)  # resize
+        img = F.interpolate(img, size=s, mode="bilinear", align_corners=False)  # resize
         if not same_shape:  # pad/crop img
             h, w = [math.ceil(x * ratio / gs) * gs for x in (h, w)]
-        return F.pad(img, [0, w - s[1], 0, h - s[0]], value=0.447)  # value = imagenet mean
+        return F.pad(
+            img, [0, w - s[1], 0, h - s[0]], value=0.447
+        )  # value = imagenet mean
 
 
 def copy_attr(a, b, include=(), exclude=()):
     # Copy attributes from b to a, options to only include [...] and to exclude [...]
     for k, v in b.__dict__.items():
-        if (len(include) and k not in include) or k.startswith('_') or k in exclude:
+        if (len(include) and k not in include) or k.startswith("_") or k in exclude:
             continue
         else:
             setattr(a, k, v)
 
 
 class ModelEMA:
-    """ Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models
+    """Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models
     Keep a moving average of everything in the model state_dict (parameters and buffers).
     This is intended to allow functionality like
     https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
@@ -327,11 +413,15 @@ class ModelEMA:
 
     def __init__(self, model, decay=0.9999, updates=0):
         # Create EMA
-        self.ema = deepcopy(model.module if is_parallel(model) else model).eval()  # FP32 EMA
+        self.ema = deepcopy(
+            model.module if is_parallel(model) else model
+        ).eval()  # FP32 EMA
         # if next(model.parameters()).device.type != 'cpu':
         #     self.ema.half()  # FP16 EMA
         self.updates = updates  # number of EMA updates
-        self.decay = lambda x: decay * (1 - math.exp(-x / 2000))  # decay exponential ramp (to help early epochs)
+        self.decay = lambda x: decay * (
+            1 - math.exp(-x / 2000)
+        )  # decay exponential ramp (to help early epochs)
         for p in self.ema.parameters():
             p.requires_grad_(False)
 
@@ -341,12 +431,14 @@ class ModelEMA:
             self.updates += 1
             d = self.decay(self.updates)
 
-            msd = model.module.state_dict() if is_parallel(model) else model.state_dict()  # model state_dict
+            msd = (
+                model.module.state_dict() if is_parallel(model) else model.state_dict()
+            )  # model state_dict
             for k, v in self.ema.state_dict().items():
                 if v.dtype.is_floating_point:
                     v *= d
-                    v += (1. - d) * msd[k].detach()
+                    v += (1.0 - d) * msd[k].detach()
 
-    def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):
+    def update_attr(self, model, include=(), exclude=("process_group", "reducer")):
         # Update EMA attributes
         copy_attr(self.ema, model, include, exclude)

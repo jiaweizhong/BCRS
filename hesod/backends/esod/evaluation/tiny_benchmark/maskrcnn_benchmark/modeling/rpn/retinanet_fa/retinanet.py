@@ -8,8 +8,8 @@ from .box_coder import BoxCoder  # change by hui
 from .retinanet_loss import make_retinanet_loss_evaluator
 from .free_anchor_loss import make_free_anchor_loss_evaluator
 from ..anchor_generator import make_anchor_generator_retinanet
-from .retinanet_infer import  make_retinanet_postprocessor
-from .retinanet_detail_infer import  make_retinanet_detail_postprocessor
+from .retinanet_infer import make_retinanet_postprocessor
+from .retinanet_detail_infer import make_retinanet_detail_postprocessor
 
 
 class RetinaNetHead(torch.nn.Module):
@@ -26,53 +26,45 @@ class RetinaNetHead(torch.nn.Module):
         super(RetinaNetHead, self).__init__()
         # TODO: Implement the sigmoid version first.
         num_classes = cfg.MODEL.RETINANET.NUM_CLASSES - 1
-        num_anchors = len(cfg.MODEL.RETINANET.ASPECT_RATIOS) \
-                        * cfg.MODEL.RETINANET.SCALES_PER_OCTAVE
+        num_anchors = (
+            len(cfg.MODEL.RETINANET.ASPECT_RATIOS)
+            * cfg.MODEL.RETINANET.SCALES_PER_OCTAVE
+        )
 
         cls_tower = []
         bbox_tower = []
         for i in range(cfg.MODEL.RETINANET.NUM_CONVS):
             cls_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             if cfg.FREEANCHOR.USE_GN:
                 cls_tower.append(nn.GroupNorm(32, in_channels))
 
             cls_tower.append(nn.ReLU())
             bbox_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             if cfg.FREEANCHOR.USE_GN:
                 bbox_tower.append(nn.GroupNorm(32, in_channels))
 
             bbox_tower.append(nn.ReLU())
 
-        self.add_module('cls_tower', nn.Sequential(*cls_tower))
-        self.add_module('bbox_tower', nn.Sequential(*bbox_tower))
+        self.add_module("cls_tower", nn.Sequential(*cls_tower))
+        self.add_module("bbox_tower", nn.Sequential(*bbox_tower))
         self.cls_logits = nn.Conv2d(
-            in_channels, num_anchors * num_classes, kernel_size=3, stride=1,
-            padding=1
+            in_channels, num_anchors * num_classes, kernel_size=3, stride=1, padding=1
         )
         self.bbox_pred = nn.Conv2d(
-            in_channels,  num_anchors * 4, kernel_size=3, stride=1,
-            padding=1
+            in_channels, num_anchors * 4, kernel_size=3, stride=1, padding=1
         )
 
         # Initialization
-        for modules in [self.cls_tower, self.bbox_tower, self.cls_logits,
-                  self.bbox_pred]:
+        for modules in [
+            self.cls_tower,
+            self.bbox_tower,
+            self.cls_logits,
+            self.bbox_pred,
+        ]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):
                     torch.nn.init.normal_(l.weight, std=0.01)
@@ -108,21 +100,21 @@ class RetinaNetModule(torch.nn.Module):
 
         anchor_generator = make_anchor_generator_retinanet(cfg)
         head = RetinaNetHead(cfg, in_channels)
-        box_coder = BoxCoder(weights=(10., 10., 5., 5.))
+        box_coder = BoxCoder(weights=(10.0, 10.0, 5.0, 5.0))
 
         if self.cfg.FREEANCHOR.SPARSE_MASK_ON:
-            box_selector_test = make_retinanet_detail_postprocessor(
-                cfg, 100, box_coder)
+            box_selector_test = make_retinanet_detail_postprocessor(cfg, 100, box_coder)
         else:
-            box_selector_test = make_retinanet_postprocessor(
-                cfg, 100, box_coder)
+            box_selector_test = make_retinanet_postprocessor(cfg, 100, box_coder)
         box_selector_train = None
         if self.cfg.MODEL.MASK_ON or self.cfg.FREEANCHOR.SPARSE_MASK_ON:
-            box_selector_train = make_retinanet_postprocessor(
-                cfg, 100, box_coder)
+            box_selector_train = make_retinanet_postprocessor(cfg, 100, box_coder)
 
-        loss_evaluator = make_free_anchor_loss_evaluator(cfg, box_coder) if cfg.FREEANCHOR.FREEANCHOR_ON \
+        loss_evaluator = (
+            make_free_anchor_loss_evaluator(cfg, box_coder)
+            if cfg.FREEANCHOR.FREEANCHOR_ON
             else make_retinanet_loss_evaluator(cfg, box_coder)
+        )
 
         self.anchor_generator = anchor_generator
         self.head = head
@@ -147,7 +139,7 @@ class RetinaNetModule(torch.nn.Module):
         """
         box_cls, box_regression = self.head(features)
         anchors = self.anchor_generator(images, features)
- 
+
         if self.training:
             return self._forward_train(anchors, box_cls, box_regression, targets)
         else:
@@ -155,21 +147,17 @@ class RetinaNetModule(torch.nn.Module):
 
     def _forward_train(self, anchors, box_cls, box_regression, targets):
 
-        losses = self.loss_evaluator(
-            anchors, box_cls, box_regression, targets
-        )
+        losses = self.loss_evaluator(anchors, box_cls, box_regression, targets)
         detections = None
         if self.cfg.MODEL.MASK_ON or self.cfg.FREEANCHOR.SPARSE_MASK_ON:
             with torch.no_grad():
-                detections = self.box_selector_train(
-                    anchors, box_cls, box_regression
-                )
+                detections = self.box_selector_train(anchors, box_cls, box_regression)
 
         return (anchors, detections), losses
 
     def _forward_test(self, anchors, box_cls, box_regression):
         boxes = self.box_selector_test(anchors, box_cls, box_regression)
-        '''
+        """
         if self.cfg.MODEL.RPN_ONLY:
             # For end-to-end models, the RPN proposals are an intermediate state
             # and don't bother to sort them in decreasing score order. For RPN-only
@@ -179,7 +167,7 @@ class RetinaNetModule(torch.nn.Module):
                 box.get_field("objectness").sort(descending=True)[1] for box in boxes
             ]
             boxes = [box[ind] for box, ind in zip(boxes, inds)]
-        '''
+        """
         return boxes, {}  # (anchors, boxes), {}
 
 

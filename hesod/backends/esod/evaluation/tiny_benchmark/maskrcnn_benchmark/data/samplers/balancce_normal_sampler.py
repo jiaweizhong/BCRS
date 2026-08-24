@@ -9,7 +9,7 @@ from functools import partial
 
 class BalanceNormalRandomSampler(Sampler):
     r"""
-    changed from Random Sampler, 
+    changed from Random Sampler,
     Samples elements randomly. If without replacement, then sample from a shuffled dataset.
     If with replacement, then user can specify ``num_samples`` to draw.
 
@@ -25,15 +25,17 @@ class BalanceNormalRandomSampler(Sampler):
         :param image_info:
         :return:
         """
-        if 'is_generate' in image_info:
-            if image_info['is_generate']:  # generated image
+        if "is_generate" in image_info:
+            if image_info["is_generate"]:  # generated image
                 return False
-        ann_ids = self.data_source.coco.getAnnIds(imgIds=image_info['id'])
-        if len(ann_ids) == 0:              # pure background image
+        ann_ids = self.data_source.coco.getAnnIds(imgIds=image_info["id"])
+        if len(ann_ids) == 0:  # pure background image
             return False
         return True
 
-    def __init__(self, data_source, replacement=False, num_samples=None, normal_ratio=0.5):
+    def __init__(
+        self, data_source, replacement=False, num_samples=None, normal_ratio=0.5
+    ):
         self.data_source = data_source
         self.replacement = replacement
         self.num_samples = num_samples
@@ -58,39 +60,61 @@ class BalanceNormalRandomSampler(Sampler):
         self.normal = torch.LongTensor(self.normal)
 
         if self.num_samples is not None and replacement is False:
-            raise ValueError("With replacement=False, num_samples should not be specified, "
-                             "since a random permute will be performed.")
+            raise ValueError(
+                "With replacement=False, num_samples should not be specified, "
+                "since a random permute will be performed."
+            )
 
-        assert 0 < normal_ratio <= 1, 'normal ratio range must in (0, 1].'
+        assert 0 < normal_ratio <= 1, "normal ratio range must in (0, 1]."
 
         if self.num_samples is None:
             # self.num_samples = len(self.data_source)
             self.num_samples = int(len(self.normal) / normal_ratio)
 
-        assert self.num_samples - len(self.normal) <= len(self.not_normal), \
-            'no enough not-normal image in dataset, need {}, have {}.'.\
-                format(self.num_samples - len(self.normal), len(self.not_normal))
+        assert self.num_samples - len(self.normal) <= len(
+            self.not_normal
+        ), "no enough not-normal image in dataset, need {}, have {}.".format(
+            self.num_samples - len(self.normal), len(self.not_normal)
+        )
 
         if not isinstance(self.num_samples, int) or self.num_samples <= 0:
-            raise ValueError("num_samples should be a positive integeral "
-                             "value, but got num_samples={}".format(self.num_samples))
+            raise ValueError(
+                "num_samples should be a positive integeral "
+                "value, but got num_samples={}".format(self.num_samples)
+            )
         if not isinstance(self.replacement, bool):
-            raise ValueError("replacement should be a boolean value, but got "
-                             "replacement={}".format(self.replacement))
+            raise ValueError(
+                "replacement should be a boolean value, but got "
+                "replacement={}".format(self.replacement)
+            )
 
     def __iter__(self, generator=None):
         """
         -> sample_idx
         :return:
         """
-        randint = partial(torch.randint, generator=generator) if generator is not None else torch.randint
-        randperm = partial(torch.randperm, generator=generator) if generator is not None else torch.randperm
+        randint = (
+            partial(torch.randint, generator=generator)
+            if generator is not None
+            else torch.randint
+        )
+        randperm = (
+            partial(torch.randperm, generator=generator)
+            if generator is not None
+            else torch.randperm
+        )
 
         num_normal = len(self.normal)
         num_not_normal = self.num_samples - len(self.normal)
         if self.replacement:
-            chosen_normal = self.normal[randint(high=len(self.normal), size=(num_normal,), dtype=torch.int64)]
-            chosen_not_normal = self.not_normal[randint(high=len(self.not_normal), size=(num_not_normal,), dtype=torch.int64)]
+            chosen_normal = self.normal[
+                randint(high=len(self.normal), size=(num_normal,), dtype=torch.int64)
+            ]
+            chosen_not_normal = self.not_normal[
+                randint(
+                    high=len(self.not_normal), size=(num_not_normal,), dtype=torch.int64
+                )
+            ]
             chosen = torch.cat([chosen_normal, chosen_not_normal], 0)
         else:
             not_normal_idx = randperm(len(self.not_normal))[:num_not_normal]
@@ -148,7 +172,7 @@ class SamplerToDistributedSampler(Sampler):
 
         # subsample
         offset = self.num_samples * self.rank
-        indices = indices[offset: offset + self.num_samples]
+        indices = indices[offset : offset + self.num_samples]
         assert len(indices) == self.num_samples
 
         return iter(indices)

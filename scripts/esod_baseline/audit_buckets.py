@@ -73,7 +73,9 @@ class AuditResult:
     recalled_keys: frozenset[tuple[str, int]]
     size_stats: dict[str, dict[str, int]]
     class_stats: dict[str, dict[str, int]]
-    composition: dict[str, dict[str, dict[str, int]]]  # size bin -> class -> {total, recalled}
+    composition: dict[
+        str, dict[str, dict[str, int]]
+    ]  # size bin -> class -> {total, recalled}
     prediction_count: int
     confidence_threshold: float
     iou_threshold: float
@@ -210,7 +212,9 @@ def load_predictions(
                 f"{class_id} in row {row_index}"
             )
         if not all(math.isfinite(v) for v in (x, y, width, height)):
-            raise ValueError(f"Non-finite bbox in prediction row {row_index}: {row['bbox']}")
+            raise ValueError(
+                f"Non-finite bbox in prediction row {row_index}: {row['bbox']}"
+            )
         if width <= 0 or height <= 0:
             # A real (if rare) model output, not a parse error -- e.g. a near-zero
             # regressed height that rounds to 0.000 at the 3-decimal precision
@@ -220,32 +224,48 @@ def load_predictions(
             degenerate_count += 1
             continue
         predictions.append(
-            Prediction(image_key=image_key, class_id=class_id, box=(x, y, x + width, y + height), score=score)
+            Prediction(
+                image_key=image_key,
+                class_id=class_id,
+                box=(x, y, x + width, y + height),
+                score=score,
+            )
         )
     if degenerate_count:
-        print(f"NOTE: skipped {degenerate_count} degenerate (zero/negative-area) prediction box(es)")
+        print(
+            f"NOTE: skipped {degenerate_count} degenerate (zero/negative-area) prediction box(es)"
+        )
     return predictions
 
 
 def match_predictions(
-    targets: Iterable[GroundTruth], predictions: Iterable[Prediction], iou_threshold: float
+    targets: Iterable[GroundTruth],
+    predictions: Iterable[Prediction],
+    iou_threshold: float,
 ) -> frozenset[tuple[str, int]]:
     targets_by_group: dict[tuple[str, int], list[GroundTruth]] = defaultdict(list)
     predictions_by_group: dict[tuple[str, int], list[Prediction]] = defaultdict(list)
     for target in targets:
         targets_by_group[(target.image_key, target.class_id)].append(target)
     for prediction in predictions:
-        predictions_by_group[(prediction.image_key, prediction.class_id)].append(prediction)
+        predictions_by_group[(prediction.image_key, prediction.class_id)].append(
+            prediction
+        )
 
     recalled: set[tuple[str, int]] = set()
     for group, group_predictions in predictions_by_group.items():
         group_targets = targets_by_group.get(group, [])
         unmatched = set(range(len(group_targets)))
-        for prediction in sorted(group_predictions, key=lambda p: p.score, reverse=True):
+        for prediction in sorted(
+            group_predictions, key=lambda p: p.score, reverse=True
+        ):
             if not unmatched:
                 break
             best_index, best_iou = max(
-                ((i, box_iou_xyxy(prediction.box, group_targets[i].box)) for i in unmatched),
+                (
+                    (i, box_iou_xyxy(prediction.box, group_targets[i].box))
+                    for i in unmatched
+                ),
                 key=lambda item: item[1],
             )
             if best_iou >= iou_threshold:
@@ -272,7 +292,9 @@ def audit_predictions(
 
     targets = load_ground_truth(Path(labels_dir), Path(images_dir), class_names)
     predictions = load_predictions(
-        Path(pred_json_path), confidence_threshold=confidence_threshold, class_names=class_names
+        Path(pred_json_path),
+        confidence_threshold=confidence_threshold,
+        class_names=class_names,
     )
     valid_image_keys = set(_image_index(Path(images_dir)))
     unknown_image_keys = sorted({p.image_key for p in predictions} - valid_image_keys)
@@ -288,7 +310,8 @@ def audit_predictions(
     size_stats = {name: {"total": 0, "recalled": 0} for name, _, _ in SIZE_BINS}
     class_stats = {name: {"total": 0, "recalled": 0} for name in class_names}
     composition = {
-        name: {cls: {"total": 0, "recalled": 0} for cls in class_names} for name, _, _ in SIZE_BINS
+        name: {cls: {"total": 0, "recalled": 0} for cls in class_names}
+        for name, _, _ in SIZE_BINS
     }
     for target in targets:
         is_recalled = target.key in recalled
@@ -319,7 +342,9 @@ def _print_table(title: str, stats: dict[str, dict[str, int]]) -> None:
     print("\n" + "=" * 70)
     print(f" {title}")
     print("=" * 70)
-    print(f"{'Group':<25} | {'GT Count':<10} | {'Recalled':<10} | {'Recall Rate (%)':<15}")
+    print(
+        f"{'Group':<25} | {'GT Count':<10} | {'Recalled':<10} | {'Recall Rate (%)':<15}"
+    )
     print("-" * 70)
     for name, values in stats.items():
         total, recalled = values["total"], values["recalled"]
@@ -339,8 +364,12 @@ def _print_composition(composition: dict[str, dict[str, dict[str, int]]]) -> Non
         print("\n" + "-" * 70)
         print(f" Class composition within '{bin_name}' (bin total: {bin_total})")
         print("-" * 70)
-        print(f"{'Class':<20} | {'Share of bin':<12} | {'GT Count':<10} | {'Recall Rate (%)':<15}")
-        for cls, values in sorted(class_counts.items(), key=lambda kv: kv[1]["total"], reverse=True):
+        print(
+            f"{'Class':<20} | {'Share of bin':<12} | {'GT Count':<10} | {'Recall Rate (%)':<15}"
+        )
+        for cls, values in sorted(
+            class_counts.items(), key=lambda kv: kv[1]["total"], reverse=True
+        ):
             total, recalled = values["total"], values["recalled"]
             if total == 0:
                 continue
@@ -369,10 +398,27 @@ def print_audit(result: AuditResult) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--pred", "-p", required=True, help="ESOD raw prediction JSON (test.py --save-json)")
-    parser.add_argument("--labels", "-l", required=True, help="YOLO labels directory, e.g. .../labels/val")
-    parser.add_argument("--images", "-i", required=True, help="native images directory, e.g. .../images/val")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--pred",
+        "-p",
+        required=True,
+        help="ESOD raw prediction JSON (test.py --save-json)",
+    )
+    parser.add_argument(
+        "--labels",
+        "-l",
+        required=True,
+        help="YOLO labels directory, e.g. .../labels/val",
+    )
+    parser.add_argument(
+        "--images",
+        "-i",
+        required=True,
+        help="native images directory, e.g. .../images/val",
+    )
     parser.add_argument(
         "--classes",
         help=(

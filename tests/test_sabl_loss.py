@@ -6,7 +6,6 @@ from pathlib import Path
 
 import torch
 
-
 ROOT = Path(__file__).resolve().parents[1]
 LOSS_PATH = ROOT / "hesod" / "backends" / "hesod" / "utils" / "loss.py"
 GENERAL_PATH = ROOT / "hesod" / "backends" / "hesod" / "utils" / "general.py"
@@ -16,12 +15,23 @@ ROSTER_PATH = ROOT / "scripts" / "esod_baseline" / "run_visdrone_roster.sh"
 
 def _isolated_function(path: Path, name: str, globals_: dict):
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    nodes = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == name]
+    nodes = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    ]
     assert len(nodes) == 1
     node = nodes[0]
     node.decorator_list = []
     namespace = dict(globals_)
-    exec(compile(ast.fix_missing_locations(ast.Module(body=[node], type_ignores=[])), str(path), "exec"), namespace)
+    exec(
+        compile(
+            ast.fix_missing_locations(ast.Module(body=[node], type_ignores=[])),
+            str(path),
+            "exec",
+        ),
+        namespace,
+    )
     return namespace[name]
 
 
@@ -106,7 +116,10 @@ def test_sabl_changes_lbox_only_and_keeps_ciou_objectness_target():
         def build_targets(predictions, targets):
             positive = torch.tensor([0], dtype=torch.long)
             empty = torch.empty(0, dtype=torch.long)
-            indices = [(positive, positive, positive, positive), (empty, empty, empty, empty)]
+            indices = [
+                (positive, positive, positive, positive),
+                (empty, empty, empty, empty),
+            ]
             boxes = [torch.tensor([[0.15, 0.20, 0.8, 0.9]]), torch.empty((0, 4))]
             anchors = [torch.tensor([[1.0, 1.0]]), torch.empty((0, 2))]
             classes = [positive, empty]
@@ -129,13 +142,20 @@ def test_train_cli_exposes_sabl_without_changing_the_default():
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not node.args:
             continue
-        if isinstance(node.args[0], ast.Constant) and node.args[0].value == "--box-loss":
+        if (
+            isinstance(node.args[0], ast.Constant)
+            and node.args[0].value == "--box-loss"
+        ):
             box_loss_calls.append(node)
 
     assert len(box_loss_calls) == 1
     keywords = {keyword.arg: keyword.value for keyword in box_loss_calls[0].keywords}
     assert ast.literal_eval(keywords["default"]) == "upstream"
-    assert ast.literal_eval(keywords["choices"]) == ("upstream", "size_weighted", "sabl")
+    assert ast.literal_eval(keywords["choices"]) == (
+        "upstream",
+        "size_weighted",
+        "sabl",
+    )
 
 
 def test_roster_runner_keeps_sabl_opt_in_and_defines_both_factorial_arms():

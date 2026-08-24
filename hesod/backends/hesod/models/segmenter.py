@@ -102,7 +102,9 @@ class ChannelPooledSpectralOnlySegmenter(nn.Module):
 
     def __init__(self, nc=10, ch=()):
         super().__init__()
-        self.spectral_branches = nn.ModuleList(ChannelPooledSpectralBranch(x, nc) for x in ch)
+        self.spectral_branches = nn.ModuleList(
+            ChannelPooledSpectralBranch(x, nc) for x in ch
+        )
 
     def forward(self, x):
         return [self.spectral_branches[i](x[i])[0] for i in range(len(x))]
@@ -114,7 +116,9 @@ class ChannelPooledDualEvidenceSegmenter(nn.Module):
     def __init__(self, nc=10, ch=()):
         super().__init__()
         self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
-        self.spectral_branches = nn.ModuleList(ChannelPooledSpectralBranch(x, nc) for x in ch)
+        self.spectral_branches = nn.ModuleList(
+            ChannelPooledSpectralBranch(x, nc) for x in ch
+        )
         self.gated_fusions = nn.ModuleList(GatedEvidenceFusion(x, x) for x in ch)
 
     def forward(self, x):
@@ -142,7 +146,9 @@ class ChannelPooledConcatEvidenceSegmenter(nn.Module):
     def __init__(self, nc=10, ch=()):
         super().__init__()
         self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
-        self.spectral_branches = nn.ModuleList(ChannelPooledSpectralBranch(x, nc) for x in ch)
+        self.spectral_branches = nn.ModuleList(
+            ChannelPooledSpectralBranch(x, nc) for x in ch
+        )
         self.concat_convs = nn.ModuleList(nn.Conv2d(nc * 2, nc, 1) for _ in ch)
 
     def forward(self, x):
@@ -191,7 +197,9 @@ class ReliabilityGateEvidenceSegmenter(nn.Module):
         super().__init__()
         self.alpha = alpha
         self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
-        self.spectral_branches = nn.ModuleList(ReliabilitySpectralBranch(x, nc) for x in ch)
+        self.spectral_branches = nn.ModuleList(
+            ReliabilitySpectralBranch(x, nc) for x in ch
+        )
         self.texture_risk_heads = nn.ModuleList(TextureRiskHead(x) for x in ch)
         self.gates = nn.ModuleList(ReliabilityGateMLP() for _ in ch)
 
@@ -212,11 +220,21 @@ class ReliabilityGateEvidenceSegmenter(nn.Module):
             t_bg = self.texture_risk_heads[i](x[i])
 
             q = torch.sigmoid(p_semantic)
-            h = -(q * torch.log(q + 1e-7) + (1 - q) * torch.log(1 - q + 1e-7)) / math.log(2)
+            h = -(
+                q * torch.log(q + 1e-7) + (1 - q) * torch.log(1 - q + 1e-7)
+            ) / math.log(2)
             a = self.gates[i](torch.cat([q, h, c_spectral, t_bg], dim=1))
 
             res.append(p_semantic + self.alpha * a * p_spectral)
             if return_extras:
-                extras.append({'q': q, 'h': h, 'a': a, 'z_spec': p_spectral,
-                                'c_spectral': c_spectral, 't_bg': t_bg})
+                extras.append(
+                    {
+                        "q": q,
+                        "h": h,
+                        "a": a,
+                        "z_spec": p_spectral,
+                        "c_spectral": c_spectral,
+                        "t_bg": t_bg,
+                    }
+                )
         return (res, extras) if return_extras else res

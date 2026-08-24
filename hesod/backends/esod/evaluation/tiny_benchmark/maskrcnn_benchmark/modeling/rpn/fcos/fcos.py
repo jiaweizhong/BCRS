@@ -23,49 +23,34 @@ class FCOSHead(torch.nn.Module):
         bbox_tower = []
         for i in range(cfg.MODEL.FCOS.NUM_CONVS):
             cls_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             if cfg.MODEL.FCOS.USE_GN:
                 cls_tower.append(nn.GroupNorm(32, in_channels))
             cls_tower.append(nn.ReLU())
             bbox_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             if cfg.MODEL.FCOS.USE_GN:
                 bbox_tower.append(nn.GroupNorm(32, in_channels))
             bbox_tower.append(nn.ReLU())
 
-        self.add_module('cls_tower', nn.Sequential(*cls_tower))
-        self.add_module('bbox_tower', nn.Sequential(*bbox_tower))
+        self.add_module("cls_tower", nn.Sequential(*cls_tower))
+        self.add_module("bbox_tower", nn.Sequential(*bbox_tower))
         self.cls_logits = nn.Conv2d(
-            in_channels, num_classes, kernel_size=3, stride=1,
-            padding=1
+            in_channels, num_classes, kernel_size=3, stride=1, padding=1
         )
-        self.bbox_pred = nn.Conv2d(
-            in_channels, 4, kernel_size=3, stride=1,
-            padding=1
-        )
-        self.centerness = nn.Conv2d(
-            in_channels, 1, kernel_size=3, stride=1,
-            padding=1
-        )
+        self.bbox_pred = nn.Conv2d(in_channels, 4, kernel_size=3, stride=1, padding=1)
+        self.centerness = nn.Conv2d(in_channels, 1, kernel_size=3, stride=1, padding=1)
 
         # initialization
-        for modules in [self.cls_tower, self.bbox_tower,
-                        self.cls_logits, self.bbox_pred,
-                        self.centerness]:
+        for modules in [
+            self.cls_tower,
+            self.bbox_tower,
+            self.cls_logits,
+            self.bbox_pred,
+            self.centerness,
+        ]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):
                     torch.nn.init.normal_(l.weight, std=0.01)
@@ -78,7 +63,9 @@ class FCOSHead(torch.nn.Module):
 
         if cfg.MODEL.FCOS.USE_STRIDE_SCALE_INIT:
             strides = cfg.MODEL.FCOS.FPN_STRIDES
-            self.scales = nn.ModuleList([Scale(init_value=stride) for stride in strides])
+            self.scales = nn.ModuleList(
+                [Scale(init_value=stride) for stride in strides]
+            )
         else:
             self.scales = nn.ModuleList([Scale(init_value=1.0) for _ in range(5)])
 
@@ -90,9 +77,9 @@ class FCOSHead(torch.nn.Module):
             cls_tower = self.cls_tower(feature)
             logits.append(self.cls_logits(cls_tower))
             centerness.append(self.centerness(cls_tower))
-            bbox_reg.append(torch.exp(self.scales[l](
-                self.bbox_pred(self.bbox_tower(feature))
-            )))
+            bbox_reg.append(
+                torch.exp(self.scales[l](self.bbox_pred(self.bbox_tower(feature))))
+            )
         return logits, bbox_reg, centerness
 
 
@@ -134,18 +121,16 @@ class FCOSModule(torch.nn.Module):
         box_cls, box_regression, centerness = self.head(features)
         locations = self.compute_locations(features)
 
-        if self.vis_labels: show_image(images, targets)
- 
+        if self.vis_labels:
+            show_image(images, targets)
+
         if self.training:
             return self._forward_train(
-                locations, box_cls, 
-                box_regression, 
-                centerness, targets
+                locations, box_cls, box_regression, centerness, targets
             )
         else:
             return self._forward_test(
-                locations, box_cls, box_regression, 
-                centerness, images.image_sizes
+                locations, box_cls, box_regression, centerness, images.image_sizes
             )
 
     def _forward_train(self, locations, box_cls, box_regression, centerness, targets):
@@ -155,14 +140,15 @@ class FCOSModule(torch.nn.Module):
         losses = {
             "loss_cls": loss_box_cls,
             "loss_reg": loss_box_reg,
-            "loss_centerness": loss_centerness
+            "loss_centerness": loss_centerness,
         }
         return None, losses
 
-    def _forward_test(self, locations, box_cls, box_regression, centerness, image_sizes):
+    def _forward_test(
+        self, locations, box_cls, box_regression, centerness, image_sizes
+    ):
         boxes = self.box_selector_test(
-            locations, box_cls, box_regression, 
-            centerness, image_sizes
+            locations, box_cls, box_regression, centerness, image_sizes
         )
         return boxes, {}
 
@@ -174,20 +160,17 @@ class FCOSModule(torch.nn.Module):
         for level, feature in enumerate(features):
             h, w = feature.size()[-2:]
             locations_per_level = self.compute_locations_per_level(
-                h, w, self.fpn_strides[level],
-                feature.device
+                h, w, self.fpn_strides[level], feature.device
             )
             locations.append(locations_per_level)
         return locations
 
     def compute_locations_per_level(self, h, w, stride, device):
         shifts_x = torch.arange(
-            0, w * stride, step=stride,
-            dtype=torch.float32, device=device
+            0, w * stride, step=stride, dtype=torch.float32, device=device
         )
         shifts_y = torch.arange(
-            0, h * stride, step=stride,
-            dtype=torch.float32, device=device
+            0, h * stride, step=stride, dtype=torch.float32, device=device
         )
         shift_y, shift_x = torch.meshgrid(shifts_y, shifts_x)
         shift_x = shift_x.reshape(-1)
@@ -195,14 +178,19 @@ class FCOSModule(torch.nn.Module):
         locations = torch.stack((shift_x, shift_y), dim=1) + stride // 2
         return locations
 
+
 def build_fcos(cfg, in_channels):
     return FCOSModule(cfg, in_channels)
+
 
 def show_image(images, targets):
     import numpy as np
     import matplotlib.pyplot as plt
-    img = images.tensors[0].permute((1, 2, 0)).cpu().numpy() + np.array([102.9801, 115.9465, 122.7717])
-    plt.imshow(img/255)
+
+    img = images.tensors[0].permute((1, 2, 0)).cpu().numpy() + np.array(
+        [102.9801, 115.9465, 122.7717]
+    )
+    plt.imshow(img / 255)
     for x1, y1, x2, y2 in targets[0].bbox.cpu().numpy().tolist():
         w = x2 - x1 + 1
         h = y2 - y1 + 1

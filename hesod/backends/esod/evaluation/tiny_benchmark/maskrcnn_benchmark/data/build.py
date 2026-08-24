@@ -15,8 +15,14 @@ from .collate_batch import BatchCollator
 from .transforms import build_transforms
 
 
-def build_dataset(dataset_list, transforms, dataset_catalog, is_train=True, remove_images_without_annotations=True,
-                  filter_ignore=True):
+def build_dataset(
+    dataset_list,
+    transforms,
+    dataset_catalog,
+    is_train=True,
+    remove_images_without_annotations=True,
+    filter_ignore=True,
+):
     """
     Arguments:
         dataset_list (list[str]): Contains the names of the datasets, i.e.,
@@ -38,7 +44,9 @@ def build_dataset(dataset_list, transforms, dataset_catalog, is_train=True, remo
         # for COCODataset, we want to remove images without annotations
         # during training
         if data["factory"] == "COCODataset":
-            args["remove_images_without_annotations"] = remove_images_without_annotations
+            args["remove_images_without_annotations"] = (
+                remove_images_without_annotations
+            )
             args["filter_ignore"] = filter_ignore  # add by hui
         if data["factory"] == "PascalVOCDataset":
             args["use_difficult"] = not is_train
@@ -61,22 +69,33 @@ def build_dataset(dataset_list, transforms, dataset_catalog, is_train=True, remo
 
 # ######################## changed by hui ##########################################################################
 
-def make_data_sampler(dataset, shuffle, distributed, balance_normal=False, normal_ratio=0.5):
-    assert not balance_normal or shuffle, 'shuffle must be True when use balance_normal.'
+
+def make_data_sampler(
+    dataset, shuffle, distributed, balance_normal=False, normal_ratio=0.5
+):
+    assert (
+        not balance_normal or shuffle
+    ), "shuffle must be True when use balance_normal."
     if distributed:
         if balance_normal:
-            sampler = balancce_normal_sampler.BalanceNormalRandomSampler(dataset, normal_ratio=normal_ratio)
+            sampler = balancce_normal_sampler.BalanceNormalRandomSampler(
+                dataset, normal_ratio=normal_ratio
+            )
             return balancce_normal_sampler.SamplerToDistributedSampler(sampler)
         else:
             return samplers.DistributedSampler(dataset, shuffle=shuffle)
     if shuffle:
         if balance_normal:
-            sampler = balancce_normal_sampler.BalanceNormalRandomSampler(dataset, normal_ratio=normal_ratio)
+            sampler = balancce_normal_sampler.BalanceNormalRandomSampler(
+                dataset, normal_ratio=normal_ratio
+            )
         else:
             sampler = torch.utils.data.sampler.RandomSampler(dataset)
     else:
         sampler = torch.utils.data.sampler.SequentialSampler(dataset)
     return sampler
+
+
 ######################################################################################################
 
 
@@ -118,8 +137,9 @@ def make_batch_data_sampler(
     return batch_sampler
 
 
-def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0,
-                     shuffle=None):  # add by hui
+def make_data_loader(
+    cfg, is_train=True, is_distributed=False, start_iter=0, shuffle=None
+):  # add by hui
     num_gpus = get_world_size()
     if is_train:
         images_per_batch = cfg.SOLVER.IMS_PER_BATCH
@@ -128,7 +148,8 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0,
         ), "SOLVER.IMS_PER_BATCH ({}) must be divisible by the number "
         "of GPUs ({}) used.".format(images_per_batch, num_gpus)
         images_per_gpu = images_per_batch // num_gpus
-        if shuffle is None: shuffle = True
+        if shuffle is None:
+            shuffle = True
         num_iters = cfg.SOLVER.MAX_ITER
 
         # ############################## add by hui ########################################
@@ -144,13 +165,15 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0,
         ), "TEST.IMS_PER_BATCH ({}) must be divisible by the number "
         "of GPUs ({}) used.".format(images_per_batch, num_gpus)
         images_per_gpu = images_per_batch // num_gpus
-        if shuffle is None: shuffle = False if not is_distributed else True
+        if shuffle is None:
+            shuffle = False if not is_distributed else True
         num_iters = None
         start_iter = 0
         # ############################## add by hui ########################################
         balance_normal = cfg.DATALOADER.USE_TEST_BALANCE_NORMAL
         normal_ratio = cfg.DATALOADER.TEST_NORMAL_RATIO
-        if balance_normal: shuffle = True
+        if balance_normal:
+            shuffle = True
         remove_images_without_annotations = False
         filter_ignore = cfg.DATASETS.COCO_DATASET.TEST_FILTER_IGNORE
         ################################################################################
@@ -182,12 +205,20 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0,
     dataset_list = cfg.DATASETS.TRAIN if is_train else cfg.DATASETS.TEST
 
     transforms = build_transforms(cfg, is_train)
-    datasets = build_dataset(dataset_list, transforms, DatasetCatalog, is_train,
-                             remove_images_without_annotations, filter_ignore)   # add by hui
+    datasets = build_dataset(
+        dataset_list,
+        transforms,
+        DatasetCatalog,
+        is_train,
+        remove_images_without_annotations,
+        filter_ignore,
+    )  # add by hui
 
     data_loaders = []
     for dataset in datasets:
-        sampler = make_data_sampler(dataset, shuffle, is_distributed, balance_normal, normal_ratio)  # changed by hui
+        sampler = make_data_sampler(
+            dataset, shuffle, is_distributed, balance_normal, normal_ratio
+        )  # changed by hui
         batch_sampler = make_batch_data_sampler(
             dataset, sampler, aspect_grouping, images_per_gpu, num_iters, start_iter
         )
@@ -198,7 +229,7 @@ def make_data_loader(cfg, is_train=True, is_distributed=False, start_iter=0,
             num_workers=num_workers,
             batch_sampler=batch_sampler,
             collate_fn=collator,
-            timeout=30,                                # add by hui for big batch
+            timeout=30,  # add by hui for big batch
         )
         data_loaders.append(data_loader)
     if is_train:

@@ -15,7 +15,6 @@ from maskrcnn_benchmark.modeling.utils import cat
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 from maskrcnn_benchmark.structures.boxlist_ops import cat_boxlist
 
-
 INF = 100000000
 
 
@@ -26,8 +25,7 @@ class FCOSLossComputation(object):
 
     def __init__(self, cfg):
         self.cls_loss_func = SigmoidFocalLoss(
-            cfg.MODEL.FCOS.LOSS_GAMMA,
-            cfg.MODEL.FCOS.LOSS_ALPHA
+            cfg.MODEL.FCOS.LOSS_GAMMA, cfg.MODEL.FCOS.LOSS_ALPHA
         )
         # we make use of IOU Loss for bounding boxes regression,
         # but we found that L1 in log scale can yield a similar performance
@@ -40,13 +38,18 @@ class FCOSLossComputation(object):
         object_sizes_of_interest = self.object_sizes_of_interest
         expanded_object_sizes_of_interest = []
         for l, points_per_level in enumerate(points):
-            object_sizes_of_interest_per_level = \
-                points_per_level.new_tensor(object_sizes_of_interest[l])
+            object_sizes_of_interest_per_level = points_per_level.new_tensor(
+                object_sizes_of_interest[l]
+            )
             expanded_object_sizes_of_interest.append(
-                object_sizes_of_interest_per_level[None].expand(len(points_per_level), -1)
+                object_sizes_of_interest_per_level[None].expand(
+                    len(points_per_level), -1
+                )
             )
 
-        expanded_object_sizes_of_interest = torch.cat(expanded_object_sizes_of_interest, dim=0)
+        expanded_object_sizes_of_interest = torch.cat(
+            expanded_object_sizes_of_interest, dim=0
+        )
         num_points_per_level = [len(points_per_level) for points_per_level in points]
         points_all_level = torch.cat(points, dim=0)
         labels, reg_targets = self.compute_targets_for_locations(
@@ -64,12 +67,17 @@ class FCOSLossComputation(object):
                 torch.cat([labels_per_im[level] for labels_per_im in labels], dim=0)
             )
             reg_targets_level_first.append(
-                torch.cat([reg_targets_per_im[level] for reg_targets_per_im in reg_targets], dim=0)
+                torch.cat(
+                    [reg_targets_per_im[level] for reg_targets_per_im in reg_targets],
+                    dim=0,
+                )
             )
 
         return labels_level_first, reg_targets_level_first
 
-    def compute_targets_for_locations(self, locations, targets, object_sizes_of_interest):
+    def compute_targets_for_locations(
+        self, locations, targets, object_sizes_of_interest
+    ):
         labels = []
         reg_targets = []
         xs, ys = locations[:, 0], locations[:, 1]
@@ -91,9 +99,9 @@ class FCOSLossComputation(object):
 
             max_reg_targets_per_im = reg_targets_per_im.max(dim=2)[0]
             # limit the regression range for each location
-            is_cared_in_the_level = \
-                (max_reg_targets_per_im >= object_sizes_of_interest[:, [0]]) & \
-                (max_reg_targets_per_im <= object_sizes_of_interest[:, [1]])
+            is_cared_in_the_level = (
+                max_reg_targets_per_im >= object_sizes_of_interest[:, [0]]
+            ) & (max_reg_targets_per_im <= object_sizes_of_interest[:, [1]])
 
             locations_to_gt_area = area[None].repeat(len(locations), 1)
             locations_to_gt_area[is_in_boxes == 0] = INF
@@ -101,9 +109,13 @@ class FCOSLossComputation(object):
 
             # if there are still more than one objects for a location,
             # we choose the one with minimal area
-            locations_to_min_aera, locations_to_gt_inds = locations_to_gt_area.min(dim=1)
+            locations_to_min_aera, locations_to_gt_inds = locations_to_gt_area.min(
+                dim=1
+            )
 
-            reg_targets_per_im = reg_targets_per_im[range(len(locations)), locations_to_gt_inds]
+            reg_targets_per_im = reg_targets_per_im[
+                range(len(locations)), locations_to_gt_inds
+            ]
             labels_per_im = labels_per_im[locations_to_gt_inds]
             labels_per_im[locations_to_min_aera == INF] = 0
 
@@ -115,8 +127,9 @@ class FCOSLossComputation(object):
     def compute_centerness_targets(self, reg_targets):
         left_right = reg_targets[:, [0, 2]]
         top_bottom = reg_targets[:, [1, 3]]
-        centerness = (left_right.min(dim=-1)[0] / left_right.max(dim=-1)[0]) * \
-                      (top_bottom.min(dim=-1)[0] / top_bottom.max(dim=-1)[0])
+        centerness = (left_right.min(dim=-1)[0] / left_right.max(dim=-1)[0]) * (
+            top_bottom.min(dim=-1)[0] / top_bottom.max(dim=-1)[0]
+        )
         return torch.sqrt(centerness)
 
     def __call__(self, locations, box_cls, box_regression, centerness, targets):
@@ -137,7 +150,8 @@ class FCOSLossComputation(object):
         num_classes = box_cls[0].size(1)
         labels, reg_targets = self.prepare_targets(locations, targets)
 
-        if self.vis_labels: show_label_map(labels, box_cls)
+        if self.vis_labels:
+            show_label_map(labels, box_cls)
 
         box_cls_flatten = []
         box_regression_flatten = []
@@ -145,8 +159,12 @@ class FCOSLossComputation(object):
         labels_flatten = []
         reg_targets_flatten = []
         for l in range(len(labels)):
-            box_cls_flatten.append(box_cls[l].permute(0, 2, 3, 1).reshape(-1, num_classes))
-            box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 4))
+            box_cls_flatten.append(
+                box_cls[l].permute(0, 2, 3, 1).reshape(-1, num_classes)
+            )
+            box_regression_flatten.append(
+                box_regression[l].permute(0, 2, 3, 1).reshape(-1, 4)
+            )
             labels_flatten.append(labels[l].reshape(-1))
             reg_targets_flatten.append(reg_targets[l].reshape(-1, 4))
             centerness_flatten.append(centerness[l].reshape(-1))
@@ -158,10 +176,9 @@ class FCOSLossComputation(object):
         reg_targets_flatten = torch.cat(reg_targets_flatten, dim=0)
 
         pos_inds = torch.nonzero(labels_flatten > 0).squeeze(1)
-        cls_loss = self.cls_loss_func(
-            box_cls_flatten,
-            labels_flatten.int()
-        ) / (pos_inds.numel() + N)  # add N to avoid dividing by a zero
+        cls_loss = self.cls_loss_func(box_cls_flatten, labels_flatten.int()) / (
+            pos_inds.numel() + N
+        )  # add N to avoid dividing by a zero
 
         box_regression_flatten = box_regression_flatten[pos_inds]
         reg_targets_flatten = reg_targets_flatten[pos_inds]
@@ -170,13 +187,10 @@ class FCOSLossComputation(object):
         if pos_inds.numel() > 0:
             centerness_targets = self.compute_centerness_targets(reg_targets_flatten)
             reg_loss = self.box_reg_loss_func(
-                box_regression_flatten,
-                reg_targets_flatten,
-                centerness_targets
+                box_regression_flatten, reg_targets_flatten, centerness_targets
             )
             centerness_loss = self.centerness_loss_func(
-                centerness_flatten,
-                centerness_targets
+                centerness_flatten, centerness_targets
             )
         else:
             reg_loss = box_regression_flatten.sum()
@@ -204,20 +218,23 @@ def show_label_map(labels, box_cls):
                 label = labels[i]
                 label_maps.append(label)
         else:
-            label = F.upsample(labels[i], shape[2:], mode='bilinear')
+            label = F.upsample(labels[i], shape[2:], mode="bilinear")
             # label_map += label
             label_maps.append(label)
         pos_count.append(int(label_sum.cpu().numpy()))
     # print(label_map.shape)
     import matplotlib.pyplot as plt
     import numpy as np
+
     for i, label_map in enumerate(label_maps):
-        label_map = label_map[0].permute((1, 2, 0)).cpu().numpy()[:, :, 0].astype(np.float32)
+        label_map = (
+            label_map[0].permute((1, 2, 0)).cpu().numpy()[:, :, 0].astype(np.float32)
+        )
         max_l = label_map.max()
         if max_l > 0:
             label_map /= max_l
 
-        plt.subplot(len(label_maps), 1, i+1)
+        plt.subplot(len(label_maps), 1, i + 1)
         plt.imshow(label_map)
         plt.title("pos_count:{} ".format(pos_count))
     plt.show()

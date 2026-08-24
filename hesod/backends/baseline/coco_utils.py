@@ -34,7 +34,9 @@ def build_coco_gt(
     for index in range(len(dataset)):
         width, height = dataset.native_size(index)
         image_id = dataset.image_id(index)
-        images.append({"id": image_id, "file_name": image_id, "width": width, "height": height})
+        images.append(
+            {"id": image_id, "file_name": image_id, "width": width, "height": height}
+        )
         boxes, class_ids = dataset.raw_targets(index)
         for (x1, y1, x2, y2), class_id in zip(boxes, class_ids):
             w, h = x2 - x1, y2 - y1
@@ -56,7 +58,9 @@ def build_coco_gt(
     return cache_path
 
 
-def evaluate_coco(gt_json_path: str | Path, pred_json_path: str | Path) -> dict[str, float]:
+def evaluate_coco(
+    gt_json_path: str | Path, pred_json_path: str | Path
+) -> dict[str, float]:
     """Runs pycocotools COCOeval; returns the 12 standard summary stats
     keyed by name. Predictions must already be in COCO-result format
     (list of {"image_id","category_id","bbox":[x,y,w,h],"score"}) with
@@ -73,7 +77,17 @@ def evaluate_coco(gt_json_path: str | Path, pred_json_path: str | Path) -> dict[
     coco_eval.summarize()
 
     keys = (
-        "AP", "AP50", "AP75", "APs", "APm", "APl",
-        "AR1", "AR10", "AR100", "ARs", "ARm", "ARl",
+        "AP",
+        "AP50",
+        "AP75",
+        "APs",
+        "APm",
+        "APl",
+        "AR1",
+        "AR10",
+        "AR100",
+        "ARs",
+        "ARm",
+        "ARl",
     )
     return dict(zip(keys, (float(x) for x in coco_eval.stats)))

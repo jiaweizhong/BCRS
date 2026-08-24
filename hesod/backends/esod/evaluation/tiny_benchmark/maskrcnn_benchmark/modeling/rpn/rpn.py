@@ -130,28 +130,16 @@ class MultiConvRPNHead(nn.Module):
         bbox_tower = []
         for i in range(cfg.MODEL.RPN.NUM_CONVS):
             cls_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             cls_tower.append(nn.ReLU())
             bbox_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             bbox_tower.append(nn.ReLU())
 
-        self.add_module('cls_tower', nn.Sequential(*cls_tower))
-        self.add_module('bbox_tower', nn.Sequential(*bbox_tower))
+        self.add_module("cls_tower", nn.Sequential(*cls_tower))
+        self.add_module("bbox_tower", nn.Sequential(*bbox_tower))
 
         self.cls_logits = nn.Conv2d(in_channels, num_anchors, kernel_size=1, stride=1)
         self.bbox_pred = nn.Conv2d(
@@ -159,7 +147,12 @@ class MultiConvRPNHead(nn.Module):
         )
 
         # Initialization
-        for modules in [self.cls_tower, self.bbox_tower, self.cls_logits, self.bbox_pred]:
+        for modules in [
+            self.cls_tower,
+            self.bbox_tower,
+            self.cls_logits,
+            self.bbox_pred,
+        ]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):
                     torch.nn.init.normal_(l.weight, std=0.01)
@@ -294,11 +287,14 @@ def build_rpn(cfg, in_channels):
 
 #  ##################### add by hui
 
-def show_image(images
-               # , targets, loss_eval, infer, locations, loc_strides, logits
-               ):
+
+def show_image(
+    images,
+    # , targets, loss_eval, infer, locations, loc_strides, logits
+):
     import numpy as np
     import matplotlib.pyplot as plt
+
     # cls_logits, gau_logits = logits
     # eps = 1e-6
     # # vis label infer result
@@ -316,7 +312,9 @@ def show_image(images
     # # assert len(targets[0].bbox) == len(infer_label), "{} vs {}".format(len(targets[0].bbox), len(infer_label))
     # # if len(targets[0].bbox) != len(infer_label):
     plt.figure()
-    img = images.tensors[0].permute((1, 2, 0)).cpu().numpy() + np.array([102.9801, 115.9465, 122.7717])
+    img = images.tensors[0].permute((1, 2, 0)).cpu().numpy() + np.array(
+        [102.9801, 115.9465, 122.7717]
+    )
     plt.imshow(img / 255)
     # for (x1, y1, x2, y2) in targets[0].bbox.cpu().numpy().tolist():
     #     plt.axes().add_patch(

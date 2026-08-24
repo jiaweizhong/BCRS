@@ -19,42 +19,25 @@ class LOCHead(nn.Module):
         bbox_tower = []
         for i in range(cfg.MODEL.LOC.NUM_CONVS):
             cls_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             cls_tower.append(nn.GroupNorm(32, in_channels))
             cls_tower.append(nn.ReLU())
             bbox_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
             )
             bbox_tower.append(nn.GroupNorm(32, in_channels))
             bbox_tower.append(nn.ReLU())
 
-        self.add_module('cls_tower', nn.Sequential(*cls_tower))
-        self.add_module('bbox_tower', nn.Sequential(*bbox_tower))
+        self.add_module("cls_tower", nn.Sequential(*cls_tower))
+        self.add_module("bbox_tower", nn.Sequential(*bbox_tower))
         self.cls_logits = nn.Conv2d(
-            in_channels, num_classes, kernel_size=3, stride=1,
-            padding=1
+            in_channels, num_classes, kernel_size=3, stride=1, padding=1
         )
-        self.bbox_pred = nn.Conv2d(
-            in_channels, 4, kernel_size=3, stride=1,
-            padding=1
-        )
+        self.bbox_pred = nn.Conv2d(in_channels, 4, kernel_size=3, stride=1, padding=1)
         if not no_centerness:
             self.centerness = nn.Conv2d(
-                in_channels, 1, kernel_size=3, stride=1,
-                padding=1
+                in_channels, 1, kernel_size=3, stride=1, padding=1
             )
             for l in self.centerness.modules():
                 if isinstance(l, nn.Conv2d):
@@ -62,8 +45,12 @@ class LOCHead(nn.Module):
                     nn.init.constant_(l.bias, 0)
 
         # initialization
-        for modules in [self.cls_tower, self.bbox_tower,
-                        self.cls_logits, self.bbox_pred]:
+        for modules in [
+            self.cls_tower,
+            self.bbox_tower,
+            self.cls_logits,
+            self.bbox_pred,
+        ]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):
                     nn.init.normal_(l.weight, std=0.01)
@@ -83,9 +70,9 @@ class LOCHead(nn.Module):
         for l, feature in enumerate(x):
             cls_tower = self.cls_tower(feature)
             logits.append(self.cls_logits(cls_tower))
-            bbox_reg.append(torch.exp(self.scales[l](
-                self.bbox_pred(self.bbox_tower(feature))
-            )))
+            bbox_reg.append(
+                torch.exp(self.scales[l](self.bbox_pred(self.bbox_tower(feature))))
+            )
             if not self.no_centerness:
                 centerness.append(self.centerness(cls_tower))
         if self.no_centerness:
@@ -94,5 +81,10 @@ class LOCHead(nn.Module):
 
 
 def build_location_head(cfg, in_channel):
-    return LOCHead(cfg, in_channel,
-                   no_centerness=not (cfg.MODEL.LOC.TARGET_GENERATOR == 'fcos' and cfg.MODEL.LOC.FCOS_CENTERNESS))
+    return LOCHead(
+        cfg,
+        in_channel,
+        no_centerness=not (
+            cfg.MODEL.LOC.TARGET_GENERATOR == "fcos" and cfg.MODEL.LOC.FCOS_CENTERNESS
+        ),
+    )

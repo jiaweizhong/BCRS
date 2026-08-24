@@ -116,7 +116,9 @@ class Keypointer(object):
         result, scores = heatmaps_to_keypoints(
             masks.detach().cpu().numpy(), boxes[0].bbox.cpu().numpy()
         )
-        return torch.from_numpy(result).to(masks.device), torch.as_tensor(scores, device=masks.device)
+        return torch.from_numpy(result).to(masks.device), torch.as_tensor(
+            scores, device=masks.device
+        )
 
 
 def make_roi_keypoint_post_processor(cfg):

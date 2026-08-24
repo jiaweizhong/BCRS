@@ -30,6 +30,7 @@ Defaults reproduce the original Pest24-only script's exact behavior (all
 flags optional, Pest24's paths/native size as defaults) -- no change in
 behavior for any existing Pest24 invocation.
 """
+
 import argparse
 import json
 import os
@@ -43,15 +44,31 @@ BTEX_REGION_FRACTION = 0.5  # a selected region counts as "in B_tex" if > this f
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("run_name", nargs="?", default="pest24_yolov5m_baseline",
-                         help="run name under ~/esod_baseline_runs/test/<run_name>/")
-    parser.add_argument("--images-dir", default="/root/autodl-tmp/Pest24_v1/images/test",
-                         help="native images directory for the split actually evaluated")
-    parser.add_argument("--labels-dir", default="/root/autodl-tmp/Pest24_v1/labels/test",
-                         help="YOLO-format labels directory for the same split")
-    parser.add_argument("--native-w", type=int, default=800, help="native image width (pixels)")
-    parser.add_argument("--native-h", type=int, default=600, help="native image height (pixels)")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "run_name",
+        nargs="?",
+        default="pest24_yolov5m_baseline",
+        help="run name under ~/esod_baseline_runs/test/<run_name>/",
+    )
+    parser.add_argument(
+        "--images-dir",
+        default="/root/autodl-tmp/Pest24_v1/images/test",
+        help="native images directory for the split actually evaluated",
+    )
+    parser.add_argument(
+        "--labels-dir",
+        default="/root/autodl-tmp/Pest24_v1/labels/test",
+        help="YOLO-format labels directory for the same split",
+    )
+    parser.add_argument(
+        "--native-w", type=int, default=800, help="native image width (pixels)"
+    )
+    parser.add_argument(
+        "--native-h", type=int, default=600, help="native image height (pixels)"
+    )
     parser.add_argument("--image-ext", default=".jpg", help="image file extension")
     opt = parser.parse_args()
 
@@ -60,19 +77,25 @@ def main():
     native_w, native_h = opt.native_w, opt.native_h
     image_ext = opt.image_ext
 
-    regions_path = os.path.expanduser(f"~/esod_baseline_runs/test/{run_name}/best_selected_regions.json")
+    regions_path = os.path.expanduser(
+        f"~/esod_baseline_runs/test/{run_name}/best_selected_regions.json"
+    )
     print(f"=== TFR: {run_name} ===")
 
     with open(regions_path) as f:
         data = json.load(f)
     img_size = data["img_size"]
     regions_by_image = data["regions"]
-    assert data["stride"] == STRIDE, f"unexpected stride in {regions_path}: {data['stride']}"
+    assert (
+        data["stride"] == STRIDE
+    ), f"unexpected stride in {regions_path}: {data['stride']}"
 
     r = img_size / max(native_w, native_h)
     tw, th = round(native_w * r), round(native_h * r)
     p3_w, p3_h = tw // STRIDE, th // STRIDE
-    print(f"tensor size: {tw}x{th}  (native {native_w}x{native_h} * {r:.4f}), P3: {p3_w}x{p3_h}")
+    print(
+        f"tensor size: {tw}x{th}  (native {native_w}x{native_h} * {r:.4f}), P3: {p3_w}x{p3_h}"
+    )
 
     label_files = sorted(f for f in os.listdir(labels_dir) if f.endswith(".txt"))
     print(f"label files: {len(label_files)}")
@@ -129,8 +152,10 @@ def main():
 
     bg_scores = np.concatenate(bg_scores)
     threshold = np.percentile(bg_scores, BTEX_PERCENTILE)
-    print(f"background P3-pixel edge score: median={np.median(bg_scores):.2f}, "
-          f"{BTEX_PERCENTILE:.0f}th pct (B_tex threshold)={threshold:.2f}, n_bg_pixels={len(bg_scores)}")
+    print(
+        f"background P3-pixel edge score: median={np.median(bg_scores):.2f}, "
+        f"{BTEX_PERCENTILE:.0f}th pct (B_tex threshold)={threshold:.2f}, n_bg_pixels={len(bg_scores)}"
+    )
 
     btex_maps = {}
     btex_px, total_bg_px = 0, 0
@@ -140,8 +165,10 @@ def main():
         btex_maps[image_id] = btex
         btex_px += int(btex.sum())
         total_bg_px += int((~gt_map).sum())
-    print(f"B_tex coverage: {btex_px}/{total_bg_px} background P3-pixels "
-          f"({btex_px / max(1, total_bg_px) * 100:.1f}%) across the evaluated split")
+    print(
+        f"B_tex coverage: {btex_px}/{total_bg_px} background P3-pixels "
+        f"({btex_px / max(1, total_bg_px) * 100:.1f}%) across the evaluated split"
+    )
 
     # ---- Pass 2: TFR for this run's actual selected regions ----
     n_selected, n_in_btex = 0, 0
@@ -168,11 +195,15 @@ def main():
     tfr = n_in_btex / max(1, n_selected)
     print(f"\nimages with >=1 selected region: {n_images_with_selections}")
     print(f"total selected regions: {n_selected}")
-    print(f"selected regions classified in B_tex (>{BTEX_REGION_FRACTION*100:.0f}% overlap): {n_in_btex}")
+    print(
+        f"selected regions classified in B_tex (>{BTEX_REGION_FRACTION*100:.0f}% overlap): {n_in_btex}"
+    )
     print(f"TFR = {tfr * 100:.2f}%")
     if per_image_fracs:
-        print(f"mean region B_tex-overlap fraction (continuous, not thresholded): "
-              f"{np.mean(per_image_fracs) * 100:.2f}%")
+        print(
+            f"mean region B_tex-overlap fraction (continuous, not thresholded): "
+            f"{np.mean(per_image_fracs) * 100:.2f}%"
+        )
 
 
 if __name__ == "__main__":

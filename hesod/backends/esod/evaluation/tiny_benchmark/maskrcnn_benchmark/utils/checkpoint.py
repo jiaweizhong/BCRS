@@ -19,7 +19,7 @@ class Checkpointer(object):
         save_dir="",
         save_to_disk=None,
         logger=None,
-        ignore_keys=[]  # ignore keys
+        ignore_keys=[],  # ignore keys
     ):
         self.model = model
         self.optimizer = optimizer
@@ -99,7 +99,7 @@ class Checkpointer(object):
     def _load_model(self, checkpoint):
         #  ################ add by hui ########################
         models = {}
-        for key, value in checkpoint['model'].items():
+        for key, value in checkpoint["model"].items():
             is_ignore_key = False
             for p_key in self.ignore_keys:
                 if p_key in key:
@@ -108,7 +108,7 @@ class Checkpointer(object):
                 models[key] = value
             else:
                 self.logger.info("ignore {}".format(key))
-        checkpoint['model'] = models
+        checkpoint["model"] = models
         # ###################################################
         load_state_dict(self.model, checkpoint.pop("model"))
 
@@ -125,7 +125,13 @@ class DetectronCheckpointer(Checkpointer):
         logger=None,
     ):
         super(DetectronCheckpointer, self).__init__(
-            model, optimizer, scheduler, save_dir, save_to_disk, logger, cfg.MODEL.IGNORE_WEIGHT_KEYS
+            model,
+            optimizer,
+            scheduler,
+            save_dir,
+            save_to_disk,
+            logger,
+            cfg.MODEL.IGNORE_WEIGHT_KEYS,
         )
         self.cfg = cfg.clone()
 

@@ -11,6 +11,7 @@ from ..utils import cat
 from maskrcnn_benchmark.layers import SmoothL1Loss
 from maskrcnn_benchmark.layers import AdjustSmoothL1Loss
 from maskrcnn_benchmark.layers import SigmoidFocalLoss
+
 # from maskrcnn_benchmark.modeling.matcher import Matcher
 from .matcher import Matcher  # changed by hui
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
@@ -31,28 +32,23 @@ class RetinaNetLossComputation(object):
         # self.target_preparator = target_preparator
         self.proposal_matcher = proposal_matcher
         self.box_coder = box_coder
-        self.num_classes = cfg.RETINANET.NUM_CLASSES -1
+        self.num_classes = cfg.RETINANET.NUM_CLASSES - 1
         self.box_cls_loss_func = SigmoidFocalLoss(
-            self.num_classes,
-            cfg.RETINANET.LOSS_GAMMA,
-            cfg.RETINANET.LOSS_ALPHA
+            self.num_classes, cfg.RETINANET.LOSS_GAMMA, cfg.RETINANET.LOSS_ALPHA
         )
         if cfg.RETINANET.SELFADJUST_SMOOTH_L1:
             self.regression_loss = AdjustSmoothL1Loss(
-                4,
-                beta=cfg.RETINANET.BBOX_REG_BETA
+                4, beta=cfg.RETINANET.BBOX_REG_BETA
             )
         else:
-            self.regression_loss = SmoothL1Loss(
-                beta=cfg.RETINANET.BBOX_REG_BETA
-            )
+            self.regression_loss = SmoothL1Loss(beta=cfg.RETINANET.BBOX_REG_BETA)
 
     def match_targets_to_anchors(self, anchor, target):
         match_quality_matrix = boxlist_iou(target, anchor)
         matched_idxs = self.proposal_matcher(match_quality_matrix)
         # RPN doesn't need any fields from target
         # for creating the labels, so clear them all
-        target = target.copy_with_fields(['labels'])
+        target = target.copy_with_fields(["labels"])
         # get the targets corresponding GT for each anchor
         # NB: need to clamp the indices because we can have a single
         # GT in the image, and matched_idxs can be -2, which goes
@@ -76,7 +72,7 @@ class RetinaNetLossComputation(object):
             bg_indices = matched_idxs == Matcher.BELOW_LOW_THRESHOLD
             labels_per_image[bg_indices] = 0
 
-            # discard indices that are between thresholds 
+            # discard indices that are between thresholds
             # -1 will be ignored in SigmoidFocalLoss
             inds_to_discard = matched_idxs == Matcher.BETWEEN_THRESHOLDS
             labels_per_image[inds_to_discard] = -1
@@ -119,9 +115,7 @@ class RetinaNetLossComputation(object):
         # same format as the labels. Note that the labels are computed for
         # all feature levels concatenated, so we keep the same representation
         # for the objectness and the box_regression
-        for box_cls_per_level, box_regression_per_level in zip(
-            box_cls, box_regression
-        ):
+        for box_cls_per_level, box_regression_per_level in zip(box_cls, box_regression):
             N, A, H, W = box_cls_per_level.shape
             C = self.num_classes
             box_cls_per_level = box_cls_per_level.view(N, -1, C, H, W)
@@ -149,10 +143,9 @@ class RetinaNetLossComputation(object):
         ) / (pos_inds.sum() * 4)
         labels = labels.int()
 
-        retinanet_cls_loss =self.box_cls_loss_func(
-            box_cls,
-            labels
-        ) / ((labels > 0).sum() + N)
+        retinanet_cls_loss = self.box_cls_loss_func(box_cls, labels) / (
+            (labels > 0).sum() + N
+        )
 
         losses = {
             "loss_retina_cls": retinanet_cls_loss,
@@ -167,10 +160,8 @@ def make_retinanet_loss_evaluator(cfg, box_coder):
         cfg.MODEL.RPN.FG_IOU_THRESHOLD,
         cfg.MODEL.RPN.BG_IOU_THRESHOLD,
         allow_low_quality_matches=cfg.RETINANET.LOW_QUALITY_MATCHES,
-        low_quality_threshold=cfg.RETINANET.LOW_QUALITY_THRESHOLD
+        low_quality_threshold=cfg.RETINANET.LOW_QUALITY_THRESHOLD,
     )
 
-    loss_evaluator = RetinaNetLossComputation(
-        cfg, matcher, box_coder
-    )
+    loss_evaluator = RetinaNetLossComputation(cfg, matcher, box_coder)
     return loss_evaluator

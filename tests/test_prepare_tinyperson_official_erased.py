@@ -7,9 +7,15 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-
-SCRIPT = Path(__file__).parents[1] / "scripts" / "esod_baseline" / "prepare_tinyperson_official_erased.py"
-SPEC = importlib.util.spec_from_file_location("prepare_tinyperson_official_erased", SCRIPT)
+SCRIPT = (
+    Path(__file__).parents[1]
+    / "scripts"
+    / "esod_baseline"
+    / "prepare_tinyperson_official_erased.py"
+)
+SPEC = importlib.util.spec_from_file_location(
+    "prepare_tinyperson_official_erased", SCRIPT
+)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
@@ -59,7 +65,10 @@ def test_prepare_split_reads_archive_filters_target_and_is_resumable(tmp_path):
             {"image_id": 1, "bbox": [5, 5, 1, 1], "ignore": False},
         ],
     }
-    target = {"images": [{"id": 11, "file_name": "labeled_images/keep.jpg"}], "annotations": []}
+    target = {
+        "images": [{"id": 11, "file_name": "labeled_images/keep.jpg"}],
+        "annotations": [],
+    }
     _write_json(root / "annotations" / "tiny_set_train.json", source)
     _write_json(root / "mini_annotations" / "tiny_set_train_all_erase.json", target)
 
@@ -71,13 +80,17 @@ def test_prepare_split_reads_archive_filters_target_and_is_resumable(tmp_path):
         _add_image(archive, "train/labeled_dense_images/drop.jpg", image)
 
     stats = MODULE.prepare_split(root, "train")
-    destination = root / "erase_with_uncertain_dataset" / "train" / "labeled_images" / "keep.jpg"
+    destination = (
+        root / "erase_with_uncertain_dataset" / "train" / "labeled_images" / "keep.jpg"
+    )
     assert stats["images"] == 1
     assert stats["written"] == 1
     assert stats["protocol_regions_total"] == 1
     assert stats["erased_regions_written_this_run"] == 1
     assert destination.is_file()
-    assert not (root / "erase_with_uncertain_dataset" / "train" / "labeled_dense_images").exists()
+    assert not (
+        root / "erase_with_uncertain_dataset" / "train" / "labeled_dense_images"
+    ).exists()
 
     resumed = MODULE.prepare_split(root, "train")
     assert resumed["written"] == 0

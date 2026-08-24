@@ -49,13 +49,25 @@ class MultiKernelSpectralFilter(nn.Module):
         weight_3x3 = torch.stack([laplacian_3x3, sobel_x_3x3, sobel_y_3x3], dim=0)
         weight_3x3 = weight_3x3.repeat(in_channels, 1, 1).unsqueeze(1)  # (C*3, 1, 3, 3)
         self.conv3x3 = nn.Conv2d(
-            in_channels, in_channels * 3, kernel_size=3, padding=1, groups=in_channels, bias=False
+            in_channels,
+            in_channels * 3,
+            kernel_size=3,
+            padding=1,
+            groups=in_channels,
+            bias=False,
         )
         self.conv3x3.weight = nn.Parameter(weight_3x3, requires_grad=True)
 
-        weight_5x5 = laplacian_5x5.unsqueeze(0).repeat(in_channels, 1, 1).unsqueeze(1)  # (C, 1, 5, 5)
+        weight_5x5 = (
+            laplacian_5x5.unsqueeze(0).repeat(in_channels, 1, 1).unsqueeze(1)
+        )  # (C, 1, 5, 5)
         self.conv5x5 = nn.Conv2d(
-            in_channels, in_channels, kernel_size=5, padding=2, groups=in_channels, bias=False
+            in_channels,
+            in_channels,
+            kernel_size=5,
+            padding=2,
+            groups=in_channels,
+            bias=False,
         )
         self.conv5x5.weight = nn.Parameter(weight_5x5, requires_grad=True)
 
@@ -65,7 +77,9 @@ class MultiKernelSpectralFilter(nn.Module):
     def forward(self, x):
         feat_3x3 = self.conv3x3(x)  # (B, C*3, H, W)
         feat_5x5 = self.conv5x5(x)  # (B, C, H, W)
-        return self.act(self.norm(torch.cat([feat_3x3, feat_5x5], dim=1)))  # (B, C*4, H, W)
+        return self.act(
+            self.norm(torch.cat([feat_3x3, feat_5x5], dim=1))
+        )  # (B, C*4, H, W)
 
 
 class SpectralBranch(nn.Module):
@@ -115,7 +129,9 @@ class ChannelPooledSpectralFilter(nn.Module):
         self.act = nn.SiLU()
 
     def forward(self, x):
-        pooled = torch.cat([x.amax(dim=1, keepdim=True), x.mean(dim=1, keepdim=True)], dim=1)
+        pooled = torch.cat(
+            [x.amax(dim=1, keepdim=True), x.mean(dim=1, keepdim=True)], dim=1
+        )
         return self.act(self.norm(self.conv(pooled)))  # (B, 6, H, W)
 
 
@@ -232,5 +248,7 @@ class GatedEvidenceFusion(nn.Module):
         )
 
     def forward(self, p_semantic, p_spectral, f_semantic, f_spectral):
-        gate = self.gate_conv(torch.cat([f_semantic, f_spectral], dim=1))  # (B, 1, H, W)
+        gate = self.gate_conv(
+            torch.cat([f_semantic, f_spectral], dim=1)
+        )  # (B, 1, H, W)
         return gate * p_semantic + (1.0 - gate) * p_spectral, gate

@@ -52,8 +52,14 @@ class Pooler(nn.Module):
     which is available thanks to the BoxList.
     """
 
-    def __init__(self, output_size, scales, sampling_ratio,
-                 level_map='scale', level_map_kwargs=None):    # add by hui
+    def __init__(
+        self,
+        output_size,
+        scales,
+        sampling_ratio,
+        level_map="scale",
+        level_map_kwargs=None,
+    ):  # add by hui
         """
         Arguments:
             output_size (list[tuple[int]] or list[int]): output size for the pooled region
@@ -77,11 +83,11 @@ class Pooler(nn.Module):
         # get the levels in the feature map by leveraging the fact that the network always
         # downsamples by a factor of 2 at each level.
         # ######################## changed by hui ################################################
-        if level_map == 'scale':
+        if level_map == "scale":
             lvl_min = -torch.log2(torch.tensor(scales[0], dtype=torch.float32)).item()
             lvl_max = -torch.log2(torch.tensor(scales[-1], dtype=torch.float32)).item()
             self.map_levels = LevelMapper(lvl_min, lvl_max)
-        elif level_map == 'fixed':
+        elif level_map == "fixed":
             lvl_min, lvl_max = level_map_kwargs.LEVEL_MIN, level_map_kwargs.LEVEL_MAX
             self.map_levels = LevelMapper(lvl_min, lvl_max)
         # #########################################################################################

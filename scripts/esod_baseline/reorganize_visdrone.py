@@ -43,7 +43,9 @@ def _link(src: Path, dst: Path) -> None:
 def reorganize(raw_root: Path, out_root: Path, split: str) -> None:
     split_file = raw_root / "split" / f"{split}.txt"
     if not split_file.is_file():
-        raise SystemExit(f"missing {split_file} -- did prepare_visdrone() run for this split?")
+        raise SystemExit(
+            f"missing {split_file} -- did prepare_visdrone() run for this split?"
+        )
 
     img_out = out_root / "images" / split
     lbl_out = out_root / "labels" / split
@@ -74,7 +76,9 @@ def reorganize(raw_root: Path, out_root: Path, split: str) -> None:
                 )
             img_path = reanchored
 
-        label_path = Path(str(img_path).replace("/images/", "/labels/").replace(".jpg", ".txt"))
+        label_path = Path(
+            str(img_path).replace("/images/", "/labels/").replace(".jpg", ".txt")
+        )
         if not label_path.is_file():
             raise SystemExit(f"missing label for {img_path}: {label_path}")
 
@@ -82,12 +86,16 @@ def reorganize(raw_root: Path, out_root: Path, split: str) -> None:
         shutil.copyfile(label_path, lbl_out / label_path.name)
         n_images += 1
 
-        mask_path = Path(str(label_path).replace("/labels/", "/masks/").replace(".txt", ".npy"))
+        mask_path = Path(
+            str(label_path).replace("/labels/", "/masks/").replace(".txt", ".npy")
+        )
         if mask_path.is_file():
             _link(mask_path, mask_out / mask_path.name)
             n_masks += 1
 
-    print(f"[{split}] {n_images} image/label pairs, {n_masks} masks -> {out_root}/*/{split}")
+    print(
+        f"[{split}] {n_images} image/label pairs, {n_masks} masks -> {out_root}/*/{split}"
+    )
     if n_masks != n_images:
         print(
             f"[{split}] NOTE: {n_images - n_masks} image(s) have no mask yet "
@@ -97,9 +105,21 @@ def reorganize(raw_root: Path, out_root: Path, split: str) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--raw-root", required=True, type=Path, help="dir containing VisDrone2019-DET-* and split/")
-    ap.add_argument("--out-root", required=True, type=Path, help="target dataset root (images/labels/masks per split)")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--raw-root",
+        required=True,
+        type=Path,
+        help="dir containing VisDrone2019-DET-* and split/",
+    )
+    ap.add_argument(
+        "--out-root",
+        required=True,
+        type=Path,
+        help="target dataset root (images/labels/masks per split)",
+    )
     ap.add_argument("--splits", nargs="+", default=["train", "val"])
     args = ap.parse_args()
 

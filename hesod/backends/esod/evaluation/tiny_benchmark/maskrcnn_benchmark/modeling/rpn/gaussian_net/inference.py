@@ -18,6 +18,7 @@ class GAUPostProcessor(torch.nn.Module):
     Performs post-processing on the outputs of the RetinaNet boxes.
     This is only used in the testing.
     """
+
     def __init__(
         self,
         pre_nms_thresh,
@@ -60,12 +61,19 @@ class GAUPostProcessor(torch.nn.Module):
     def find_local_max(self, box_prob_per_im, gau_prob_per_im):
         C, H, W = gau_prob_per_im.shape
         max_prob, _ = F.max_pool2d_with_indices(
-            gau_prob_per_im.unsqueeze(dim=0), self.local_max_kernel, 1, self.local_max_pad)  # , return_indices=True)
+            gau_prob_per_im.unsqueeze(dim=0),
+            self.local_max_kernel,
+            1,
+            self.local_max_pad,
+        )  # , return_indices=True)
         # is_local_max = torch.nonzero((box_prob_per_im == max_prob[0])  # local max filter
         #                              & (box_prob_per_im > self.pre_nms_thresh))  # threshold filter
 
         is_local_max = torch.nonzero(
-            ((gau_prob_per_im == max_prob[0]) & (box_prob_per_im > self.pre_nms_thresh))  # threshold filter
+            (
+                (gau_prob_per_im == max_prob[0])
+                & (box_prob_per_im > self.pre_nms_thresh)
+            )  # threshold filter
             # | (box_prob_per_im > 0.4)
         )
 
@@ -74,20 +82,24 @@ class GAUPostProcessor(torch.nn.Module):
         no_board = (y > 0) & (y < H - 1) & (x > 0) & (x < W - 1)
         is_local_max = is_local_max[no_board]
         c, y, x = is_local_max[:, 0], is_local_max[:, 1], is_local_max[:, 2]
-        gau_prob_per_im = gau_prob_per_im[c, y, x]  # attention: not gau_prob_per_im[is_local_max]
+        gau_prob_per_im = gau_prob_per_im[
+            c, y, x
+        ]  # attention: not gau_prob_per_im[is_local_max]
         box_prob_per_im = box_prob_per_im[c, y, x]
 
         # top-k filter
         if len(gau_prob_per_im) > self.pre_nms_top_n:
-            prob_per_im, top_idx = torch.topk((gau_prob_per_im * box_prob_per_im) ** 0.5, self.pre_nms_top_n)
+            prob_per_im, top_idx = torch.topk(
+                (gau_prob_per_im * box_prob_per_im) ** 0.5, self.pre_nms_top_n
+            )
             is_local_max = is_local_max[top_idx]
         else:
             prob_per_im = (gau_prob_per_im * box_prob_per_im) ** 0.5
         return is_local_max, prob_per_im
 
     def forward_for_single_feature_map(
-            self, step, box_cls, gau_logits,
-            image_sizes, level):
+        self, step, box_cls, gau_logits, image_sizes, level
+    ):
         """
         Arguments:
             anchors: list[BoxList]
@@ -144,11 +156,25 @@ class GAUPostProcessor(torch.nn.Module):
             local_max_point, per_box_cls = self.find_local_max(box_prob[i], gau_prob[i])
             # print(len(local_max_point))
             if len(local_max_point) > 0:
-                bboxes1 = cross_points_set_solve_3d(L[i], local_max_point, self.infer_a, self.infer_b, step=step, solver=1)
-                bboxes2 = cross_points_set_solve_3d(L[i], local_max_point, self.infer_a, self.infer_b, step=step, solver=2)
+                bboxes1 = cross_points_set_solve_3d(
+                    L[i],
+                    local_max_point,
+                    self.infer_a,
+                    self.infer_b,
+                    step=step,
+                    solver=1,
+                )
+                bboxes2 = cross_points_set_solve_3d(
+                    L[i],
+                    local_max_point,
+                    self.infer_a,
+                    self.infer_b,
+                    step=step,
+                    solver=2,
+                )
                 eps = 1e-6
                 err = ((bboxes1[:, :4] + eps) / (bboxes2[:, :4] + eps)).min(dim=1)[0]
-                bboxes1[(err > 1.2) & (err < 1/1.2), :] = 0
+                bboxes1[(err > 1.2) & (err < 1 / 1.2), :] = 0
                 bboxes = bboxes1
                 bboxes[:, :2] += (step - 1) / 2  # cause compute location +(step-1)/2
             else:
@@ -158,9 +184,7 @@ class GAUPostProcessor(torch.nn.Module):
             bboxes = bboxes[keep]
             local_max_point = local_max_point[keep]
             x1, y1, w, h = bboxes[:, :4].transpose(0, 1)
-            detections = torch.stack([
-                x1, y1, x1 + w - 1, y1 + h - 1
-            ], dim=1)
+            detections = torch.stack([x1, y1, x1 + w - 1, y1 + h - 1], dim=1)
             # detections = torch.FloatTensor(size=(0, 4)).to(bboxes.device)
             per_class = local_max_point[:, 0] + 1
 
@@ -170,8 +194,13 @@ class GAUPostProcessor(torch.nn.Module):
             boxlist.add_field("scores", per_box_cls)
             # add for debug and vis
             boxlist.add_field("points", local_max_point * step + (step - 1) / 2)
-            fpn_level = torch.ones(len(local_max_point), 1).to(local_max_point.device)*level
-            boxlist.add_field("debug.feature_points", torch.cat([fpn_level.long(), local_max_point], dim=1))
+            fpn_level = (
+                torch.ones(len(local_max_point), 1).to(local_max_point.device) * level
+            )
+            boxlist.add_field(
+                "debug.feature_points",
+                torch.cat([fpn_level.long(), local_max_point], dim=1),
+            )
             # #######################################################################
             boxlist = boxlist.clip_to_image(remove_empty=False)
             boxlist = remove_small_boxes(boxlist, self.min_size)
@@ -225,17 +254,22 @@ class GAUPostProcessor(torch.nn.Module):
                 boxes_j = boxes[inds, :].view(-1, 4)
                 boxlist_for_class = BoxList(boxes_j, boxlist.size, mode="xyxy")
                 boxlist_for_class.add_field("scores", scores_j)
-                boxlist_for_class.add_field("points", boxlists[i].get_field("points")[inds])  # add here
-                boxlist_for_class.add_field("debug.feature_points", boxlists[i].get_field("debug.feature_points")[inds])  # add here
+                boxlist_for_class.add_field(
+                    "points", boxlists[i].get_field("points")[inds]
+                )  # add here
+                boxlist_for_class.add_field(
+                    "debug.feature_points",
+                    boxlists[i].get_field("debug.feature_points")[inds],
+                )  # add here
                 boxlist_for_class = boxlist_nms(
-                    boxlist_for_class, self.nms_thresh,
-                    score_field="scores"
+                    boxlist_for_class, self.nms_thresh, score_field="scores"
                 )
                 num_labels = len(boxlist_for_class)
                 boxlist_for_class.add_field(
-                    "labels", torch.full((num_labels,), j,
-                                         dtype=torch.int64,
-                                         device=scores.device)
+                    "labels",
+                    torch.full(
+                        (num_labels,), j, dtype=torch.int64, device=scores.device
+                    ),
                 )
                 result.append(boxlist_for_class)
 
@@ -246,8 +280,7 @@ class GAUPostProcessor(torch.nn.Module):
             if number_of_detections > self.fpn_post_nms_top_n > 0:
                 cls_scores = result.get_field("scores")
                 image_thresh, _ = torch.kthvalue(
-                    cls_scores.cpu(),
-                    number_of_detections - self.fpn_post_nms_top_n + 1
+                    cls_scores.cpu(), number_of_detections - self.fpn_post_nms_top_n + 1
                 )
                 keep = cls_scores >= image_thresh.item()
                 keep = torch.nonzero(keep).squeeze(1)
@@ -268,7 +301,7 @@ def make_gau_postprocessor(config):
         nms_thresh=nms_thresh,
         fpn_post_nms_top_n=fpn_post_nms_top_n,
         min_size=0,
-        num_classes=config.MODEL.FCOS.NUM_CLASSES
+        num_classes=config.MODEL.FCOS.NUM_CLASSES,
     )
 
     return box_selector
@@ -278,30 +311,48 @@ def show_images(images, boxlists, targets):
     from pycocotools.coco import COCO
     import matplotlib.pyplot as plt
     import numpy as np
+
     coco = COCO("/home/hui/dataset/voc/VOC2007/Annotations/pascal_test2007.json")
 
-    det_results = torch.cat([boxlists[0].bbox, boxlists[0].extra_fields["labels"].reshape((-1, 1)).float(),
-                             boxlists[0].extra_fields["scores"].reshape((-1, 1)),
-                             boxlists[0].extra_fields["points"].float()], dim=1)
+    det_results = torch.cat(
+        [
+            boxlists[0].bbox,
+            boxlists[0].extra_fields["labels"].reshape((-1, 1)).float(),
+            boxlists[0].extra_fields["scores"].reshape((-1, 1)),
+            boxlists[0].extra_fields["points"].float(),
+        ],
+        dim=1,
+    )
     det_results = det_results.cpu().numpy().tolist()
-    img = images.tensors[0].permute((1, 2, 0)).cpu().numpy() + np.array([102.9801, 115.9465, 122.7717])
+    img = images.tensors[0].permute((1, 2, 0)).cpu().numpy() + np.array(
+        [102.9801, 115.9465, 122.7717]
+    )
     plt.imshow(img / 255)
     for det in det_results:
         x1, y1, x2, y2, l, s, pc, py, px = det
         w, h = x2 - x1 + 1, y2 - y1 + 1
         x1, y1, w, h, l = [round(e) for e in [x1, y1, w, h, l]]
-        if s < 0.3: continue
-        rect = plt.Rectangle((x1, y1), w, h, fill=False, color='b', linewidth=2)
+        if s < 0.3:
+            continue
+        rect = plt.Rectangle((x1, y1), w, h, fill=False, color="b", linewidth=2)
         plt.axes().add_patch(rect)
-        plt.text(x1, y1, coco.loadCats(l)[0]['name'] + str(round(s, 2)))
-        plt.scatter(px, py, color='r', s=20 * s)
+        plt.text(x1, y1, coco.loadCats(l)[0]["name"] + str(round(s, 2)))
+        plt.scatter(px, py, color="r", s=20 * s)
 
     if targets is not None:
-        for (x1, y1, x2, y2) in targets[0].bbox.cpu().numpy().tolist():
+        for x1, y1, x2, y2 in targets[0].bbox.cpu().numpy().tolist():
             plt.axes().add_patch(
-                plt.Rectangle((x1, y1), x2 - x1 + 1, y2 - y1 + 1, fill=False, color=(0, 1, 0), linewidth=2)
+                plt.Rectangle(
+                    (x1, y1),
+                    x2 - x1 + 1,
+                    y2 - y1 + 1,
+                    fill=False,
+                    color=(0, 1, 0),
+                    linewidth=2,
+                )
             )
     plt.show()
+
 
 # iter = 0
 # def show_label_map(box_cls):

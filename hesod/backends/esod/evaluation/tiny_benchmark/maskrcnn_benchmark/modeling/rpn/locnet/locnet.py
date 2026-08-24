@@ -16,20 +16,17 @@ class LocationGenerator(object):
         for level, feature in enumerate(features):
             h, w = feature.size()[-2:]
             locations_per_level = self.compute_locations_per_level(
-                h, w, self.fpn_strides[level],
-                feature.device
+                h, w, self.fpn_strides[level], feature.device
             )
             locations.append(locations_per_level)
         return locations
 
     def compute_locations_per_level(self, h, w, stride, device):
         shifts_x = torch.arange(
-            0, w * stride, step=stride,
-            dtype=torch.float32, device=device
+            0, w * stride, step=stride, dtype=torch.float32, device=device
         )
         shifts_y = torch.arange(
-            0, h * stride, step=stride,
-            dtype=torch.float32, device=device
+            0, h * stride, step=stride, dtype=torch.float32, device=device
         )
         shift_y, shift_x = torch.meshgrid(shifts_y, shifts_x)
         shift_x = shift_x.reshape(-1)
@@ -47,7 +44,9 @@ class LOCModule(nn.Module):
     def __init__(self, cfg, in_channels):
         super(LOCModule, self).__init__()
         self.head = build_location_head(cfg, in_channels)
-        self.anchor_generator = LocationGenerator(cfg.MODEL.LOC.FPN_STRIDES)  # anchor or locations
+        self.anchor_generator = LocationGenerator(
+            cfg.MODEL.LOC.FPN_STRIDES
+        )  # anchor or locations
         self.loss_evaluator = make_location_loss_evaluator(cfg)
         self.infer = make_location_postprocessor(cfg)
 
@@ -78,15 +77,19 @@ def build_location_net(cfg, in_channels):
 
 
 import numpy as np
+
+
 class ResultShower(object):
     """
-        1. plot image
-        2. plot list of bboxes, bboxes can be ground-truth or detection results
-        3. show score text for detection result
-        4. show detection location as red point, score as point size
+    1. plot image
+    2. plot list of bboxes, bboxes can be ground-truth or detection results
+    3. show score text for detection result
+    4. show detection location as red point, score as point size
     """
 
-    def __init__(self, image_mean=np.array([102.9801, 115.9465, 122.7717]), show_iter=1):
+    def __init__(
+        self, image_mean=np.array([102.9801, 115.9465, 122.7717]), show_iter=1
+    ):
         self.score_th = None
         self.show_score_topk = 4
         self.image_mean = image_mean
@@ -98,6 +101,7 @@ class ResultShower(object):
     def __call__(self, images, *targets_list):
         import matplotlib.pyplot as plt
         import seaborn as sbn
+
         if (self.counter + 1) % self.show_iter != 0:
             self.counter += 1
             return
@@ -105,21 +109,38 @@ class ResultShower(object):
         colors = sbn.color_palette(n_colors=len(targets_list))
         img = images.tensors[0].permute((1, 2, 0)).cpu().numpy() + self.image_mean
         img = img[:, :, [2, 1, 0]]
-        plt.imshow(img/255)
+        plt.imshow(img / 255)
         title = "boxes:"
         for ci, targets in enumerate(targets_list):
             if targets is not None:
                 bboxes = targets[0].bbox.detach().cpu().numpy().tolist()
-                scores = targets[0].extra_fields['scores'].detach().cpu() if 'scores' in targets[0].extra_fields else None
-                locations = targets[0].extra_fields['det_locations'].detach().cpu() if 'det_locations' in targets[0].extra_fields else None
-                labels = targets[0].extra_fields['labels'].cpu()
+                scores = (
+                    targets[0].extra_fields["scores"].detach().cpu()
+                    if "scores" in targets[0].extra_fields
+                    else None
+                )
+                locations = (
+                    targets[0].extra_fields["det_locations"].detach().cpu()
+                    if "det_locations" in targets[0].extra_fields
+                    else None
+                )
+                labels = targets[0].extra_fields["labels"].cpu()
                 if scores is None or len(scores) == 0:
-                    self.plot1(bboxes, scores, locations, labels, None, (1, 0, 0))  # ground-truth
+                    self.plot1(
+                        bboxes, scores, locations, labels, None, (1, 0, 0)
+                    )  # ground-truth
                 else:
-                    score_th = -torch.kthvalue(-scores, self.show_score_topk)[0]\
-                        if self.score_th is None else self.score_th
+                    score_th = (
+                        -torch.kthvalue(-scores, self.show_score_topk)[0]
+                        if self.score_th is None
+                        else self.score_th
+                    )
                     self.plot(bboxes, scores, locations, labels, score_th, colors[ci])
-                count = len(targets[0].bbox) if scores is None else (scores > score_th).sum()
+                count = (
+                    len(targets[0].bbox)
+                    if scores is None
+                    else (scores > score_th).sum()
+                )
                 title += "{}({}) ".format(count, len(targets[0].bbox))
         plt.title(title)
         plt.show()
@@ -127,9 +148,9 @@ class ResultShower(object):
 
     def plot2(self, bboxes, scores, locations, labels, score_th, color=None):
         """
-            no dash line link box and location, use color link
-            different color for different box,
-            same color for same box and location
+        no dash line link box and location, use color link
+        different color for different box,
+        same color for same box and location
         """
         import matplotlib.pyplot as plt
         import seaborn as sbn
@@ -150,15 +171,24 @@ class ResultShower(object):
             color = colors[i]
             if scores is not None:
                 if scores[i] >= score_th:
-                    plt.text(x1, y1, '{}:{:.2f}'.format(labels[i], scores[i]), color=(1, 0, 0))
-                    rect = plt.Rectangle((x1, y1), w, h, fill=False, color=color, linewidth=1.5)
+                    plt.text(
+                        x1,
+                        y1,
+                        "{}:{:.2f}".format(labels[i], scores[i]),
+                        color=(1, 0, 0),
+                    )
+                    rect = plt.Rectangle(
+                        (x1, y1), w, h, fill=False, color=color, linewidth=1.5
+                    )
                     plt.axes().add_patch(rect)
                 if locations is not None:
                     lx, ly = locations[i]
-                    plt.scatter(lx, ly, color=color, s=self.point_size*scores[i])
+                    plt.scatter(lx, ly, color=color, s=self.point_size * scores[i])
             else:
-                plt.text(x2, y2, '{}'.format(labels[i]), color=(1, 0, 0))
-                rect = plt.Rectangle((x1, y1), w, h, fill=False, color=color, linewidth=1.5)
+                plt.text(x2, y2, "{}".format(labels[i]), color=(1, 0, 0))
+                rect = plt.Rectangle(
+                    (x1, y1), w, h, fill=False, color=color, linewidth=1.5
+                )
                 plt.axes().add_patch(rect)
 
         print(scores)
@@ -171,23 +201,28 @@ class ResultShower(object):
         , use dash line link bbox and location
         """
         import matplotlib.pyplot as plt
+
         for i, (x1, y1, x2, y2) in enumerate(bboxes):
             w = x2 - x1 + 1
             h = y2 - y1 + 1
             if scores is not None:
                 if scores[i] >= score_th:
-                    plt.text(x1, y1, '{:.2f}'.format(scores[i]), color=(1, 0, 0))
-                    rect = plt.Rectangle((x1, y1), w, h, fill=False, color=color, linewidth=1.5)
+                    plt.text(x1, y1, "{:.2f}".format(scores[i]), color=(1, 0, 0))
+                    rect = plt.Rectangle(
+                        (x1, y1), w, h, fill=False, color=color, linewidth=1.5
+                    )
                     plt.axes().add_patch(rect)
                     if locations is not None:
                         lx, ly = locations[i]
-                        plt.plot([lx, lx, lx], [y2, ly, y1], '--', color=color)
-                        plt.plot([x2, lx, x1], [ly, ly, ly], '--', color=color)
+                        plt.plot([lx, lx, lx], [y2, ly, y1], "--", color=color)
+                        plt.plot([x2, lx, x1], [ly, ly, ly], "--", color=color)
                 if locations is not None:
                     lx, ly = locations[i]
-                    plt.scatter(lx, ly, color='r', s=self.point_size * scores[i])
+                    plt.scatter(lx, ly, color="r", s=self.point_size * scores[i])
             else:
-                rect = plt.Rectangle((x1, y1), w, h, fill=False, color=color, linewidth=1.5)
+                rect = plt.Rectangle(
+                    (x1, y1), w, h, fill=False, color=color, linewidth=1.5
+                )
                 plt.axes().add_patch(rect)
 
 

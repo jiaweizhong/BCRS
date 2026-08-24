@@ -51,7 +51,9 @@ def remap_to_official(pred_path: Path, gt_path: Path) -> Path:
         for item in anno["images"]
     }
     if len(image_id_dict) != len(anno["images"]):
-        raise SystemExit("official GT contains duplicate filename stems; image-id remapping is ambiguous")
+        raise SystemExit(
+            "official GT contains duplicate filename stems; image-id remapping is ambiguous"
+        )
 
     with open(pred_path, encoding="utf-8") as f:
         jdict = json.load(f)
@@ -69,7 +71,9 @@ def remap_to_official(pred_path: Path, gt_path: Path) -> Path:
         remapped.append(item)
 
     if missing:
-        print(f"WARNING: {missing} prediction(s) referenced an image_id not found in {gt_path} -- skipped")
+        print(
+            f"WARNING: {missing} prediction(s) referenced an image_id not found in {gt_path} -- skipped"
+        )
 
     out_path = pred_path.with_name(pred_path.stem + "_official_remap.json")
     with open(out_path, "w", encoding="utf-8") as f:
@@ -89,25 +93,45 @@ def validate_official_gt(gt_path: Path) -> None:
         raise SystemExit(
             f"TinyPerson official no-dense test must contain 786 images, got {len(anno.get('images', []))}"
         )
-    dense = sum(bool(item.get("in_dense_image", False)) for item in anno.get("annotations", []))
+    dense = sum(
+        bool(item.get("in_dense_image", False)) for item in anno.get("annotations", [])
+    )
     if dense:
-        raise SystemExit(f"TinyPerson official test GT unexpectedly contains {dense} dense annotations")
+        raise SystemExit(
+            f"TinyPerson official test GT unexpectedly contains {dense} dense annotations"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--pred", required=True, help="raw best_predictions.json from test.py --save-json")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--pred",
+        required=True,
+        help="raw best_predictions.json from test.py --save-json",
+    )
     parser.add_argument("--gt", required=True, help="official tiny_set_test_all.json")
     parser.add_argument(
-        "--ignore-uncertain", dest="ignore_uncertain", action="store_true", default=True,
+        "--ignore-uncertain",
+        dest="ignore_uncertain",
+        action="store_true",
+        default=True,
         help="treat 'uncertain' GT boxes as ignorable rather than hard negatives (default: on)",
     )
-    parser.add_argument("--no-ignore-uncertain", dest="ignore_uncertain", action="store_false")
     parser.add_argument(
-        "--use-iod-for-ignore", dest="use_iod_for_ignore", action="store_true", default=True,
+        "--no-ignore-uncertain", dest="ignore_uncertain", action="store_false"
+    )
+    parser.add_argument(
+        "--use-iod-for-ignore",
+        dest="use_iod_for_ignore",
+        action="store_true",
+        default=True,
         help="match against ignore regions by intersection-over-detection rather than IoU (default: on)",
     )
-    parser.add_argument("--no-use-iod-for-ignore", dest="use_iod_for_ignore", action="store_false")
+    parser.add_argument(
+        "--no-use-iod-for-ignore", dest="use_iod_for_ignore", action="store_false"
+    )
     args = parser.parse_args(argv)
 
     from pycocotools.coco import COCO
@@ -127,7 +151,9 @@ def main(argv: list[str] | None = None) -> int:
 
     Params.EVAL_STRANDARD = "tiny"
     coco_eval = COCOeval(
-        coco_gt, coco_dt, "bbox",
+        coco_gt,
+        coco_dt,
+        "bbox",
         ignore_uncertain=args.ignore_uncertain,
         use_iod_for_ignore=args.use_iod_for_ignore,
     )

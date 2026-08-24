@@ -17,7 +17,8 @@ class ROIBoxHead(torch.nn.Module):
         super(ROIBoxHead, self).__init__()
         self.feature_extractor = make_roi_box_feature_extractor(cfg, in_channels)
         self.predictor = make_roi_box_predictor(
-            cfg, self.feature_extractor.out_channels)
+            cfg, self.feature_extractor.out_channels
+        )
         self.post_processor = make_roi_box_post_processor(cfg)
         self.loss_evaluator = make_roi_box_loss_evaluator(cfg)
 

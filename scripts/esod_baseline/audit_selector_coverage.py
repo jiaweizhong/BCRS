@@ -38,7 +38,6 @@ from audit_buckets import (
     match_predictions,
 )
 
-
 Box = tuple[float, float, float, float]
 
 
@@ -84,11 +83,15 @@ def load_selected_patches(path: str | Path) -> SelectedPatchArtifact:
 
     if "schema_version" in payload:
         if payload.get("schema_version") != 2:
-            raise ValueError(f"Unsupported patch artifact schema: {payload.get('schema_version')!r}")
+            raise ValueError(
+                f"Unsupported patch artifact schema: {payload.get('schema_version')!r}"
+            )
         raw_images = payload.get("images")
         metadata = payload.get("metadata", {})
         if not isinstance(raw_images, dict) or not isinstance(metadata, dict):
-            raise ValueError("Schema-v2 patch artifact requires object-valued images and metadata")
+            raise ValueError(
+                "Schema-v2 patch artifact requires object-valued images and metadata"
+            )
     else:
         # Backward-compatible reader for old dumps.  New dumps always carry
         # routing metadata so threshold and Top-K runs cannot be confused.
@@ -108,17 +111,27 @@ def load_selected_patches(path: str | Path) -> SelectedPatchArtifact:
             parsed: list[Box] = []
             for index, box in enumerate(boxes):
                 if not isinstance(box, (list, tuple)) or len(box) != 4:
-                    raise ValueError(f"{label} box {index} for image {key!r} must have four coordinates")
+                    raise ValueError(
+                        f"{label} box {index} for image {key!r} must have four coordinates"
+                    )
                 values = tuple(float(v) for v in box)
                 if not all(math.isfinite(v) for v in values):
-                    raise ValueError(f"{label} box {index} for image {key!r} contains a non-finite value")
+                    raise ValueError(
+                        f"{label} box {index} for image {key!r} contains a non-finite value"
+                    )
                 parsed.append(values)  # type: ignore[arg-type]
             result[canonical] = parsed
         return result
 
     result = parse_box_map(raw_images, "patch")
-    raw_maxima = payload.get("local_maxima_cells") if "schema_version" in payload else None
-    maxima = parse_box_map(raw_maxima, "local-maxima cell") if raw_maxima is not None else None
+    raw_maxima = (
+        payload.get("local_maxima_cells") if "schema_version" in payload else None
+    )
+    maxima = (
+        parse_box_map(raw_maxima, "local-maxima cell")
+        if raw_maxima is not None
+        else None
+    )
     return SelectedPatchArtifact(
         images=result, local_maxima_cells=maxima, metadata=dict(metadata)
     )
@@ -140,7 +153,9 @@ def _native_images(images_dir: Path) -> dict[str, Path]:
     return result
 
 
-def validate_selected_patches(artifact: SelectedPatchArtifact, images_dir: Path) -> None:
+def validate_selected_patches(
+    artifact: SelectedPatchArtifact, images_dir: Path
+) -> None:
     native = _native_images(images_dir)
     dumped_ids, native_ids = set(artifact.images), set(native)
     missing = sorted(native_ids - dumped_ids)
@@ -153,7 +168,10 @@ def validate_selected_patches(artifact: SelectedPatchArtifact, images_dir: Path)
             parts.append(f"unknown {len(unknown)} image ids (e.g. {unknown[:3]})")
         raise ValueError("Patch artifact and image split differ: " + "; ".join(parts))
 
-    if artifact.local_maxima_cells is not None and set(artifact.local_maxima_cells) != native_ids:
+    if (
+        artifact.local_maxima_cells is not None
+        and set(artifact.local_maxima_cells) != native_ids
+    ):
         missing_maxima = sorted(native_ids - set(artifact.local_maxima_cells))
         unknown_maxima = sorted(set(artifact.local_maxima_cells) - native_ids)
         raise ValueError(
@@ -171,8 +189,15 @@ def validate_selected_patches(artifact: SelectedPatchArtifact, images_dir: Path)
         for label, boxes in collections:
             for index, (x1, y1, x2, y2) in enumerate(boxes):
                 if x2 <= x1 or y2 <= y1:
-                    raise ValueError(f"Degenerate {label} {index} for image {key!r}: {(x1, y1, x2, y2)}")
-                if x1 < -tolerance or y1 < -tolerance or x2 > width + tolerance or y2 > height + tolerance:
+                    raise ValueError(
+                        f"Degenerate {label} {index} for image {key!r}: {(x1, y1, x2, y2)}"
+                    )
+                if (
+                    x1 < -tolerance
+                    or y1 < -tolerance
+                    or x2 > width + tolerance
+                    or y2 > height + tolerance
+                ):
                     raise ValueError(
                         f"{label.title()} {index} for image {key!r} lies outside {width}x{height}: "
                         f"{(x1, y1, x2, y2)}"
@@ -269,12 +294,20 @@ def audit_selector(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--patches", required=True, help="output of dump_selected_patches.py")
-    parser.add_argument("--pred", required=True, help="ESOD raw prediction JSON (test.py --save-json)")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--patches", required=True, help="output of dump_selected_patches.py"
+    )
+    parser.add_argument(
+        "--pred", required=True, help="ESOD raw prediction JSON (test.py --save-json)"
+    )
     parser.add_argument("--labels", required=True, help="YOLO labels directory")
     parser.add_argument("--images", required=True, help="native images directory")
-    parser.add_argument("--classes", help="comma-separated class names; defaults to VisDrone")
+    parser.add_argument(
+        "--classes", help="comma-separated class names; defaults to VisDrone"
+    )
     parser.add_argument("--conf-thres", type=float, default=0.001)
     parser.add_argument("--iou-thres", type=float, default=0.5)
     parser.add_argument("--bpr-thres", type=float, default=0.5)
@@ -342,7 +375,9 @@ def main(argv: list[str] | None = None) -> int:
             f"{center:>7} ({center / denom:6.1%})"
         )
     print("=" * 118)
-    print("Patch-center coverage is a routing diagnostic and is never relabeled as paper BPRctr.")
+    print(
+        "Patch-center coverage is a routing diagnostic and is never relabeled as paper BPRctr."
+    )
     return 0
 
 

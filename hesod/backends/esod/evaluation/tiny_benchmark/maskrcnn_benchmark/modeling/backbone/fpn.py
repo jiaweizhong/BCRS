@@ -12,8 +12,13 @@ class FPN(nn.Module):
     """
 
     def __init__(
-        self, in_channels_list, out_channels, conv_block, top_blocks=None,
-            upsample_rates=[], upsample_mode='nearest'  # add by hui
+        self,
+        in_channels_list,
+        out_channels,
+        conv_block,
+        top_blocks=None,
+        upsample_rates=[],
+        upsample_mode="nearest",  # add by hui
     ):
         """
         Arguments:
@@ -63,8 +68,12 @@ class FPN(nn.Module):
                 continue
             # ############# add by hui ###################################################################
             inner_lateral = getattr(self, inner_block)(feature)
-            if last_inner.shape[2:] != inner_lateral.shape[2:]:     # if partial remove down sample, will make same size
-                inner_top_down = F.interpolate(last_inner, scale_factor=2, mode="nearest")
+            if (
+                last_inner.shape[2:] != inner_lateral.shape[2:]
+            ):  # if partial remove down sample, will make same size
+                inner_top_down = F.interpolate(
+                    last_inner, scale_factor=2, mode="nearest"
+                )
             # ############################################################################################
             # TODO use size instead of scale to make it robust to different sizes
             # inner_top_down = F.upsample(last_inner, size=inner_lateral.shape[-2:],
@@ -81,10 +90,17 @@ class FPN(nn.Module):
 
         # add bu hui ###########################################################
         if len(self.upsample_rates) > 0:
-            assert len(self.upsample_rates) == len(results), 'FPN output {} feature map, but set {} upsample reta'.\
-                format(len(results), len(self.upsample_rates))
-            for i, (upsample_rate, result) in enumerate(zip(self.upsample_rates, results)):
-                results[i] = F.interpolate(result, scale_factor=upsample_rate, mode=self.upsmaple_mode)
+            assert len(self.upsample_rates) == len(
+                results
+            ), "FPN output {} feature map, but set {} upsample reta".format(
+                len(results), len(self.upsample_rates)
+            )
+            for i, (upsample_rate, result) in enumerate(
+                zip(self.upsample_rates, results)
+            ):
+                results[i] = F.interpolate(
+                    result, scale_factor=upsample_rate, mode=self.upsmaple_mode
+                )
         # ###################################################################################3
 
         return results  # changed bu hui tuple(results)
@@ -99,6 +115,7 @@ class LastLevelP6P7(nn.Module):
     """
     This module is used in RetinaNet to generate extra layers, P6 and P7.
     """
+
     def __init__(self, in_channels, out_channels):
         super(LastLevelP6P7, self).__init__()
         self.p6 = nn.Conv2d(in_channels, out_channels, 3, 2, 1)

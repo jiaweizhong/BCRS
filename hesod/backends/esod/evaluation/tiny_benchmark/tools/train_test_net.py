@@ -31,6 +31,7 @@ from maskrcnn_benchmark.config.paths_catalog import DatasetCatalog
 def fixed_seed(init_seed):  # add by hui
     import numpy as np
     import random
+
     if init_seed == -2:
         init_seed = np.random.randint(0, 2**32)
     print("set random seed to {}.".format(init_seed))
@@ -60,7 +61,9 @@ def train(cfg, local_rank, distributed):
 
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[local_rank], output_device=local_rank,
+            model,
+            device_ids=[local_rank],
+            output_device=local_rank,
             # this should be removed if we update BatchNorm stats
             broadcast_buffers=False,
         )
@@ -102,7 +105,7 @@ def train(cfg, local_rank, distributed):
         arguments,
         test_func=run_test,
         cfg=cfg,
-        distributed=distributed
+        distributed=distributed,
     )
     ################################################################################################
 
@@ -126,13 +129,19 @@ def run_test(cfg, model, distributed):
             mkdir(output_folder)
             output_folders[idx] = output_folder
     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
-    for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
+    for output_folder, dataset_name, data_loader_val in zip(
+        output_folders, dataset_names, data_loaders_val
+    ):
         inference(
             model,
             data_loader_val,
             dataset_name=dataset_name,
             iou_types=iou_types,
-            box_only=False if cfg.MODEL.FCOS_ON or cfg.MODEL.RETINANET_ON or cfg.MODEL.GAU_ON else cfg.MODEL.RPN_ONLY,  # changed for fcos
+            box_only=(
+                False
+                if cfg.MODEL.FCOS_ON or cfg.MODEL.RETINANET_ON or cfg.MODEL.GAU_ON
+                else cfg.MODEL.RPN_ONLY
+            ),  # changed for fcos
             device=cfg.MODEL.DEVICE,
             expected_results=cfg.TEST.EXPECTED_RESULTS,
             expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
@@ -143,11 +152,16 @@ def run_test(cfg, model, distributed):
             use_last_prediction=cfg.TEST.DEBUG.USE_LAST_PREDICTION,
             evaluate_method=cfg.TEST.EVALUATE_METHOD,
             voc_iou_ths=cfg.TEST.VOC_IOU_THS,
-            gt_file={'merge': cfg.TEST.MERGE_GT_FILE,
-                     'sub': DatasetCatalog.DATA_DIR + '/' + DatasetCatalog.DATASETS[dataset_name]["ann_file"]},
-            use_ignore_attr=cfg.TEST.USE_IGNORE_ATTR
+            gt_file={
+                "merge": cfg.TEST.MERGE_GT_FILE,
+                "sub": DatasetCatalog.DATA_DIR
+                + "/"
+                + DatasetCatalog.DATASETS[dataset_name]["ann_file"],
+            },
+            use_ignore_attr=cfg.TEST.USE_IGNORE_ATTR,
         )
         synchronize()
+
 
 # ################################################ add by hui #################################################
 
@@ -155,10 +169,12 @@ def run_test(cfg, model, distributed):
 def adaptive_config_change(name, old, new):
     if old == new:
         return
-    print('    {:<20} {} --> {}'.format(name, old, new))
+    print("    {:<20} {} --> {}".format(name, old, new))
     cfg.merge_from_list([name, new])
 
+
 # #################################################################################################
+
 
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
@@ -175,14 +191,11 @@ def main():
         dest="skip_test",
         help="Do not test the final model",
         action="store_true",
-        default=True  # add by hui
+        default=True,  # add by hui
     )
     # ################################################ add by hui #################################################
     parser.add_argument(
-        "--temp",
-        help="whether generate to temp output",
-        default=False,
-        type=bool
+        "--temp", help="whether generate to temp output", default=False, type=bool
     )
     # #################################################################################################
     parser.add_argument(
@@ -199,17 +212,16 @@ def main():
 
     if args.distributed:
         torch.cuda.set_device(args.local_rank)
-        torch.distributed.init_process_group(
-            backend="nccl", init_method="env://"
-        )
+        torch.distributed.init_process_group(backend="nccl", init_method="env://")
         synchronize()
 
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     # ################### change by hui #################################################
     if args.temp:
-        if os.path.exists("./outputs/temp"): shutil.rmtree('./outputs/temp')
-        adaptive_config_change("OUTPUT_DIR", cfg.OUTPUT_DIR, './outputs/temp')
+        if os.path.exists("./outputs/temp"):
+            shutil.rmtree("./outputs/temp")
+        adaptive_config_change("OUTPUT_DIR", cfg.OUTPUT_DIR, "./outputs/temp")
     cfg.freeze()
 
     some_pre_deal()
@@ -237,15 +249,22 @@ def main():
     if not args.skip_test:
         run_test(cfg, model, args.distributed)
 
+
 # ################################################ add by hui #################################################
 
 
 def some_pre_deal():
     """add by hui"""
-    from PIL import ImageFile    # add by hui
-    ImageFile.LOAD_TRUNCATED_IMAGES = True   # add by hui
-    assert cfg.SOLVER.NUM_GPU == torch.cuda.device_count(), 'NUM_GPU is not equal to visible GPU count {} vs {}.'\
-        .format(cfg.SOLVER.NUM_GPU, torch.cuda.device_count())
+    from PIL import ImageFile  # add by hui
+
+    ImageFile.LOAD_TRUNCATED_IMAGES = True  # add by hui
+    assert (
+        cfg.SOLVER.NUM_GPU == torch.cuda.device_count()
+    ), "NUM_GPU is not equal to visible GPU count {} vs {}.".format(
+        cfg.SOLVER.NUM_GPU, torch.cuda.device_count()
+    )
+
+
 ##################################################################################################
 
 

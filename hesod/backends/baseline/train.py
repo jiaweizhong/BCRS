@@ -43,18 +43,26 @@ def _device(spec: str) -> torch.device:
 
 
 def _build_argparser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--model", choices=MODEL_NAMES, default=None)
     parser.add_argument("--train-images-dir", default=None)
     parser.add_argument("--train-labels-dir", default=None)
     parser.add_argument("--val-images-dir", default=None)
     parser.add_argument("--val-labels-dir", default=None)
-    parser.add_argument("--classes", default=None, help="comma-separated class names in id order")
+    parser.add_argument(
+        "--classes", default=None, help="comma-separated class names in id order"
+    )
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--img-size", type=int, default=1280, help="long-side target; see models.py")
     parser.add_argument(
-        "--lr", type=float, default=0.0005,
+        "--img-size", type=int, default=1280, help="long-side target; see models.py"
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=0.0005,
         help=(
             "0.005 (the old default) was confirmed too high for fine-tuning "
             "from a COCO-pretrained checkpoint at small batch sizes: "
@@ -74,29 +82,47 @@ def _build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--project", default=None)
     parser.add_argument("--name", default=None)
     parser.add_argument("--exist-ok", action="store_true")
-    parser.add_argument("--resume", default=None, help="last.pt checkpoint; if given, all other flags are ignored")
+    parser.add_argument(
+        "--resume",
+        default=None,
+        help="last.pt checkpoint; if given, all other flags are ignored",
+    )
     return parser
 
 
 def _validate_fresh_run(opt: argparse.Namespace) -> None:
     required = [
-        "model", "train_images_dir", "train_labels_dir",
-        "val_images_dir", "val_labels_dir", "classes", "project", "name",
+        "model",
+        "train_images_dir",
+        "train_labels_dir",
+        "val_images_dir",
+        "val_labels_dir",
+        "classes",
+        "project",
+        "name",
     ]
     missing = [name for name in required if getattr(opt, name) is None]
     if missing:
-        raise SystemExit(f"Missing required flag(s) for a fresh run: {', '.join('--' + m.replace('_', '-') for m in missing)}")
+        raise SystemExit(
+            f"Missing required flag(s) for a fresh run: {', '.join('--' + m.replace('_', '-') for m in missing)}"
+        )
 
 
 def completed_epochs(train_dir: Path) -> int:
     results_file = train_dir / "results.txt"
     if not results_file.is_file():
         return 0
-    return sum(1 for line in results_file.read_text(encoding="utf-8").splitlines() if line.strip())
+    return sum(
+        1
+        for line in results_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
 
 
 @torch.no_grad()
-def _eval_loss(model: torch.nn.Module, loader: DataLoader, device: torch.device) -> float:
+def _eval_loss(
+    model: torch.nn.Module, loader: DataLoader, device: torch.device
+) -> float:
     # torchvision detection models only return a loss dict in train() mode;
     # wrapping the forward pass in no_grad() + train() gives a val-loss proxy
     # without updating weights or requiring a second (eval-mode) code path.
@@ -104,7 +130,10 @@ def _eval_loss(model: torch.nn.Module, loader: DataLoader, device: torch.device)
     total, count = 0.0, 0
     for images, targets in tqdm(loader, desc="val", leave=False):
         images = [img.to(device) for img in images]
-        targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
+        targets = [
+            {k: v.to(device) for k, v in t.items() if torch.is_tensor(v)}
+            for t in targets
+        ]
         loss_dict = model(images, targets)
         total += float(sum(loss_dict.values()))
         count += 1
@@ -115,21 +144,35 @@ def train(opt: argparse.Namespace) -> None:
     device = _device(opt.device)
     class_names = tuple(name.strip() for name in opt.classes.split(",") if name.strip())
 
-    train_ds = YoloDetectionDataset(opt.train_images_dir, opt.train_labels_dir, class_names)
+    train_ds = YoloDetectionDataset(
+        opt.train_images_dir, opt.train_labels_dir, class_names
+    )
     val_ds = YoloDetectionDataset(opt.val_images_dir, opt.val_labels_dir, class_names)
     train_loader = DataLoader(
-        train_ds, batch_size=opt.batch_size, shuffle=True, num_workers=opt.workers, collate_fn=collate_fn
+        train_ds,
+        batch_size=opt.batch_size,
+        shuffle=True,
+        num_workers=opt.workers,
+        collate_fn=collate_fn,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=opt.batch_size, shuffle=False, num_workers=opt.workers, collate_fn=collate_fn
+        val_ds,
+        batch_size=opt.batch_size,
+        shuffle=False,
+        num_workers=opt.workers,
+        collate_fn=collate_fn,
     )
 
-    model = build_model(opt.model, len(class_names), min_size=opt.img_size, max_size=opt.img_size)
+    model = build_model(
+        opt.model, len(class_names), min_size=opt.img_size, max_size=opt.img_size
+    )
     model.to(device)
 
     optimizer = torch.optim.SGD(
         [p for p in model.parameters() if p.requires_grad],
-        lr=opt.lr, momentum=opt.momentum, weight_decay=opt.weight_decay,
+        lr=opt.lr,
+        momentum=opt.momentum,
+        weight_decay=opt.weight_decay,
     )
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=opt.epochs)
 
@@ -157,7 +200,10 @@ def train(opt: argparse.Namespace) -> None:
         pbar = tqdm(train_loader, desc=f"epoch {epoch}/{opt.epochs - 1}")
         for images, targets in pbar:
             images = [img.to(device) for img in images]
-            targets = [{k: v.to(device) for k, v in t.items() if torch.is_tensor(v)} for t in targets]
+            targets = [
+                {k: v.to(device) for k, v in t.items() if torch.is_tensor(v)}
+                for t in targets
+            ]
             loss_dict = model(images, targets)
             loss = sum(loss_dict.values())
             optimizer.zero_grad()
@@ -169,7 +215,9 @@ def train(opt: argparse.Namespace) -> None:
         scheduler.step()
         train_loss = running_loss / batches if batches else float("nan")
         val_loss = _eval_loss(model, val_loader, device)
-        print(f"epoch {epoch}/{opt.epochs - 1}  train_loss={train_loss:.4f}  val_loss={val_loss:.4f}")
+        print(
+            f"epoch {epoch}/{opt.epochs - 1}  train_loss={train_loss:.4f}  val_loss={val_loss:.4f}"
+        )
 
         with results_path.open("a", encoding="utf-8") as fh:
             fh.write(f"{epoch} {train_loss:.4f} {val_loss:.4f}\n")

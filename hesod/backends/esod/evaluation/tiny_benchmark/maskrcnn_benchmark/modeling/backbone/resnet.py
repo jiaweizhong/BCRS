@@ -16,6 +16,7 @@ OR:
 Custom implementations may be written in user code and hooked in via the
 `register_*` functions.
 """
+
 from collections import namedtuple
 
 import torch
@@ -26,7 +27,6 @@ from maskrcnn_benchmark.layers import FrozenBatchNorm2d
 from maskrcnn_benchmark.layers import Conv2d
 from maskrcnn_benchmark.modeling.make_layers import group_norm
 from maskrcnn_benchmark.utils.registry import Registry
-
 
 # ResNet stage specification
 StageSpec = namedtuple(
@@ -127,17 +127,17 @@ class ResNet(nn.Module):
                 stride = int(stage_spec.index > 1) + 1
             else:
                 stride = cfg.MODEL.RESNETS.RESNET_STAGE_FIRST_STRIDE[i]
-            if cfg.MODEL.RESNETS.TRANS_FUNC.startswith('BasicBlock'):
+            if cfg.MODEL.RESNETS.TRANS_FUNC.startswith("BasicBlock"):
                 module = _make_basic_stage(
                     transformation_module,
                     in_channels,
                     out_channels,
                     stage_spec.block_count,
                     num_groups,
-                    first_stride=stride
+                    first_stride=stride,
                 )
             else:
-            # ########################################################################################
+                # ########################################################################################
                 module = _make_stage(
                     transformation_module,
                     in_channels,
@@ -187,7 +187,7 @@ class ResNetHead(nn.Module):
         stride_in_1x1=True,
         stride_init=None,
         res2_out_channels=256,
-        dilation=1
+        dilation=1,
     ):
         super(ResNetHead, self).__init__()
 
@@ -214,7 +214,7 @@ class ResNetHead(nn.Module):
                 num_groups,
                 stride_in_1x1,
                 first_stride=stride,
-                dilation=dilation
+                dilation=dilation,
             )
             stride = None
             self.add_module(name, module)
@@ -236,7 +236,7 @@ def _make_stage(
     num_groups,
     stride_in_1x1,
     first_stride,
-    dilation=1
+    dilation=1,
 ):
     blocks = []
     stride = first_stride
@@ -249,7 +249,7 @@ def _make_stage(
                 num_groups,
                 stride_in_1x1,
                 stride,
-                dilation=dilation
+                dilation=dilation,
             )
         )
         stride = 1
@@ -267,7 +267,7 @@ class Bottleneck(nn.Module):
         stride_in_1x1,
         stride,
         dilation,
-        norm_func
+        norm_func,
     ):
         super(Bottleneck, self).__init__()
 
@@ -276,12 +276,17 @@ class Bottleneck(nn.Module):
             down_stride = stride if dilation == 1 else 1
             self.downsample = nn.Sequential(
                 Conv2d(
-                    in_channels, out_channels,
-                    kernel_size=1, stride=down_stride, bias=False
+                    in_channels,
+                    out_channels,
+                    kernel_size=1,
+                    stride=down_stride,
+                    bias=False,
                 ),
                 norm_func(out_channels),
             )
-            for modules in [self.downsample,]:
+            for modules in [
+                self.downsample,
+            ]:
                 for l in modules.modules():
                     if isinstance(l, Conv2d):
                         nn.init.kaiming_uniform_(l.weight, a=1)
@@ -312,7 +317,7 @@ class Bottleneck(nn.Module):
             padding=dilation,
             bias=False,
             groups=num_groups,
-            dilation=dilation
+            dilation=dilation,
         )
         self.bn2 = norm_func(bottleneck_channels)
 
@@ -321,7 +326,11 @@ class Bottleneck(nn.Module):
         )
         self.bn3 = norm_func(out_channels)
 
-        for l in [self.conv1, self.conv2, self.conv3,]:
+        for l in [
+            self.conv1,
+            self.conv2,
+            self.conv3,
+        ]:
             nn.init.kaiming_uniform_(l.weight, a=1)
 
     def forward(self, x):
@@ -359,7 +368,9 @@ class BaseStem(nn.Module):
         )
         self.bn1 = norm_func(out_channels)
 
-        for l in [self.conv1,]:
+        for l in [
+            self.conv1,
+        ]:
             nn.init.kaiming_uniform_(l.weight, a=1)
 
         self.remove_max_pooling = cfg.MODEL.RESNETS.REMOVE_STEM_POOL  # add by hui
@@ -382,7 +393,7 @@ class BottleneckWithFixedBatchNorm(Bottleneck):
         num_groups=1,
         stride_in_1x1=True,
         stride=1,
-        dilation=1
+        dilation=1,
     ):
         super(BottleneckWithFixedBatchNorm, self).__init__(
             in_channels=in_channels,
@@ -392,15 +403,13 @@ class BottleneckWithFixedBatchNorm(Bottleneck):
             stride_in_1x1=stride_in_1x1,
             stride=stride,
             dilation=dilation,
-            norm_func=FrozenBatchNorm2d
+            norm_func=FrozenBatchNorm2d,
         )
 
 
 class StemWithFixedBatchNorm(BaseStem):
     def __init__(self, cfg):
-        super(StemWithFixedBatchNorm, self).__init__(
-            cfg, norm_func=FrozenBatchNorm2d
-        )
+        super(StemWithFixedBatchNorm, self).__init__(cfg, norm_func=FrozenBatchNorm2d)
 
 
 class BottleneckWithGN(Bottleneck):
@@ -412,7 +421,7 @@ class BottleneckWithGN(Bottleneck):
         num_groups=1,
         stride_in_1x1=True,
         stride=1,
-        dilation=1
+        dilation=1,
     ):
         super(BottleneckWithGN, self).__init__(
             in_channels=in_channels,
@@ -422,7 +431,7 @@ class BottleneckWithGN(Bottleneck):
             stride_in_1x1=stride_in_1x1,
             stride=stride,
             dilation=dilation,
-            norm_func=group_norm
+            norm_func=group_norm,
         )
 
 
@@ -439,8 +448,16 @@ def conv1x1(in_planes, out_planes, stride=1):
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation)
+    return nn.Conv2d(
+        in_planes,
+        out_planes,
+        kernel_size=3,
+        stride=stride,
+        padding=dilation,
+        groups=groups,
+        bias=False,
+        dilation=dilation,
+    )
 
 
 def _make_basic_stage(
@@ -450,18 +467,14 @@ def _make_basic_stage(
     block_count,
     num_groups,
     first_stride,
-    dilation=1
+    dilation=1,
 ):
     blocks = []
     stride = first_stride
     for _ in range(block_count):
         blocks.append(
             transformation_module(
-                in_channels,
-                out_channels,
-                num_groups,
-                stride,
-                dilation=dilation
+                in_channels, out_channels, num_groups, stride, dilation=dilation
             )
         )
         stride = 1
@@ -472,13 +485,22 @@ def _make_basic_stage(
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        downsample=None,
+        groups=1,
+        base_width=64,
+        dilation=1,
+        norm_layer=None,
+    ):
         super(BasicBlock, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         if groups != 1 or base_width != 64:
-            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+            raise ValueError("BasicBlock only supports groups=1 and base_width=64")
         if dilation > 1:
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
@@ -496,11 +518,16 @@ class BasicBlock(nn.Module):
                     conv1x1(inplanes, planes * BasicBlock.expansion, stride),
                     norm_layer(planes * BasicBlock.expansion),
                 )
-                for modules in [self.downsample, ]:
+                for modules in [
+                    self.downsample,
+                ]:
                     for l in modules.modules():
                         if isinstance(l, Conv2d):
                             nn.init.kaiming_uniform_(l.weight, a=1)
-        for l in [self.conv1, self.conv2, ]:
+        for l in [
+            self.conv1,
+            self.conv2,
+        ]:
             nn.init.kaiming_uniform_(l.weight, a=1)
 
     def forward(self, x):
@@ -523,47 +550,48 @@ class BasicBlock(nn.Module):
 
 
 class BasicBlockWithFixedBatchNorm(BasicBlock):
-    def __init__(
-        self,
-        in_channels,
-        out_channels,
-        num_groups=1,
-        stride=1,
-        dilation=1
-    ):
+    def __init__(self, in_channels, out_channels, num_groups=1, stride=1, dilation=1):
         super(BasicBlockWithFixedBatchNorm, self).__init__(
             inplanes=in_channels,
             planes=out_channels,
             groups=num_groups,
             stride=stride,
             dilation=dilation,
-            norm_layer=FrozenBatchNorm2d
+            norm_layer=FrozenBatchNorm2d,
         )
+
+
 # ################################################################################################################
 
 
-_TRANSFORMATION_MODULES = Registry({
-    "BasicBlockWithFixedBatchNorm": BasicBlockWithFixedBatchNorm,  # add by hui
-    "BottleneckWithFixedBatchNorm": BottleneckWithFixedBatchNorm,
-    "BottleneckWithGN": BottleneckWithGN,
-})
+_TRANSFORMATION_MODULES = Registry(
+    {
+        "BasicBlockWithFixedBatchNorm": BasicBlockWithFixedBatchNorm,  # add by hui
+        "BottleneckWithFixedBatchNorm": BottleneckWithFixedBatchNorm,
+        "BottleneckWithGN": BottleneckWithGN,
+    }
+)
 
-_STEM_MODULES = Registry({
-    "StemWithFixedBatchNorm": StemWithFixedBatchNorm,
-    "StemWithGN": StemWithGN,
-})
+_STEM_MODULES = Registry(
+    {
+        "StemWithFixedBatchNorm": StemWithFixedBatchNorm,
+        "StemWithGN": StemWithGN,
+    }
+)
 
-_STAGE_SPECS = Registry({
-    "R-50-C2": ResNet50StagesTo2,  # add by hui
-    "R-50-C3": ResNet50StagesTo3,    # add by hui
-    "R-50-C4": ResNet50StagesTo4,
-    "R-50-C5": ResNet50StagesTo5,
-    "R-101-C4": ResNet101StagesTo4,
-    "R-101-C5": ResNet101StagesTo5,
-    "R-18-FPN": ResNet18FPNStagesTo5,  # add by hui
-    "R-50-FPN": ResNet50FPNStagesTo5,
-    "R-50-FPN-RETINANET": ResNet50FPNStagesTo5,
-    "R-101-FPN": ResNet101FPNStagesTo5,
-    "R-101-FPN-RETINANET": ResNet101FPNStagesTo5,
-    "R-152-FPN": ResNet152FPNStagesTo5,
-})
+_STAGE_SPECS = Registry(
+    {
+        "R-50-C2": ResNet50StagesTo2,  # add by hui
+        "R-50-C3": ResNet50StagesTo3,  # add by hui
+        "R-50-C4": ResNet50StagesTo4,
+        "R-50-C5": ResNet50StagesTo5,
+        "R-101-C4": ResNet101StagesTo4,
+        "R-101-C5": ResNet101StagesTo5,
+        "R-18-FPN": ResNet18FPNStagesTo5,  # add by hui
+        "R-50-FPN": ResNet50FPNStagesTo5,
+        "R-50-FPN-RETINANET": ResNet50FPNStagesTo5,
+        "R-101-FPN": ResNet101FPNStagesTo5,
+        "R-101-FPN-RETINANET": ResNet101FPNStagesTo5,
+        "R-152-FPN": ResNet152FPNStagesTo5,
+    }
+)

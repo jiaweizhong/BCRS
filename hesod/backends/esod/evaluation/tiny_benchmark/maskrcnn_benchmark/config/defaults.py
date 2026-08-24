@@ -3,7 +3,6 @@ import os
 
 from yacs.config import CfgNode as CN
 
-
 # -----------------------------------------------------------------------------
 # Convention about Training / Test specific parameters
 # -----------------------------------------------------------------------------
@@ -55,14 +54,14 @@ _C.INPUT.MAX_SIZE_TEST = 1333
 # Values to be used for image normalization
 _C.INPUT.PIXEL_MEAN = [102.9801, 115.9465, 122.7717]
 # Values to be used for image normalization
-_C.INPUT.PIXEL_STD = [1., 1., 1.]
+_C.INPUT.PIXEL_STD = [1.0, 1.0, 1.0]
 # Convert image to BGR format (for Caffe2 models), in range 0-255
 _C.INPUT.TO_BGR255 = True
 
 # ######## add by hui for ScaleResize
 _C.INPUT.USE_SCALE = False
 _C.INPUT.SCALES = ()
-_C.INPUT.SCALE_MODE = 'bilinear'
+_C.INPUT.SCALE_MODE = "bilinear"
 
 
 # -----------------------------------------------------------------------------
@@ -104,27 +103,29 @@ _C.DATALOADER.DA_MIN_CROP_OVERLAP = ()
 _C.DATALOADER.DA_CROP_RESIZE_PROB = 0.5
 # add by hui for DA4
 _C.DATALOADER.DA4_COLOR_AUG = False
-_C.DATALOADER.DA4_SCALE_RANGE = ()        # for multi-scale train (range scale)
-_C.DATALOADER.DA4_SCALES = (1.,)             # for multi-scale train (discrete scales)
-_C.DATALOADER.DA4_OFFSET_X_RANGE = ()     # for translate transform
+_C.DATALOADER.DA4_SCALE_RANGE = ()  # for multi-scale train (range scale)
+_C.DATALOADER.DA4_SCALES = (1.0,)  # for multi-scale train (discrete scales)
+_C.DATALOADER.DA4_OFFSET_X_RANGE = ()  # for translate transform
 _C.DATALOADER.DA4_OFFSET_Y_RANGE = ()
 _C.DATALOADER.USE_SCALE_MATCH = False
 _C.DATALOADER.SCALE_MATCH = CN()
-_C.DATALOADER.SCALE_MATCH.TARGET_ANNO_FILE = ''
+_C.DATALOADER.SCALE_MATCH.TARGET_ANNO_FILE = ""
 _C.DATALOADER.SCALE_MATCH.BINS = 100
-_C.DATALOADER.SCALE_MATCH.EXCEPT_RATE = -1.
-_C.DATALOADER.SCALE_MATCH.SCALE_MODE = 'bilinear'
-_C.DATALOADER.SCALE_MATCH.DEFAULT_SCALE = 1./4
-_C.DATALOADER.SCALE_MATCH.SCALE_RANGE = (0., 2.)
-_C.DATALOADER.SCALE_MATCH.TYPE = 'ScaleMatch'       # 'MonotonicityScaleMatch', 'ScaleMatch', 'GaussianScaleMatch'
+_C.DATALOADER.SCALE_MATCH.EXCEPT_RATE = -1.0
+_C.DATALOADER.SCALE_MATCH.SCALE_MODE = "bilinear"
+_C.DATALOADER.SCALE_MATCH.DEFAULT_SCALE = 1.0 / 4
+_C.DATALOADER.SCALE_MATCH.SCALE_RANGE = (0.0, 2.0)
+_C.DATALOADER.SCALE_MATCH.TYPE = (
+    "ScaleMatch"  # 'MonotonicityScaleMatch', 'ScaleMatch', 'GaussianScaleMatch'
+)
 _C.DATALOADER.SCALE_MATCH.USE_LOG_SCALE_BIN = False
-_C.DATALOADER.SCALE_MATCH.OUT_SCALE_DEAL = 'clip'    # 'clip', 'use_default_scale'
+_C.DATALOADER.SCALE_MATCH.OUT_SCALE_DEAL = "clip"  # 'clip', 'use_default_scale'
 _C.DATALOADER.SCALE_MATCH.REASPECT = ()
 # only for MonotonicityScaleMatch
-_C.DATALOADER.SCALE_MATCH.SOURCE_ANNO_FILE = ''
+_C.DATALOADER.SCALE_MATCH.SOURCE_ANNO_FILE = ""
 # only for GaussianScaleMatch
 _C.DATALOADER.SCALE_MATCH.MU_SIGMA = (0, 1)  # can also use for MonotonicityScaleMatch
-_C.DATALOADER.SCALE_MATCH.GAUSSIAN_SAMPLE_FILE = ''
+_C.DATALOADER.SCALE_MATCH.GAUSSIAN_SAMPLE_FILE = ""
 _C.DATALOADER.SCALE_MATCH.USE_MEAN_SIZE_IN_IMAGE = False
 _C.DATALOADER.SCALE_MATCH.MIN_SIZE = 0
 
@@ -161,7 +162,7 @@ _C.MODEL.FPN.USE_GN = False
 _C.MODEL.FPN.USE_RELU = False
 # add by hui for upsample FPN output feature size
 _C.MODEL.FPN.UPSAMPLE_RATE = []
-_C.MODEL.FPN.UPSAMPLE_MODE = 'nearest'
+_C.MODEL.FPN.UPSAMPLE_MODE = "nearest"
 
 
 # ---------------------------------------------------------------------------- #
@@ -237,7 +238,7 @@ _C.MODEL.ROI_HEADS.FG_IOU_THRESHOLD = 0.5
 _C.MODEL.ROI_HEADS.BG_IOU_THRESHOLD = 0.5
 # Default weights on (dx, dy, dw, dh) for normalizing bbox regression targets
 # These are empirically chosen to approximately lead to unit variance targets
-_C.MODEL.ROI_HEADS.BBOX_REG_WEIGHTS = (10., 10., 5., 5.)
+_C.MODEL.ROI_HEADS.BBOX_REG_WEIGHTS = (10.0, 10.0, 5.0, 5.0)
 # RoI minibatch size *per image* (number of regions of interest [ROIs])
 # Total number of RoIs per training minibatch =
 #   TRAIN.BATCH_SIZE_PER_IM * TRAIN.IMS_PER_BATCH
@@ -247,13 +248,13 @@ _C.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512
 _C.MODEL.ROI_HEADS.POSITIVE_FRACTION = 0.25
 
 # add by hui for OHEM
-_C.MODEL.RPN.OHEM = 0     # 0 for no ohem used
-_C.MODEL.RPN.OHEM1_NEG_RATE = 3.
+_C.MODEL.RPN.OHEM = 0  # 0 for no ohem used
+_C.MODEL.RPN.OHEM1_NEG_RATE = 3.0
 _C.MODEL.RPN.OHEM2_BATCH_SIZE_PER_IM = _C.MODEL.RPN.BATCH_SIZE_PER_IMAGE
 _C.MODEL.RPN.OHEM2_POSITIVE_FRACTION = _C.MODEL.RPN.POSITIVE_FRACTION
 _C.MODEL.RPN.OHEM2_HARD_RATE = 1.0
 _C.MODEL.ROI_HEADS.OHEM = 0
-_C.MODEL.ROI_HEADS.OHEM1_NEG_RATE = 3.
+_C.MODEL.ROI_HEADS.OHEM1_NEG_RATE = 3.0
 _C.MODEL.ROI_HEADS.OHEM2_BATCH_SIZE_PER_IM = _C.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE
 _C.MODEL.ROI_HEADS.OHEM2_POSITIVE_FRACTION = _C.MODEL.ROI_HEADS.POSITIVE_FRACTION
 _C.MODEL.ROI_HEADS.OHEM2_HARD_RATE = 1.0
@@ -279,10 +280,10 @@ _C.MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION = 14
 _C.MODEL.ROI_BOX_HEAD.POOLER_SAMPLING_RATIO = 0
 _C.MODEL.ROI_BOX_HEAD.POOLER_SCALES = (1.0 / 16,)
 # add by hui to FPN select feature map level for paoposal
-_C.MODEL.ROI_BOX_HEAD.POOLER_LEVEL_MAP = 'scale'
+_C.MODEL.ROI_BOX_HEAD.POOLER_LEVEL_MAP = "scale"
 _C.MODEL.ROI_BOX_HEAD.POOLER_LEVEL_MAP_KWARGS = CN()
-_C.MODEL.ROI_BOX_HEAD.POOLER_LEVEL_MAP_KWARGS.LEVEL_MIN = 2   # for 'fixed' level_map
-_C.MODEL.ROI_BOX_HEAD.POOLER_LEVEL_MAP_KWARGS.LEVEL_MAX = 5   # for 'fixed' level_map
+_C.MODEL.ROI_BOX_HEAD.POOLER_LEVEL_MAP_KWARGS.LEVEL_MIN = 2  # for 'fixed' level_map
+_C.MODEL.ROI_BOX_HEAD.POOLER_LEVEL_MAP_KWARGS.LEVEL_MAX = 5  # for 'fixed' level_map
 
 _C.MODEL.ROI_BOX_HEAD.NUM_CLASSES = 81
 # Hidden layer dimension when using an MLP for the RoI box head
@@ -371,7 +372,7 @@ _C.MODEL.FCOS.INFERENCE_TH = 0.05
 _C.MODEL.FCOS.NMS_TH = 0.6
 _C.MODEL.FCOS.PRE_NMS_TOP_N = 1000
 _C.MODEL.FCOS.CASCADE_ON = False
-_C.MODEL.FCOS.CASCADE_AREA_TH = [0.125**2, 0.25 ** 2, 0.5**2, 0.75 ** 2, 1.0]
+_C.MODEL.FCOS.CASCADE_AREA_TH = [0.125**2, 0.25**2, 0.5**2, 0.75**2, 1.0]
 _C.MODEL.FCOS.CASCADE_NO_CENTERNESS = True
 _C.MODEL.FCOS.USE_STRIDE_SCALE_INIT = False
 _C.MODEL.FCOS.USE_GN = True
@@ -401,19 +402,19 @@ _C.MODEL.LOC.PRE_NMS_TOP_N = 1000
 _C.MODEL.LOC.DEBUG = CN()
 _C.MODEL.LOC.DEBUG.VIS_LABELS = False
 
-_C.MODEL.LOC.TARGET_GENERATOR = 'gaussian'       # gausian or fcos
-_C.MODEL.LOC.FCOS_CLS_POS_AREA = 1.0            # param for TARGET_GENERATOR == 'fcos'
-_C.MODEL.LOC.FCOS_CENTERNESS = False            # param for TARGET_GENERATOR == 'fcos'
+_C.MODEL.LOC.TARGET_GENERATOR = "gaussian"  # gausian or fcos
+_C.MODEL.LOC.FCOS_CLS_POS_AREA = 1.0  # param for TARGET_GENERATOR == 'fcos'
+_C.MODEL.LOC.FCOS_CENTERNESS = False  # param for TARGET_GENERATOR == 'fcos'
 _C.MODEL.LOC.FCOS_CENTERNESS_WEIGHT_REG = True  # param for TARGET_GENERATOR == 'fcos'
-_C.MODEL.LOC.LABEL_BETA = 2.0                   # for TARGET_GENERATOR in ['gaussian', 'centerness']
-_C.MODEL.LOC.CLS_LOSS = 'fixed_focal_loss'      # 'fixed_focal_loss' or 'L2'
+_C.MODEL.LOC.LABEL_BETA = 2.0  # for TARGET_GENERATOR in ['gaussian', 'centerness']
+_C.MODEL.LOC.CLS_LOSS = "fixed_focal_loss"  # 'fixed_focal_loss' or 'L2'
 _C.MODEL.LOC.CLS_WEIGHT = 1.0
 # Focal loss parameter: alpha
 _C.MODEL.LOC.LOSS_ALPHA = 0.25
 # Focal loss parameter: gamma
 _C.MODEL.LOC.LOSS_GAMMA = 2.0
 # GHMC loss parameter: momentum
-_C.MODEL.LOC.LOSS_GHMC_MOMENTUM = 0.
+_C.MODEL.LOC.LOSS_GHMC_MOMENTUM = 0.0
 # GHMC loss parameter: bins
 _C.MODEL.LOC.LOSS_GHMC_BINS = 10
 _C.MODEL.LOC.LOSS_GHMC_ALPHA = 0.5
@@ -439,16 +440,16 @@ _C.MODEL.GAU.DEBUG = CN()
 _C.MODEL.GAU.DEBUG.VIS_LABELS = False
 _C.MODEL.GAU.DEBUG.VIS_INFER = False
 
-_C.MODEL.GAU.TARGET_GENERATOR = 'gaussian'       # gausian or fcos
-_C.MODEL.GAU.LABEL_BETA = 2.0                   # for TARGET_GENERATOR in ['gaussian', 'centerness']
-_C.MODEL.GAU.CLS_LOSS = 'fixed_focal_loss'      # 'fixed_focal_loss' or 'L2'
+_C.MODEL.GAU.TARGET_GENERATOR = "gaussian"  # gausian or fcos
+_C.MODEL.GAU.LABEL_BETA = 2.0  # for TARGET_GENERATOR in ['gaussian', 'centerness']
+_C.MODEL.GAU.CLS_LOSS = "fixed_focal_loss"  # 'fixed_focal_loss' or 'L2'
 _C.MODEL.GAU.CLS_WEIGHT = 1.0
 # Focal loss parameter: alpha
 _C.MODEL.GAU.LOSS_ALPHA = 0.25
 # Focal loss parameter: gamma
 _C.MODEL.GAU.LOSS_GAMMA = 2.0
 # GHMC loss parameter: momentum
-_C.MODEL.GAU.LOSS_GHMC_MOMENTUM = 0.
+_C.MODEL.GAU.LOSS_GHMC_MOMENTUM = 0.0
 # GHMC loss parameter: bins
 _C.MODEL.GAU.LOSS_GHMC_BINS = 10
 _C.MODEL.GAU.LOSS_GHMC_ALPHA = 0.5
@@ -575,7 +576,7 @@ _C.MODEL.FBNET.RPN_BN_TYPE = ""
 
 # add by hui for upsample feature map for detector
 _C.MODEL.UPSAMPLE_RATE = []
-_C.MODEL.UPSAMPLE_MODE = 'nearest'
+_C.MODEL.UPSAMPLE_MODE = "nearest"
 _C.MODEL.UPSAMPLE_TRANSFORM_NUM_CONV = 0
 
 
@@ -614,10 +615,10 @@ _C.SOLVER.TEST_ITER_RANGE = [1, -1]  # [s, e], e set < 0 means inf
 _C.SOLVER.NUM_GPU = 8
 
 # add by hui for add new optimizer
-_C.SOLVER.OPTIMIZER = 'sgd'
+_C.SOLVER.OPTIMIZER = "sgd"
 _C.SOLVER.ADAM_BETAS = (0.9, 0.999)
 # RPN RCNN head lr factor when anchor change may need bigger one to pretrain.
-_C.SOLVER.HEAD_LR_FACTOR = 1.
+_C.SOLVER.HEAD_LR_FACTOR = 1.0
 
 # ---------------------------------------------------------------------------- #
 # Specific test options
@@ -633,15 +634,19 @@ _C.TEST.IMS_PER_BATCH = 8
 _C.TEST.DETECTIONS_PER_IMG = 100
 # add by hui, whether merge result for corner dataset when evaluate MR
 _C.TEST.MERGE_RESULTS = False
-_C.TEST.MERGE_GT_FILE = ''
+_C.TEST.MERGE_GT_FILE = ""
 # add by hui, for modify coco eval
-_C.TEST.USE_IGNORE_ATTR = True  # whether use 'ignore'attr in anno to set it to ignore gt when evaluate
+_C.TEST.USE_IGNORE_ATTR = (
+    True  # whether use 'ignore'attr in anno to set it to ignore gt when evaluate
+)
 _C.TEST.IGNORE_UNCERTAIN = False
 _C.TEST.USE_IOD_FOR_IGNORE = False
-_C.TEST.COCO_EVALUATE_STANDARD = 'coco'
+_C.TEST.COCO_EVALUATE_STANDARD = "coco"
 # add by hui, for modify voc eval
 _C.TEST.VOC_IOU_THS = (0.5,)
-_C.TEST.EVALUATE_METHOD = ''  # some bug here. '' for determine by dataset type, 'coco' or 'voc'
+_C.TEST.EVALUATE_METHOD = (
+    ""  # some bug here. '' for determine by dataset type, 'coco' or 'voc'
+)
 # add by hui
 _C.TEST.DEBUG = CN()
 _C.TEST.DEBUG.USE_LAST_PREDICTION = False

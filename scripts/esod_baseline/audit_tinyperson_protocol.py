@@ -12,13 +12,14 @@ import argparse
 import json
 from pathlib import Path
 
-
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 PROTOCOL = "tinyperson-official-no-dense-erased"
 
 
 def files_with_suffixes(root: Path, suffixes: set[str]) -> list[Path]:
-    return sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in suffixes)
+    return sorted(
+        p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in suffixes
+    )
 
 
 def main() -> int:
@@ -64,9 +65,13 @@ def main() -> int:
         raise SystemExit(
             f"official test GT has {len(gt_images)} images, expected {args.expected_test_images}"
         )
-    dense_annotations = [a for a in gt.get("annotations", []) if a.get("in_dense_image", False)]
+    dense_annotations = [
+        a for a in gt.get("annotations", []) if a.get("in_dense_image", False)
+    ]
     if dense_annotations:
-        raise SystemExit(f"GT unexpectedly contains {len(dense_annotations)} dense-image annotations")
+        raise SystemExit(
+            f"GT unexpectedly contains {len(dense_annotations)} dense-image annotations"
+        )
 
     expected_counts = {
         "train": int(manifest["splits"]["train"]["images"]),
@@ -83,9 +88,15 @@ def main() -> int:
                 f"images={len(images)} labels={len(labels)} masks={len(masks)}"
             )
         image_stems = {p.stem for p in images}
-        if image_stems != {p.stem for p in labels} or image_stems != {p.stem for p in masks}:
+        if image_stems != {p.stem for p in labels} or image_stems != {
+            p.stem for p in masks
+        }:
             raise SystemExit(f"{split} image/label/mask stem sets differ")
-        observed[split] = {"images": len(images), "labels": len(labels), "masks": len(masks)}
+        observed[split] = {
+            "images": len(images),
+            "labels": len(labels),
+            "masks": len(masks),
+        }
 
     if observed["val"]["images"] != args.expected_test_images:
         raise SystemExit(

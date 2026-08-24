@@ -51,13 +51,24 @@ def _device(spec: str) -> torch.device:
 
 
 def _build_argparser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--weights", required=True)
     parser.add_argument("--images-dir", required=True)
     parser.add_argument("--labels-dir", required=True)
-    parser.add_argument("--model", default=None, help="overrides the checkpoint's stored model name")
-    parser.add_argument("--classes", default=None, help="overrides the checkpoint's stored class list")
-    parser.add_argument("--img-size", type=int, default=None, help="overrides the checkpoint's stored img-size")
+    parser.add_argument(
+        "--model", default=None, help="overrides the checkpoint's stored model name"
+    )
+    parser.add_argument(
+        "--classes", default=None, help="overrides the checkpoint's stored class list"
+    )
+    parser.add_argument(
+        "--img-size",
+        type=int,
+        default=None,
+        help="overrides the checkpoint's stored img-size",
+    )
     parser.add_argument("--task", choices=("test", "measure"), default="test")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--device", default="0")
@@ -73,17 +84,23 @@ def _load_model(weights_path: str, opt: argparse.Namespace, device: torch.device
     ckpt = torch.load(weights_path, map_location="cpu", weights_only=False)
     config = ckpt["config"]
     model_name = opt.model or config["model_name"]
-    class_names = tuple(opt.classes.split(",")) if opt.classes else tuple(config["class_names"])
+    class_names = (
+        tuple(opt.classes.split(",")) if opt.classes else tuple(config["class_names"])
+    )
     img_size = opt.img_size or config["min_size"]
 
-    model = build_model(model_name, len(class_names), min_size=img_size, max_size=img_size)
+    model = build_model(
+        model_name, len(class_names), min_size=img_size, max_size=img_size
+    )
     model.load_state_dict(ckpt["model"])
     model.to(device)
     model.eval()
     return model, class_names, img_size
 
 
-def prediction_dict(image_id: str, box_xyxy: tuple[float, float, float, float], label: int, score: float) -> dict:
+def prediction_dict(
+    image_id: str, box_xyxy: tuple[float, float, float, float], label: int, score: float
+) -> dict:
     """Builds one row of the ESOD-schema predictions.json this project's
     audit_buckets.py/vt_diagnose.py already consume unmodified:
     {"image_id","category_id" (0-indexed),"bbox":[x,y,w,h],"score"}.
@@ -99,7 +116,11 @@ def prediction_dict(image_id: str, box_xyxy: tuple[float, float, float, float], 
 
 
 def _write_predictions(
-    model, dataset: YoloDetectionDataset, loader: DataLoader, device: torch.device, out_path: Path
+    model,
+    dataset: YoloDetectionDataset,
+    loader: DataLoader,
+    device: torch.device,
+    out_path: Path,
 ) -> None:
     predictions: list[dict] = []
     seen = 0
@@ -113,7 +134,9 @@ def _write_predictions(
                 labels = output["labels"].cpu().tolist()
                 scores = output["scores"].cpu().tolist()
                 for box, label, score in zip(boxes, labels, scores):
-                    predictions.append(prediction_dict(image_id, tuple(box), label, score))
+                    predictions.append(
+                        prediction_dict(image_id, tuple(box), label, score)
+                    )
             seen += len(images)
     out_path.write_text(json.dumps(predictions), encoding="utf-8")
     print(f"Saved {len(predictions)} predictions for {seen} images to {out_path}")
@@ -125,7 +148,11 @@ def run_test(opt: argparse.Namespace) -> None:
 
     dataset = YoloDetectionDataset(opt.images_dir, opt.labels_dir, class_names)
     loader = DataLoader(
-        dataset, batch_size=opt.batch_size, shuffle=False, num_workers=opt.workers, collate_fn=collate_fn
+        dataset,
+        batch_size=opt.batch_size,
+        shuffle=False,
+        num_workers=opt.workers,
+        collate_fn=collate_fn,
     )
 
     save_dir = Path(opt.project) / opt.name
@@ -136,7 +163,9 @@ def run_test(opt: argparse.Namespace) -> None:
     weights_stem = Path(opt.weights).stem
     pred_path = save_dir / f"{weights_stem}_predictions.json"
     if not opt.save_json:
-        raise SystemExit("--task test requires --save-json (matches every other arm's convention)")
+        raise SystemExit(
+            "--task test requires --save-json (matches every other arm's convention)"
+        )
     _write_predictions(model, dataset, loader, device, pred_path)
 
     cache_path = save_dir / "coco_gt.json"
@@ -144,8 +173,12 @@ def run_test(opt: argparse.Namespace) -> None:
     try:
         stats = evaluate_coco(gt_path, pred_path)
         print("COCOeval stats:", json.dumps(stats, indent=2))
-        (save_dir / f"{weights_stem}_coco_stats.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
-    except Exception as exc:  # pragma: no cover - diagnostic path, matches test.py's own try/except discipline
+        (save_dir / f"{weights_stem}_coco_stats.json").write_text(
+            json.dumps(stats, indent=2), encoding="utf-8"
+        )
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - diagnostic path, matches test.py's own try/except discipline
         print(f"pycocotools unable to run: \n{exc}")
 
 
@@ -155,7 +188,13 @@ def run_measure(opt: argparse.Namespace) -> None:
     model, class_names, img_size = _load_model(opt.weights, opt, device)
 
     dataset = YoloDetectionDataset(opt.images_dir, opt.labels_dir, class_names)
-    loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=opt.workers, collate_fn=collate_fn)
+    loader = DataLoader(
+        dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=opt.workers,
+        collate_fn=collate_fn,
+    )
 
     save_dir = Path(opt.project) / opt.name
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -211,9 +250,16 @@ def run_measure(opt: argparse.Namespace) -> None:
         elapsed = time.perf_counter() - start
 
     fps = count / elapsed if elapsed > 0 else float("nan")
-    result = {"gflops": gflops, "params": params, "fps": fps, "ms_per_image": 1000.0 / fps if fps else None}
+    result = {
+        "gflops": gflops,
+        "params": params,
+        "fps": fps,
+        "ms_per_image": 1000.0 / fps if fps else None,
+    }
     print(f"GFLOPs: {gflops}. Params: {params}. FPS: {fps:.2f}")
-    (save_dir / "measure.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    (save_dir / "measure.json").write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

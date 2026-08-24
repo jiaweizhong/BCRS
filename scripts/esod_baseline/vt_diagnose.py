@@ -19,6 +19,7 @@ matching image can't be found. Defaults reproduce the original Pest24-only
 script's exact behavior when --images-dir is omitted -- no change for any
 existing Pest24 invocation.
 """
+
 import argparse
 import json
 import os
@@ -37,14 +38,32 @@ from PIL import Image
 # only .jpg was tried, despite the actual images existing as .bmp).
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
 
-PEST24_CLASS_NAMES = ['Bollworm', 'Meadow borer', 'Gryllotalpa orientalis', 'Little Gecko',
-    'Agriotes fuscicollis Miwa', 'Nematode trench', 'Athetis lepigone',
-    'Scotogramma trifolii Rottemberg', 'Armyworm', 'Spodoptera cabbage',
-    'Anomala corpulenta', 'Spodoptera exigua', 'Plutella xylostella',
-    'holotrichia parallela', 'Rice planthopper', 'Yellow tiger',
-    'Land tiger', 'eight-character tiger', 'holotrichia oblita',
-    'Stem borer', 'Striped rice bore', 'Rice Leaf Roller',
-    'Spodoptera litura', 'Melahotus']
+PEST24_CLASS_NAMES = [
+    "Bollworm",
+    "Meadow borer",
+    "Gryllotalpa orientalis",
+    "Little Gecko",
+    "Agriotes fuscicollis Miwa",
+    "Nematode trench",
+    "Athetis lepigone",
+    "Scotogramma trifolii Rottemberg",
+    "Armyworm",
+    "Spodoptera cabbage",
+    "Anomala corpulenta",
+    "Spodoptera exigua",
+    "Plutella xylostella",
+    "holotrichia parallela",
+    "Rice planthopper",
+    "Yellow tiger",
+    "Land tiger",
+    "eight-character tiger",
+    "holotrichia oblita",
+    "Stem borer",
+    "Striped rice bore",
+    "Rice Leaf Roller",
+    "Spodoptera litura",
+    "Melahotus",
+]
 
 
 def iou_xyxy(a, b):
@@ -59,28 +78,59 @@ def iou_xyxy(a, b):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("run_name", nargs="?", default="pest24_yolov5m_baseline",
-                         help="run name under ~/esod_baseline_runs/test/<run_name>/")
-    parser.add_argument("--labels-dir", default="/root/autodl-tmp/Pest24_v1/labels/test",
-                         help="YOLO-format labels directory for the split actually evaluated (test.py's split)")
-    parser.add_argument("--images-dir", default=None,
-                         help="native images directory, same split as --labels-dir -- if given, each image's "
-                              "real (width, height) is read via PIL instead of assuming --native-w/--native-h "
-                              "for every image. Required for datasets with variable native resolution "
-                              "(VisDrone/TinyPerson); optional for Pest24 (confirmed uniform 800x600)")
-    parser.add_argument("--image-ext", default=".jpg",
-                         help="image file extension tried first, used with --images-dir; "
-                              f"every other suffix in {IMAGE_SUFFIXES} is tried as a fallback "
-                              "before giving up on a label file (mixed-format datasets)")
-    parser.add_argument("--native-w", type=int, default=800,
-                         help="fallback native image width (pixels) when --images-dir is not given, "
-                              "or when a label file's matching image can't be found")
-    parser.add_argument("--native-h", type=int, default=600, help="fallback native image height (pixels), see --native-w")
-    parser.add_argument("--classes", default=",".join(PEST24_CLASS_NAMES),
-                         help="comma-separated class names, index-matched to label file class ids")
-    parser.add_argument("--very-tiny-area", type=float, default=256.0,
-                         help="native-pixel area threshold for the 'Very Tiny' bucket (default 256 = 16x16)")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "run_name",
+        nargs="?",
+        default="pest24_yolov5m_baseline",
+        help="run name under ~/esod_baseline_runs/test/<run_name>/",
+    )
+    parser.add_argument(
+        "--labels-dir",
+        default="/root/autodl-tmp/Pest24_v1/labels/test",
+        help="YOLO-format labels directory for the split actually evaluated (test.py's split)",
+    )
+    parser.add_argument(
+        "--images-dir",
+        default=None,
+        help="native images directory, same split as --labels-dir -- if given, each image's "
+        "real (width, height) is read via PIL instead of assuming --native-w/--native-h "
+        "for every image. Required for datasets with variable native resolution "
+        "(VisDrone/TinyPerson); optional for Pest24 (confirmed uniform 800x600)",
+    )
+    parser.add_argument(
+        "--image-ext",
+        default=".jpg",
+        help="image file extension tried first, used with --images-dir; "
+        f"every other suffix in {IMAGE_SUFFIXES} is tried as a fallback "
+        "before giving up on a label file (mixed-format datasets)",
+    )
+    parser.add_argument(
+        "--native-w",
+        type=int,
+        default=800,
+        help="fallback native image width (pixels) when --images-dir is not given, "
+        "or when a label file's matching image can't be found",
+    )
+    parser.add_argument(
+        "--native-h",
+        type=int,
+        default=600,
+        help="fallback native image height (pixels), see --native-w",
+    )
+    parser.add_argument(
+        "--classes",
+        default=",".join(PEST24_CLASS_NAMES),
+        help="comma-separated class names, index-matched to label file class ids",
+    )
+    parser.add_argument(
+        "--very-tiny-area",
+        type=float,
+        default=256.0,
+        help="native-pixel area threshold for the 'Very Tiny' bucket (default 256 = 16x16)",
+    )
     opt = parser.parse_args()
 
     run_name = opt.run_name
@@ -89,13 +139,19 @@ def main():
     class_names = opt.classes.split(",")
     very_tiny_area = opt.very_tiny_area
 
-    pred_path = os.path.expanduser(f"~/esod_baseline_runs/test/{run_name}/best_predictions.json")
+    pred_path = os.path.expanduser(
+        f"~/esod_baseline_runs/test/{run_name}/best_predictions.json"
+    )
     print(f"=== {run_name} ===")
     if images_dir:
-        print(f"per-image native size from: {images_dir}  labels: {labels_dir}  very-tiny area threshold: {very_tiny_area}")
+        print(
+            f"per-image native size from: {images_dir}  labels: {labels_dir}  very-tiny area threshold: {very_tiny_area}"
+        )
     else:
-        print(f"native size (global, no --images-dir given): {fallback_w}x{fallback_h}  "
-              f"labels: {labels_dir}  very-tiny area threshold: {very_tiny_area}")
+        print(
+            f"native size (global, no --images-dir given): {fallback_w}x{fallback_h}  "
+            f"labels: {labels_dir}  very-tiny area threshold: {very_tiny_area}"
+        )
 
     with open(pred_path, encoding="utf-8") as f:
         preds_raw = json.load(f)
@@ -105,11 +161,18 @@ def main():
     for row in preds_raw:
         image_id = row["image_id"]
         key = str(int(image_id)) if str(image_id).isdigit() else str(image_id)
-        preds_by_image[key].append({
-            "class_id": int(row["category_id"]),
-            "bbox_xyxy": (row["bbox"][0], row["bbox"][1], row["bbox"][0] + row["bbox"][2], row["bbox"][1] + row["bbox"][3]),
-            "score": row.get("score", 1.0),
-        })
+        preds_by_image[key].append(
+            {
+                "class_id": int(row["category_id"]),
+                "bbox_xyxy": (
+                    row["bbox"][0],
+                    row["bbox"][1],
+                    row["bbox"][0] + row["bbox"][2],
+                    row["bbox"][1] + row["bbox"][3],
+                ),
+                "score": row.get("score", 1.0),
+            }
+        )
 
     # Recursive: some datasets (TinyPerson's raw with_dense tree, UAVDT's
     # per-video UAV-benchmark-M/ folders) nest labels under category/video
@@ -118,7 +181,9 @@ def main():
     for dirpath, _, filenames in os.walk(labels_dir):
         for f in filenames:
             if f.endswith(".txt"):
-                label_files.append(os.path.relpath(os.path.join(dirpath, f), labels_dir))
+                label_files.append(
+                    os.path.relpath(os.path.join(dirpath, f), labels_dir)
+                )
     label_files.sort()
     print(f"label files: {len(label_files)}")
 
@@ -158,8 +223,10 @@ def main():
                     very_tiny_gt.append((key, cls, (x1, y1, x2, y2)))
 
     if images_dir and n_size_fallback:
-        print(f"WARNING: {n_size_fallback}/{len(label_files)} label files had no matching image under "
-              f"{images_dir} -- fell back to {fallback_w}x{fallback_h} for those")
+        print(
+            f"WARNING: {n_size_fallback}/{len(label_files)} label files had no matching image under "
+            f"{images_dir} -- fell back to {fallback_w}x{fallback_h} for those"
+        )
     print(f"Very Tiny GT boxes (area<{very_tiny_area}): {len(very_tiny_gt)}")
 
     targets_by_group = defaultdict(list)
@@ -192,7 +259,9 @@ def main():
     if not very_tiny_gt:
         print("no Very Tiny GT boxes found -- nothing to report")
         return
-    print(f"Very Tiny recalled: {len(recalled)} / {len(very_tiny_gt)} = {len(recalled)/len(very_tiny_gt)*100:.2f}%")
+    print(
+        f"Very Tiny recalled: {len(recalled)} / {len(very_tiny_gt)} = {len(recalled)/len(very_tiny_gt)*100:.2f}%"
+    )
 
     outcome_counts = defaultdict(int)
     examples = defaultdict(list)
@@ -215,11 +284,21 @@ def main():
             elif class_match:
                 outcome_counts["right_class_low_iou (localization failure)"] += 1
                 if len(examples["right_class_low_iou"]) < 5:
-                    examples["right_class_low_iou"].append((key, class_names[cls], round(iouv, 3), round(score, 3)))
+                    examples["right_class_low_iou"].append(
+                        (key, class_names[cls], round(iouv, 3), round(score, 3))
+                    )
             else:
                 outcome_counts["wrong_class_nearby (confusion)"] += 1
                 if len(examples["wrong_class_nearby"]) < 5:
-                    examples["wrong_class_nearby"].append((key, class_names[cls], class_names[pred_cls], round(iouv, 3), round(score, 3)))
+                    examples["wrong_class_nearby"].append(
+                        (
+                            key,
+                            class_names[cls],
+                            class_names[pred_cls],
+                            round(iouv, 3),
+                            round(score, 3),
+                        )
+                    )
 
     n_missed = len(very_tiny_gt) - len(recalled)
     print(f"\nMissed Very Tiny GT: {n_missed}")

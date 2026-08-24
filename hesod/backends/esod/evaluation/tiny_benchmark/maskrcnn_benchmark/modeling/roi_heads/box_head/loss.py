@@ -7,7 +7,7 @@ from maskrcnn_benchmark.modeling.box_coder import BoxCoder
 from maskrcnn_benchmark.modeling.matcher import Matcher
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 from maskrcnn_benchmark.modeling.balanced_positive_negative_sampler import (
-    BalancedPositiveNegativeSampler
+    BalancedPositiveNegativeSampler,
 )
 from maskrcnn_benchmark.modeling.utils import cat
 from maskrcnn_benchmark.modeling.ohem_loss import OHEMLoss, OHEM2Loss
@@ -20,12 +20,12 @@ class FastRCNNLossComputation(object):
     """
 
     def __init__(
-        self, 
-        proposal_matcher, 
-        fg_bg_sampler, 
-        box_coder, 
+        self,
+        proposal_matcher,
+        fg_bg_sampler,
+        box_coder,
         cls_agnostic_bbox_reg=False,
-        ohem_loss=None
+        ohem_loss=None,
     ):
         """
         Arguments:
@@ -162,7 +162,8 @@ class FastRCNNLossComputation(object):
             map_inds = torch.tensor([4, 5, 6, 7], device=device)
         else:
             map_inds = 4 * labels_pos[:, None] + torch.tensor(
-                [0, 1, 2, 3], device=device)
+                [0, 1, 2, 3], device=device
+            )
 
         box_loss = smooth_l1_loss(
             box_regression[sampled_pos_inds_subset[:, None], map_inds],
@@ -204,11 +205,17 @@ def make_roi_box_loss_evaluator(cfg):
     if cfg.MODEL.ROI_HEADS.OHEM == 1:
         ohem_loss = OHEMLoss(cfg.MODEL.ROI_HEADS.OHEM1_NEG_RATE)
     elif cfg.MODEL.ROI_HEADS.OHEM == 2:
-        ohem_loss = OHEM2Loss(cfg.MODEL.ROI_HEADS.OHEM2_BATCH_SIZE_PER_IM * cfg.SOLVER.IMS_PER_BATCH // cfg.SOLVER.NUM_GPU,
-                              cfg.MODEL.ROI_HEADS.OHEM2_POSITIVE_FRACTION,
-                              hard_rate=cfg.MODEL.ROI_HEADS.OHEM2_HARD_RATE)
+        ohem_loss = OHEM2Loss(
+            cfg.MODEL.ROI_HEADS.OHEM2_BATCH_SIZE_PER_IM
+            * cfg.SOLVER.IMS_PER_BATCH
+            // cfg.SOLVER.NUM_GPU,
+            cfg.MODEL.ROI_HEADS.OHEM2_POSITIVE_FRACTION,
+            hard_rate=cfg.MODEL.ROI_HEADS.OHEM2_HARD_RATE,
+        )
 
-    loss_evaluator = FastRCNNLossComputation(matcher, fg_bg_sampler, box_coder, cls_agnostic_bbox_reg, ohem_loss)
+    loss_evaluator = FastRCNNLossComputation(
+        matcher, fg_bg_sampler, box_coder, cls_agnostic_bbox_reg, ohem_loss
+    )
     # ################################################################################################################
 
     return loss_evaluator

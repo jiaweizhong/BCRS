@@ -29,7 +29,9 @@ class GeneralizedRCNN(nn.Module):
         self.backbone = build_backbone(cfg)
         self.rpn = build_rpn(cfg, self.backbone.out_channels)
         self.roi_heads = build_roi_heads(cfg, self.backbone.out_channels)
-        self.sampler = build_sampler(cfg)   # add by hui, up sampler or down sampler or do nothing
+        self.sampler = build_sampler(
+            cfg
+        )  # add by hui, up sampler or down sampler or do nothing
 
     def forward(self, images, targets=None):
         """
@@ -50,7 +52,7 @@ class GeneralizedRCNN(nn.Module):
         features = self.backbone(images.tensors)
 
         # ######################## add by hui #############################################
-        features = self.sampler(features)        # up sampler or down sampler or do nothing
+        features = self.sampler(features)  # up sampler or down sampler or do nothing
         # #################################################################################
 
         proposals, proposal_losses = self.rpn(images, features, targets)

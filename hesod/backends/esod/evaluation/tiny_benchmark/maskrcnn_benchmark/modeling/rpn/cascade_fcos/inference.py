@@ -18,6 +18,7 @@ class FCOSPostProcessor(torch.nn.Module):
     Performs post-processing on the outputs of the RetinaNet boxes.
     This is only used in the testing.
     """
+
     def __init__(
         self,
         pre_nms_thresh,
@@ -26,7 +27,7 @@ class FCOSPostProcessor(torch.nn.Module):
         fpn_post_nms_top_n,
         min_size,
         num_classes,
-        vis_labels
+        vis_labels,
     ):
         """
         Arguments:
@@ -48,9 +49,14 @@ class FCOSPostProcessor(torch.nn.Module):
         self.vis_labels = vis_labels
 
     def forward_for_single_feature_map(
-            self, locations, box_cls_set,
-            box_regression, centerness,
-            image_sizes, show_box_cls):
+        self,
+        locations,
+        box_cls_set,
+        box_regression,
+        centerness,
+        image_sizes,
+        show_box_cls,
+    ):
         """
         Arguments:
             anchors: list[BoxList]
@@ -85,7 +91,7 @@ class FCOSPostProcessor(torch.nn.Module):
 
         # multiply the classification scores with centerness scores
         if centerness is not None:
-            box_cls = (box_cls * centerness[:, :, None])
+            box_cls = box_cls * centerness[:, :, None]
 
         results = []
         for i in range(N):
@@ -104,18 +110,22 @@ class FCOSPostProcessor(torch.nn.Module):
             per_pre_nms_top_n = pre_nms_top_n[i]
 
             if per_candidate_inds.sum().item() > per_pre_nms_top_n.item():
-                per_box_cls, top_k_indices = \
-                    per_box_cls.topk(per_pre_nms_top_n, sorted=False)
+                per_box_cls, top_k_indices = per_box_cls.topk(
+                    per_pre_nms_top_n, sorted=False
+                )
                 per_class = per_class[top_k_indices]
                 per_box_regression = per_box_regression[top_k_indices]
                 per_locations = per_locations[top_k_indices]
 
-            detections = torch.stack([
-                per_locations[:, 0] - per_box_regression[:, 0],
-                per_locations[:, 1] - per_box_regression[:, 1],
-                per_locations[:, 0] + per_box_regression[:, 2],
-                per_locations[:, 1] + per_box_regression[:, 3],
-            ], dim=1)
+            detections = torch.stack(
+                [
+                    per_locations[:, 0] - per_box_regression[:, 0],
+                    per_locations[:, 1] - per_box_regression[:, 1],
+                    per_locations[:, 0] + per_box_regression[:, 2],
+                    per_locations[:, 1] + per_box_regression[:, 3],
+                ],
+                dim=1,
+            )
 
             h, w = image_sizes[i]
             boxlist = BoxList(detections, (int(w), int(h)), mode="xyxy")
@@ -128,7 +138,16 @@ class FCOSPostProcessor(torch.nn.Module):
 
         return results
 
-    def forward(self, locations, box_cls_set, box_regression, centerness, image_sizes, images=None, targets=None):
+    def forward(
+        self,
+        locations,
+        box_cls_set,
+        box_regression,
+        centerness,
+        image_sizes,
+        images=None,
+        targets=None,
+    ):
         """
         Arguments:
             anchors: list[list[BoxList]]
@@ -151,10 +170,16 @@ class FCOSPostProcessor(torch.nn.Module):
         if centerness is None:
             centerness = [None] * fpn_level_num
 
-        show_box_cls = BoxClsShower(fpn_level_num, images=images, targets=targets) if self.vis_labels else None
+        show_box_cls = (
+            BoxClsShower(fpn_level_num, images=images, targets=targets)
+            if self.vis_labels
+            else None
+        )
 
         sampled_boxes = []
-        for _, (l, o, b, c) in enumerate(zip(locations, box_cls_set, box_regression, centerness)):
+        for _, (l, o, b, c) in enumerate(
+            zip(locations, box_cls_set, box_regression, centerness)
+        ):
             sampled_boxes.append(
                 self.forward_for_single_feature_map(
                     l, o, b, c, image_sizes, show_box_cls
@@ -192,14 +217,14 @@ class FCOSPostProcessor(torch.nn.Module):
                 boxlist_for_class.add_field("scores", scores_j)
                 boxlist_for_class.add_field("det_locations", locations_j)  # add here
                 boxlist_for_class = boxlist_nms(
-                    boxlist_for_class, self.nms_thresh,
-                    score_field="scores"
+                    boxlist_for_class, self.nms_thresh, score_field="scores"
                 )
                 num_labels = len(boxlist_for_class)
                 boxlist_for_class.add_field(
-                    "labels", torch.full((num_labels,), j,
-                                         dtype=torch.int64,
-                                         device=scores.device)
+                    "labels",
+                    torch.full(
+                        (num_labels,), j, dtype=torch.int64, device=scores.device
+                    ),
                 )
                 result.append(boxlist_for_class)
 
@@ -210,8 +235,7 @@ class FCOSPostProcessor(torch.nn.Module):
             if number_of_detections > self.fpn_post_nms_top_n > 0:
                 cls_scores = result.get_field("scores")
                 image_thresh, _ = torch.kthvalue(
-                    cls_scores.cpu(),
-                    number_of_detections - self.fpn_post_nms_top_n + 1
+                    cls_scores.cpu(), number_of_detections - self.fpn_post_nms_top_n + 1
                 )
                 keep = cls_scores >= image_thresh.item()
                 keep = torch.nonzero(keep).squeeze(1)
@@ -233,7 +257,7 @@ def make_fcos_postprocessor(config):
         fpn_post_nms_top_n=fpn_post_nms_top_n,
         min_size=0,
         num_classes=config.MODEL.FCOS.NUM_CLASSES,
-        vis_labels=config.MODEL.FCOS.DEBUG.VIS_LABELS
+        vis_labels=config.MODEL.FCOS.DEBUG.VIS_LABELS,
     )
 
     return box_selector
@@ -244,7 +268,10 @@ class BoxClsShower(object):
     map0-4: [0.125, 0.25, 0.5, 0.75, 1.0] ** 2 area range
     map5: centerness
     """
-    def __init__(self, fpn_level=5, scatter_topk=10, EPS=1e-8, images=None, targets=None):
+
+    def __init__(
+        self, fpn_level=5, scatter_topk=10, EPS=1e-8, images=None, targets=None
+    ):
         self.fpn_level = fpn_level
         self.level_count = 0
         self.box_probs = []
@@ -258,7 +285,9 @@ class BoxClsShower(object):
 
     def find_local_max(self, box_prob):
         B, C, H, W = box_prob.shape
-        max_prob, idx = F.max_pool2d_with_indices(box_prob, 3, 1, 1, return_indices=True)
+        max_prob, idx = F.max_pool2d_with_indices(
+            box_prob, 3, 1, 1, return_indices=True
+        )
         max_prob = max_prob[0, 0]
         box_prob = box_prob[0, 0]
         is_local_max = torch.nonzero(box_prob == max_prob)
@@ -272,19 +301,24 @@ class BoxClsShower(object):
     def mask_to_image(self, box_prob, upsample=False):
         img = self.images.tensors[0:1]
         if upsample:
-            box_prob = F.upsample(box_prob[None, None, :, :], img.shape[2:], mode='bilinear')[0, 0]
+            box_prob = F.upsample(
+                box_prob[None, None, :, :], img.shape[2:], mode="bilinear"
+            )[0, 0]
         else:
-            img = F.upsample(img, box_prob.shape, mode='bilinear')
-        img = img[0].permute((1, 2, 0)).cpu() + torch.Tensor([102.9801, 115.9465, 122.7717])
+            img = F.upsample(img, box_prob.shape, mode="bilinear")
+        img = img[0].permute((1, 2, 0)).cpu() + torch.Tensor(
+            [102.9801, 115.9465, 122.7717]
+        )
         return img * box_prob[:, :, None] / 255
 
     def __call__(self, box_prob_set, N, H, W, C, th):
         import matplotlib.pyplot as plt
+
         box_probs = []
         for i, box_prob in enumerate(box_prob_set):
-            if box_prob.numel() == N*H*W*C:
+            if box_prob.numel() == N * H * W * C:
                 box_prob = box_prob.reshape(-1, H, W, C)[:1]
-            elif box_prob.numel() == N*H*W:
+            elif box_prob.numel() == N * H * W:
                 box_prob = box_prob.reshape(-1, H, W, 1)[:1]
             box_prob = box_prob.max(dim=-1, keepdim=True)[0].permute((0, 3, 1, 2))
             box_probs.append(box_prob.cpu())
@@ -296,9 +330,9 @@ class BoxClsShower(object):
             for i, p in enumerate(box_probs):  # for each area th score map
                 box_prob = self.box_probs[i]
                 if box_prob.numel() < p.numel():
-                    box_prob = F.upsample(box_prob, p.shape[2:], mode='bilinear')
+                    box_prob = F.upsample(box_prob, p.shape[2:], mode="bilinear")
                 else:
-                    p = F.upsample(p, box_prob.shape[2:], mode='bilinear')
+                    p = F.upsample(p, box_prob.shape[2:], mode="bilinear")
                 self.box_probs[i] = torch.max(torch.stack([p, box_prob]), dim=0)[0]
         self.level_count += 1
 
@@ -306,8 +340,10 @@ class BoxClsShower(object):
             # show each area th score map
             n_figs = len(self.box_probs)
             r = self.row_sub_fig if n_figs >= self.row_sub_fig else n_figs
-            c = int(np.ceil((n_figs/r)))
-            plt.figure(figsize=(r * self.single_fig_size, c * self.single_fig_size))  # (W, H)
+            c = int(np.ceil((n_figs / r)))
+            plt.figure(
+                figsize=(r * self.single_fig_size, c * self.single_fig_size)
+            )  # (W, H)
             for i, box_prob in enumerate(self.box_probs):
                 y, x, score = self.find_local_max(box_prob)
                 box_prob = box_prob[0, 0]
@@ -317,14 +353,18 @@ class BoxClsShower(object):
                 if self.images is not None:
                     box_prob = self.mask_to_image(box_prob)
                 box_prob = box_prob.numpy()
-                plt.subplot(c, r, i+1)
+                plt.subplot(c, r, i + 1)
                 plt.imshow(box_prob)
-                plt.scatter(x, y, color='r', s=20 * score)
+                plt.scatter(x, y, color="r", s=20 * score)
                 if self.titles is not None:
                     title = self.titles[i]
                 else:
-                    title = 'map {}'.format(i)
-                plt.title("{}, max:{:.2f}, std: {:.2f}".format(title, float(max_p), float(std)))
+                    title = "map {}".format(i)
+                plt.title(
+                    "{}, max:{:.2f}, std: {:.2f}".format(
+                        title, float(max_p), float(std)
+                    )
+                )
             plt.show()
             self.level_count = 0
             del self.box_probs

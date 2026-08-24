@@ -43,17 +43,31 @@ from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--esod-repo", required=True, help="path to hesod/backends/esod (or esod/)")
-    parser.add_argument("--data", required=True, help="dataset yaml, e.g. VisDrone.yaml")
-    parser.add_argument("--weights", required=True, help="trained checkpoint, e.g. .../best.pt")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--esod-repo", required=True, help="path to hesod/backends/esod (or esod/)"
+    )
+    parser.add_argument(
+        "--data", required=True, help="dataset yaml, e.g. VisDrone.yaml"
+    )
+    parser.add_argument(
+        "--weights", required=True, help="trained checkpoint, e.g. .../best.pt"
+    )
     parser.add_argument("--img-size", type=int, default=1536)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--device", default="0")
-    parser.add_argument("--task", default="val", help="train, val, or test (which data[] split to load)")
+    parser.add_argument(
+        "--task", default="val", help="train, val, or test (which data[] split to load)"
+    )
     route = parser.add_mutually_exclusive_group()
-    route.add_argument("--top-k", type=int, help="retain exactly K coarse cells (HESOD method only)")
-    route.add_argument("--hm-threshold", type=float, help="override HeatMapParser's fixed threshold")
+    route.add_argument(
+        "--top-k", type=int, help="retain exactly K coarse cells (HESOD method only)"
+    )
+    route.add_argument(
+        "--hm-threshold", type=float, help="override HeatMapParser's fixed threshold"
+    )
     parser.add_argument("--out", default="selected_patches.json")
     args = parser.parse_args(argv)
     if args.top_k is not None and args.top_k <= 0:
@@ -91,7 +105,9 @@ def main(argv: list[str] | None = None) -> int:
     model.eval()
     gs = max(int(model.stride.max()), 32)
     imgsz = check_img_size(args.img_size, s=gs)
-    stride = int(model.stride.min().item())  # P3/8 is always the finest (smallest-stride) level
+    stride = int(
+        model.stride.min().item()
+    )  # P3/8 is always the finest (smallest-stride) level
 
     with open(args.data) as f:
         data = yaml.safe_load(f)
@@ -101,13 +117,21 @@ def main(argv: list[str] | None = None) -> int:
         single_cls = False
 
     dataloader = create_dataloader(
-        data[args.task], imgsz, args.batch_size, gs, _Opt(), pad=0.0, rect=True,
+        data[args.task],
+        imgsz,
+        args.batch_size,
+        gs,
+        _Opt(),
+        pad=0.0,
+        rect=True,
         prefix=colorstr(f"{args.task}: "),
     )[0]
 
     heatmap_parsers = [m for m in model.model if isinstance(m, HeatMapParser)]
     if len(heatmap_parsers) != 1:
-        raise SystemExit(f"expected exactly one HeatMapParser in model.model, found {len(heatmap_parsers)}")
+        raise SystemExit(
+            f"expected exactly one HeatMapParser in model.model, found {len(heatmap_parsers)}"
+        )
     heatmap_parser = heatmap_parsers[0]
     if args.top_k is not None:
         if not hasattr(heatmap_parser, "top_k"):
@@ -120,7 +144,11 @@ def main(argv: list[str] | None = None) -> int:
 
     active_top_k = getattr(heatmap_parser, "top_k", None)
     routing = (
-        {"mode": "top_k", "top_k": int(active_top_k), "ratio": int(heatmap_parser.ratio)}
+        {
+            "mode": "top_k",
+            "top_k": int(active_top_k),
+            "ratio": int(heatmap_parser.ratio),
+        }
         if active_top_k is not None
         else {
             "mode": "fixed_threshold",
@@ -148,12 +176,16 @@ def main(argv: list[str] | None = None) -> int:
                 heatmap = heatmap.sigmoid()
             heatmap = heatmap[:, :1]
             captured["local_maxima"] = (
-                (F.max_pool2d(heatmap, 3, stride=1, padding=1) == heatmap)
-                # Paper Algorithms 1/2 define C from A = M >= 0.5. Keep this
-                # metric cutoff fixed even when a released dataset config
-                # (notably UAVDT) routes patches at another threshold.
-                & (heatmap >= 0.5)
-            ).detach().cpu()
+                (
+                    (F.max_pool2d(heatmap, 3, stride=1, padding=1) == heatmap)
+                    # Paper Algorithms 1/2 define C from A = M >= 0.5. Keep this
+                    # metric cutoff fixed even when a released dataset config
+                    # (notably UAVDT) routes patches at another threshold.
+                    & (heatmap >= 0.5)
+                )
+                .detach()
+                .cpu()
+            )
         except (IndexError, TypeError, AttributeError):
             captured["local_maxima"] = None
 
@@ -167,15 +199,21 @@ def main(argv: list[str] | None = None) -> int:
                 img = img.to(device).float()
                 img = norm_imgs(img, model)
                 captured.clear()
-                model(img)  # no GT masks -- matches run_baseline.sh's test.py invocation (no --use-gt)
+                model(
+                    img
+                )  # no GT masks -- matches run_baseline.sh's test.py invocation (no --use-gt)
                 offsets = captured.get("offsets")
                 local_maxima = captured.get("local_maxima")
                 if local_maxima is None:
-                    raise RuntimeError("HeatMapParser hook did not expose an objectness heatmap")
+                    raise RuntimeError(
+                        "HeatMapParser hook did not expose an objectness heatmap"
+                    )
                 for bi, path in enumerate(paths):
                     image_key = Path(path).stem
                     if image_key in results:
-                        raise RuntimeError(f"duplicate image stem in dataloader: {image_key!r}")
+                        raise RuntimeError(
+                            f"duplicate image stem in dataloader: {image_key!r}"
+                        )
                     if offsets is None or offsets.shape[0] == 0:
                         results[image_key] = []
                     else:
@@ -202,7 +240,10 @@ def main(argv: list[str] | None = None) -> int:
                                 dim=1,
                             ).float()
                             scale_coords(
-                                img.shape[2:], maxima_boxes, shapes[bi][0], shapes[bi][1]
+                                img.shape[2:],
+                                maxima_boxes,
+                                shapes[bi][0],
+                                shapes[bi][1],
                             )
                             valid = (maxima_boxes[:, 2] > maxima_boxes[:, 0]) & (
                                 maxima_boxes[:, 3] > maxima_boxes[:, 1]

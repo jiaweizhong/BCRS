@@ -20,7 +20,9 @@ class classify_atten(nn.Module):
 
         # if self.training:
         #    self.centroids = self.criterions.centroids.data
-        raw_logits, [values_memory, infused_feature] = self.MetaEmbedding_Classifier(fea, self.centroids)
+        raw_logits, [values_memory, infused_feature] = self.MetaEmbedding_Classifier(
+            fea, self.centroids
+        )
         return raw_logits, fea, values_memory
 
     def forward_fea(self, x):
@@ -29,7 +31,7 @@ class classify_atten(nn.Module):
 
     def centroids_cal(self, data):
         centroids = torch.zeros(self.classes, self.feat_dim).cuda()
-        print('Calculating centroids.')
+        print("Calculating centroids.")
         self.pretrained_model.eval().cuda()
         label_count = []
         # Calculate initial centroids only on training data.

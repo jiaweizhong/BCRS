@@ -52,30 +52,32 @@ def _accumulate_predictions_from_multiple_gpus(predictions_per_gpu):
 
 
 def inference(
-        model,
-        data_loader,
-        dataset_name,
-        iou_types=("bbox",),
-        box_only=False,
-        device="cuda",
-        expected_results=(),
-        expected_results_sigma_tol=4,
-        output_folder=None,
-        ignore_uncertain=False,  # add by hui
-        use_iod_for_ignore=False,  # add by hui
-        eval_standard='coco',      # add by hui
-        use_last_prediction=False,  # add by hui for debug
-        evaluate_method='',  # add by hui
-        voc_iou_ths=(0.5,),       # add by hui
-        gt_file=None,         # add by hui
-        use_ignore_attr=True
+    model,
+    data_loader,
+    dataset_name,
+    iou_types=("bbox",),
+    box_only=False,
+    device="cuda",
+    expected_results=(),
+    expected_results_sigma_tol=4,
+    output_folder=None,
+    ignore_uncertain=False,  # add by hui
+    use_iod_for_ignore=False,  # add by hui
+    eval_standard="coco",  # add by hui
+    use_last_prediction=False,  # add by hui for debug
+    evaluate_method="",  # add by hui
+    voc_iou_ths=(0.5,),  # add by hui
+    gt_file=None,  # add by hui
+    use_ignore_attr=True,
 ):
     # convert to a torch.device for efficiency
     device = torch.device(device)
     num_devices = get_world_size()
     logger = logging.getLogger("maskrcnn_benchmark.inference")
     dataset = data_loader.dataset
-    logger.info("Start evaluation on {} dataset({} images).".format(dataset_name, len(dataset)))
+    logger.info(
+        "Start evaluation on {} dataset({} images).".format(dataset_name, len(dataset))
+    )
     start_time = time.time()
     if not use_last_prediction:  # add by hui
         predictions = compute_on_dataset(model, data_loader, device)
@@ -92,7 +94,9 @@ def inference(
 
         predictions = _accumulate_predictions_from_multiple_gpus(predictions)
     else:  # add by hui
-        predictions = torch.load(os.path.join(output_folder, 'predictions.pth')) # add by hui
+        predictions = torch.load(
+            os.path.join(output_folder, "predictions.pth")
+        )  # add by hui
     if not is_main_process():
         return
 
@@ -108,19 +112,23 @@ def inference(
 
     # add by hui ##################################################3
     from maskrcnn_benchmark.data import datasets
+
     if isinstance(dataset, datasets.COCODataset):
-        extra_args.update(dict(
-            ignore_uncertain=ignore_uncertain,
-            use_iod_for_ignore=use_iod_for_ignore,
-            eval_standard=eval_standard,
-            gt_file=gt_file,
-            use_ignore_attr=use_ignore_attr
-        ))
-    extra_args.update(dict(evaluate_method=evaluate_method,
-                           voc_iou_ths=voc_iou_ths))
+        extra_args.update(
+            dict(
+                ignore_uncertain=ignore_uncertain,
+                use_iod_for_ignore=use_iod_for_ignore,
+                eval_standard=eval_standard,
+                gt_file=gt_file,
+                use_ignore_attr=use_ignore_attr,
+            )
+        )
+    extra_args.update(dict(evaluate_method=evaluate_method, voc_iou_ths=voc_iou_ths))
     # ###################################################################################################3
 
-    return evaluate(dataset=dataset,
-                    predictions=predictions,
-                    output_folder=output_folder,
-                    **extra_args)
+    return evaluate(
+        dataset=dataset,
+        predictions=predictions,
+        output_folder=output_folder,
+        **extra_args
+    )

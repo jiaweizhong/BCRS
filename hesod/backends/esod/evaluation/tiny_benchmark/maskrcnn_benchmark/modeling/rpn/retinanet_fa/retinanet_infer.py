@@ -15,6 +15,7 @@ class RetinaNetPostProcessor(torch.nn.Module):
     Performs post-processing on the outputs of the RetinaNet boxes.
     This is only used in the testing.
     """
+
     def __init__(
         self,
         pre_nms_thresh,
@@ -41,11 +42,12 @@ class RetinaNetPostProcessor(torch.nn.Module):
         self.min_size = min_size
 
         if box_coder is None:
-            box_coder = BoxCoder(weights=(10., 10., 5., 5.))
+            box_coder = BoxCoder(weights=(10.0, 10.0, 5.0, 5.0))
         self.box_coder = box_coder
 
-    def forward_for_single_feature_map(self, anchors, box_cls, box_regression,
-                                      pre_nms_thresh):
+    def forward_for_single_feature_map(
+        self, anchors, box_cls, box_regression, pre_nms_thresh
+    ):
         """
         Arguments:
             anchors: list[BoxList]
@@ -53,7 +55,7 @@ class RetinaNetPostProcessor(torch.nn.Module):
             box_regression: tensor of size N, A * 4, H, W
         """
         device = box_cls.device
-        N, _ , H, W = box_cls.shape
+        N, _, H, W = box_cls.shape
         A = int(box_regression.size(1) / 4)
         C = int(box_cls.size(1) / A)
 
@@ -74,23 +76,23 @@ class RetinaNetPostProcessor(torch.nn.Module):
             empty_boxlists = []
             for a in anchors:
                 empty_boxlist = BoxList(torch.Tensor(0, 4).to(device), a.size)
-                empty_boxlist.add_field(
-                    "labels", torch.LongTensor([]).to(device))
-                empty_boxlist.add_field(
-                    "scores", torch.Tensor([]).to(device))
+                empty_boxlist.add_field("labels", torch.LongTensor([]).to(device))
+                empty_boxlist.add_field("scores", torch.Tensor([]).to(device))
                 empty_boxlists.append(empty_boxlist)
             return empty_boxlists
 
         pre_nms_top_n = candidate_inds.view(N, -1).sum(1)
         pre_nms_top_n = pre_nms_top_n.clamp(max=self.pre_nms_top_n)
 
-        for batch_idx, (per_box_cls, per_box_regression, per_pre_nms_top_n, \
-        per_candidate_inds, per_anchors) in enumerate(zip(
-            box_cls,
-            box_regression,
-            pre_nms_top_n,
-            candidate_inds,
-            anchors)):
+        for batch_idx, (
+            per_box_cls,
+            per_box_regression,
+            per_pre_nms_top_n,
+            per_candidate_inds,
+            per_anchors,
+        ) in enumerate(
+            zip(box_cls, box_regression, pre_nms_top_n, candidate_inds, anchors)
+        ):
 
             # Sort and select TopN
             per_box_cls = per_box_cls[per_candidate_inds]
@@ -99,14 +101,15 @@ class RetinaNetPostProcessor(torch.nn.Module):
             per_class = per_candidate_nonzeros[:, 1]
             per_class += 1
             if per_candidate_inds.sum().item() > per_pre_nms_top_n.item():
-                per_box_cls, top_k_indices = \
-                        per_box_cls.topk(per_pre_nms_top_n, sorted=False)
+                per_box_cls, top_k_indices = per_box_cls.topk(
+                    per_pre_nms_top_n, sorted=False
+                )
                 per_box_loc = per_box_loc[top_k_indices]
                 per_class = per_class[top_k_indices]
 
             detections = self.box_coder.decode(
                 per_box_regression[per_box_loc, :].view(-1, 4),
-                per_anchors.bbox[per_box_loc, :].view(-1, 4)
+                per_anchors.bbox[per_box_loc, :].view(-1, 4),
             )
 
             boxlist = BoxList(detections, per_anchors.size, mode="xyxy")
@@ -132,13 +135,9 @@ class RetinaNetPostProcessor(torch.nn.Module):
         sampled_boxes = []
         num_levels = len(box_cls)
         anchors = list(zip(*anchors))
-        for layer, (a, o, b) in enumerate(
-            zip(anchors, box_cls, box_regression)):
+        for layer, (a, o, b) in enumerate(zip(anchors, box_cls, box_regression)):
             sampled_boxes.append(
-                self.forward_for_single_feature_map(
-                    a, o, b,
-                    self.pre_nms_thresh
-                )
+                self.forward_for_single_feature_map(a, o, b, self.pre_nms_thresh)
             )
 
         boxlists = list(zip(*sampled_boxes))
@@ -168,14 +167,14 @@ class RetinaNetPostProcessor(torch.nn.Module):
                 boxlist_for_class = BoxList(boxes_j, boxlist.size, mode="xyxy")
                 boxlist_for_class.add_field("scores", scores_j)
                 boxlist_for_class = boxlist_nms(
-                    boxlist_for_class, self.nms_thresh,
-                    score_field="scores"
+                    boxlist_for_class, self.nms_thresh, score_field="scores"
                 )
                 num_labels = len(boxlist_for_class)
                 boxlist_for_class.add_field(
-                    "labels", torch.full((num_labels,), j,
-                                         dtype=torch.int64,
-                                         device=scores.device)
+                    "labels",
+                    torch.full(
+                        (num_labels,), j, dtype=torch.int64, device=scores.device
+                    ),
                 )
                 result.append(boxlist_for_class)
 
@@ -188,24 +187,21 @@ class RetinaNetPostProcessor(torch.nn.Module):
                     cls_scores = result.get_field("scores")
                     image_thresh, _ = torch.kthvalue(
                         cls_scores.cpu(),
-                        number_of_detections - self.fpn_post_nms_top_n + 1
+                        number_of_detections - self.fpn_post_nms_top_n + 1,
                     )
                     keep = cls_scores >= image_thresh.item()
                     keep = torch.nonzero(keep).squeeze(1)
                     result = result[keep]
                 results.append(result)
             else:
-                empty_boxlist = BoxList(torch.zeros(1, 4).to('cuda'), boxlist.size)
-                empty_boxlist.add_field(
-                    "labels", torch.LongTensor([1]).to('cuda'))
-                empty_boxlist.add_field(
-                    "scores", torch.Tensor([0.01]).to('cuda'))
+                empty_boxlist = BoxList(torch.zeros(1, 4).to("cuda"), boxlist.size)
+                empty_boxlist.add_field("labels", torch.LongTensor([1]).to("cuda"))
+                empty_boxlist.add_field("scores", torch.Tensor([0.01]).to("cuda"))
                 results.append(empty_boxlist)
         return results
 
 
-def make_retinanet_postprocessor(
-    config, fpn_post_nms_top_n, rpn_box_coder):
+def make_retinanet_postprocessor(config, fpn_post_nms_top_n, rpn_box_coder):
 
     pre_nms_thresh = 0.05
     pre_nms_top_n = config.MODEL.RETINANET.PRE_NMS_TOP_N
@@ -218,6 +214,6 @@ def make_retinanet_postprocessor(
         nms_thresh=nms_thresh,
         fpn_post_nms_top_n=fpn_post_nms_top_n,
         box_coder=rpn_box_coder,
-        min_size=min_size
+        min_size=min_size,
     )
     return box_selector

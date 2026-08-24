@@ -45,9 +45,9 @@ def do_train(
     device,
     checkpoint_period,
     arguments,
-    test_func,      # add by hui
-    cfg,            # add by hui
-    distributed     # add by hui
+    test_func,  # add by hui
+    cfg,  # add by hui
+    distributed,  # add by hui
 ):
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
@@ -110,9 +110,14 @@ def do_train(
         if iteration == max_iter:
             checkpointer.save("model_final", **arguments)
         # ################################################## add by hui ###############################################
-        last_test_iter = inf if cfg.SOLVER.TEST_ITER_RANGE[1] < 0 else cfg.SOLVER.TEST_ITER_RANGE[1]
-        if cfg.SOLVER.TEST_ITER > 0 and (iteration + 1) % cfg.SOLVER.TEST_ITER == 0\
-                and cfg.SOLVER.TEST_ITER_RANGE[0] <= (iteration + 1) <= last_test_iter:
+        last_test_iter = (
+            inf if cfg.SOLVER.TEST_ITER_RANGE[1] < 0 else cfg.SOLVER.TEST_ITER_RANGE[1]
+        )
+        if (
+            cfg.SOLVER.TEST_ITER > 0
+            and (iteration + 1) % cfg.SOLVER.TEST_ITER == 0
+            and cfg.SOLVER.TEST_ITER_RANGE[0] <= (iteration + 1) <= last_test_iter
+        ):
             test_func(cfg, model, distributed)
             model.train()
             evaluate_more(cfg)
@@ -130,6 +135,7 @@ def do_train(
         test_func(cfg, model, distributed)
         evaluate_more(cfg)
 
+
 # ################################################## add by hui ###############################################
 
 
@@ -138,11 +144,16 @@ def evaluate_more(cfg):
     for dataset_name in cfg.DATASETS.TEST:
         from third.Cityscapes.cityperson_eval import cityperson_eval
         from maskrcnn_benchmark.config.paths_catalog import DatasetCatalog
+
         print("dataset: ", DatasetCatalog.DATASETS[dataset_name])
 
-        det_file_path = cfg.OUTPUT_DIR + '/inference/{}/bbox.json'.format(dataset_name)
-        gt_file_path = DatasetCatalog.DATA_DIR + '/' + DatasetCatalog.DATASETS[dataset_name]["ann_file"]
-        if 'tiny' in dataset_name:
+        det_file_path = cfg.OUTPUT_DIR + "/inference/{}/bbox.json".format(dataset_name)
+        gt_file_path = (
+            DatasetCatalog.DATA_DIR
+            + "/"
+            + DatasetCatalog.DATASETS[dataset_name]["ann_file"]
+        )
+        if "tiny" in dataset_name:
             CUT_WH = None
             if cfg.TEST.MERGE_RESULTS:
                 # _, det_file_path = COCOMergeResult(use_nms=True, nms_th=0.5)(
@@ -150,28 +161,38 @@ def evaluate_more(cfg):
                 #     det_file_path,
                 #     cfg.OUTPUT_DIR + '/inference/{}/'.format(dataset_name)
                 # )
-                det_file_path = cfg.OUTPUT_DIR + '/inference/{}/bbox_merge_nms0.5.json'.format(dataset_name)
+                det_file_path = (
+                    cfg.OUTPUT_DIR
+                    + "/inference/{}/bbox_merge_nms0.5.json".format(dataset_name)
+                )
                 gt_file_path = cfg.TEST.MERGE_GT_FILE
                 CUT_WH = (1, 1)
             else:
                 # get corner dataset cut piece
-                if dataset_name.find('corner') != -1:
-                    idx = dataset_name.find('corner_') + len('corner_')
-                    sub_strs = dataset_name[idx:].split('_')
+                if dataset_name.find("corner") != -1:
+                    idx = dataset_name.find("corner_") + len("corner_")
+                    sub_strs = dataset_name[idx:].split("_")
                     print(sub_strs)
                     pw, ph = int(sub_strs[0][2:]), int(sub_strs[1][2:])
                     # assert sub_strs[0][:2] == 'pw' and sub_strs[1][:2] == 'ph', \
                     #     'only support cut by piece format corner dataset.'
-                    if sub_strs[0][:2] == 'pw' and sub_strs[1][:2] == 'ph':
+                    if sub_strs[0][:2] == "pw" and sub_strs[1][:2] == "ph":
                         CUT_WH = (pw, ph)
-                    elif sub_strs[0][:2] == 'sw' and sub_strs[1][:2] == 'sh':
+                    elif sub_strs[0][:2] == "sw" and sub_strs[1][:2] == "sh":
                         CUT_WH = (1, 1)
                         assert cfg.TEST.MERGE_RESULTS
                     else:
                         assert False
-            cityperson_eval(det_file_path, gt_file_path, CUT_WH=CUT_WH, ignore_uncertain=cfg.TEST.IGNORE_UNCERTAIN,
-                            use_iod_for_ignore=cfg.TEST.USE_IOD_FOR_IGNORE, use_citypersons_standard=False)
-        elif 'pedestrian' in dataset_name:
+            cityperson_eval(
+                det_file_path,
+                gt_file_path,
+                CUT_WH=CUT_WH,
+                ignore_uncertain=cfg.TEST.IGNORE_UNCERTAIN,
+                use_iod_for_ignore=cfg.TEST.USE_IOD_FOR_IGNORE,
+                use_citypersons_standard=False,
+            )
+        elif "pedestrian" in dataset_name:
             cityperson_eval(det_file_path, gt_file_path)
+
 
 ###############################################################################################################

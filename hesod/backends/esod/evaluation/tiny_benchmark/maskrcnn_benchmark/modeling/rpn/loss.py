@@ -24,8 +24,14 @@ class RPNLossComputation(object):
     This class computes the RPN loss.
     """
 
-    def __init__(self, proposal_matcher, fg_bg_sampler, box_coder,
-                 generate_labels_func, ohem_loss=None):
+    def __init__(
+        self,
+        proposal_matcher,
+        fg_bg_sampler,
+        box_coder,
+        generate_labels_func,
+        ohem_loss=None,
+    ):
         """
         Arguments:
             proposal_matcher (Matcher)
@@ -38,7 +44,7 @@ class RPNLossComputation(object):
         self.box_coder = box_coder
         self.copied_fields = []
         self.generate_labels_func = generate_labels_func
-        self.discard_cases = ['not_visibility', 'between_thresholds']
+        self.discard_cases = ["not_visibility", "between_thresholds"]
         self.ohem_loss = ohem_loss
         # self.debug = False   # add by hui
 
@@ -115,8 +121,9 @@ class RPNLossComputation(object):
         """
         # HxWxSxA
         anchors = [cat_boxlist(anchors_per_image) for anchors_per_image in anchors]
-        objectness, box_regression = \
-                concat_box_prediction_layers(objectness, box_regression)
+        objectness, box_regression = concat_box_prediction_layers(
+            objectness, box_regression
+        )
         objectness = objectness.squeeze()
 
         # add by hui ###############################################
@@ -158,7 +165,9 @@ class RPNLossComputation(object):
             box_loss = box_loss / (sampled_inds.numel())
         #             print('rpnx', sampled_inds.numel())
         else:
-            objectness_loss = self.ohem_loss(objectness[sampled_inds], labels[sampled_inds])
+            objectness_loss = self.ohem_loss(
+                objectness[sampled_inds], labels[sampled_inds]
+            )
             box_loss = box_loss / self.ohem_loss.sample_count
         #             print('rpn', self.ohem_loss.sample_count)
         # #################################################################################################
@@ -189,14 +198,22 @@ def make_rpn_loss_evaluator(cfg, box_coder):
     if cfg.MODEL.RPN.OHEM == 1:
         ohem_loss = OHEMLoss(cfg.MODEL.RPN.OHEM1_NEG_RATE, binary_logits=True)
     elif cfg.MODEL.RPN.OHEM == 2:
-        ohem_loss = OHEM2Loss(cfg.MODEL.RPN.OHEM2_BATCH_SIZE_PER_IM * cfg.SOLVER.IMS_PER_BATCH // cfg.SOLVER.NUM_GPU,
-                              cfg.MODEL.RPN.OHEM2_POSITIVE_FRACTION, binary_logits=True,
-                              hard_rate=cfg.MODEL.RPN.OHEM2_HARD_RATE)
+        ohem_loss = OHEM2Loss(
+            cfg.MODEL.RPN.OHEM2_BATCH_SIZE_PER_IM
+            * cfg.SOLVER.IMS_PER_BATCH
+            // cfg.SOLVER.NUM_GPU,
+            cfg.MODEL.RPN.OHEM2_POSITIVE_FRACTION,
+            binary_logits=True,
+            hard_rate=cfg.MODEL.RPN.OHEM2_HARD_RATE,
+        )
 
-    loss_evaluator = RPNLossComputation(matcher, fg_bg_sampler, box_coder, generate_rpn_labels, ohem_loss)
+    loss_evaluator = RPNLossComputation(
+        matcher, fg_bg_sampler, box_coder, generate_rpn_labels, ohem_loss
+    )
     # #######################################################################################################
 
     return loss_evaluator
+
 
 # ############## add by hui #########################################################3
 
@@ -213,15 +230,23 @@ def record_for_recall(matched_idxs, target):
     w = bbox[:, 2] - bbox[:, 0] + 1
     h = bbox[:, 3] - bbox[:, 1] + 1
     scale = torch.sqrt(w * h).cpu().numpy()
-    recorder.record('anchor_recall', scale.tolist(),
-                    target.get_field("labels").cpu().numpy().tolist(),
-                    target_length, matched_proposal, len(matched_proposal))
+    recorder.record(
+        "anchor_recall",
+        scale.tolist(),
+        target.get_field("labels").cpu().numpy().tolist(),
+        target_length,
+        matched_proposal,
+        len(matched_proposal),
+    )
 
 
 batch_id = 0
+
+
 def show_label(img_size, labels, reg_targets, objectness):
     import matplotlib.pyplot as plt
     import numpy as np
+
     W, H = img_size
     S, A = 1, 3
     stride = (4, 8, 16, 32, 64)
@@ -233,11 +258,11 @@ def show_label(img_size, labels, reg_targets, objectness):
     sidx = 0
     for s in stride:
         w, h = W // s, H // s
-        label = labels[sidx: sidx+w*h].reshape(h, w, S, A)
+        label = labels[sidx : sidx + w * h].reshape(h, w, S, A)
         new_labels.append(label)
-        reg_target = reg_targets[sidx:sidx+w*h].reshape(h, w, S, A, 4)
+        reg_target = reg_targets[sidx : sidx + w * h].reshape(h, w, S, A, 4)
         new_reg_targets.append(reg_target)
-        new_objectness.append(objectness[sidx:sidx+w*h].reshape(h, w, S, A))
+        new_objectness.append(objectness[sidx : sidx + w * h].reshape(h, w, S, A))
         sidx += w * h
     assert sidx == len(labels)
     labels = new_labels
@@ -257,7 +282,7 @@ def show_label(img_size, labels, reg_targets, objectness):
                 N += 1
 
     i = 1
-    plt.figure(figsize=(12, N*4))
+    plt.figure(figsize=(12, N * 4))
     for l, label in enumerate(labels):
         label = label.cpu().numpy()
         for s in range(S):
@@ -271,7 +296,11 @@ def show_label(img_size, labels, reg_targets, objectness):
                 i += 1
 
                 plt.subplot(N, 2, i)
-                plt.imshow((objectness[l][:, :, s, a]).sigmoid().detach().cpu().numpy(), vmin=0, vmax=1)
+                plt.imshow(
+                    (objectness[l][:, :, s, a]).sigmoid().detach().cpu().numpy(),
+                    vmin=0,
+                    vmax=1,
+                )
                 plt.title("P{}, S:{}, A:{}".format(l, s, a))
                 i += 1
     plt.show()
@@ -282,11 +311,14 @@ def show_label(img_size, labels, reg_targets, objectness):
         valid_reg_targets.append(reg_target)
     valid_reg_targets = torch.cat(valid_reg_targets, dim=0)
     global batch_id
-    torch.save(valid_reg_targets, 'outputs/tmp/valid_reg_targets{}.pth'.format(batch_id))
+    torch.save(
+        valid_reg_targets, "outputs/tmp/valid_reg_targets{}.pth".format(batch_id)
+    )
     batch_id += 1
     # if len(valid_reg_targets) > 1:
     #     print(valid_reg_targets.shape[0], valid_reg_targets.mean(dim=0), valid_reg_targets.std(dim=0))
     # else:
     #     print(valid_reg_targets)
+
 
 # ########################################################3#########################################################3

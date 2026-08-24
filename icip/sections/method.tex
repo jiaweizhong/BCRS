@@ -1,6 +1,6 @@
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/HESOD.pdf}
+\includegraphics[width=0.90\textwidth]{figures/HESOD.pdf}
 \caption{Overview of HESOD: (a) End-to-end selective detection pipeline comprising the Stem, Dual-Evidence Priority Head (with $\mathcal{L}_{\mathrm{cover}}$), AdaSlicer router, Neck, and ISPP Head; (b) Inner structure of the Dual-Evidence Priority Head.}
 \label{fig:overview}
 \end{figure*}
@@ -52,7 +52,7 @@ where $w_j = \operatorname{clip}(4/a_j, 1, 5)$ is a scale-adaptive weight based 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/ISPPHead.pdf}
-\caption{Architecture of the Inverted Residual Decoupled Head (ISPPHead) with Partial Convolution.}
+\caption{Architecture of the Inverted Residual Decoupled Head (ISPPHead) with Partial Convolution ($\textcircled{\scriptsize C}$ denotes channel concatenation).}
 \label{fig:ispphead}
 \end{figure}
 

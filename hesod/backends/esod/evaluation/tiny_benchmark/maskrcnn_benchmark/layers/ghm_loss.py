@@ -1,21 +1,21 @@
 """
- copy from mmdetection
+copy from mmdetection
 """
-
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-def _expand_binary_labels(labels, label_weights, label_channels):   # one_hot
+def _expand_binary_labels(labels, label_weights, label_channels):  # one_hot
     bin_labels = labels.new_full((labels.size(0), label_channels), 0)
     inds = torch.nonzero(labels >= 1).squeeze()
     if inds.numel() > 0:
         bin_labels[inds, labels[inds] - 1] = 1
     if label_weights is not None:
         bin_label_weights = label_weights.view(-1, 1).expand(
-            label_weights.size(0), label_channels)
+            label_weights.size(0), label_channels
+        )
     else:
         bin_label_weights = None
     return bin_labels, bin_label_weights
@@ -23,18 +23,18 @@ def _expand_binary_labels(labels, label_weights, label_channels):   # one_hot
 
 class GHMC(nn.Module):
     def __init__(
-            self,
-            bins=10,
-            momentum=0,
-            use_sigmoid=True,
-            loss_weight=1.0,
-            alpha=0.5,
-            EPS=1e-6
+        self,
+        bins=10,
+        momentum=0,
+        use_sigmoid=True,
+        loss_weight=1.0,
+        alpha=0.5,
+        EPS=1e-6,
     ):
         super(GHMC, self).__init__()
         self.bins = bins
         self.momentum = momentum
-        self.edges = [float(x) / bins for x in range(bins+1)]
+        self.edges = [float(x) / bins for x in range(bins + 1)]
         self.edges[-1] += 1e-6
         if momentum > 0:
             self.acc_sum = [0.0 for _ in range(bins)]
@@ -44,7 +44,7 @@ class GHMC(nn.Module):
         self.eps = EPS
 
     def forward(self, pred, target, label_weight=None, *args, **kwargs):
-        """ Args:
+        """Args:
         pred [batch_num, class_num]:
             The direct prediction of classification fc layer.
         target [batch_num, class_num]:
@@ -56,7 +56,9 @@ class GHMC(nn.Module):
             raise NotImplementedError
         # the target should be binary class label
         if pred.dim() != target.dim():
-            target, label_weight = _expand_binary_labels(target, label_weight, pred.size(-1))
+            target, label_weight = _expand_binary_labels(
+                target, label_weight, pred.size(-1)
+            )
         target = target.float()
         if label_weight is not None:
             label_weight = label_weight.float()
@@ -68,17 +70,20 @@ class GHMC(nn.Module):
         g = torch.abs(pred.sigmoid().detach() - target)
 
         valid = label_weight > 0 if label_weight is not None else None
-        tot = max(valid.float().sum().item(), 1.0) if valid is not None else weights.size(0)
+        tot = (
+            max(valid.float().sum().item(), 1.0)
+            if valid is not None
+            else weights.size(0)
+        )
         n = 0  # n valid bins
         for i in range(self.bins):
-            inds = (g >= edges[i]) & (g < edges[i+1])
+            inds = (g >= edges[i]) & (g < edges[i + 1])
             if valid is not None:
                 inds = inds & valid
             num_in_bin = inds.sum().item()
             if num_in_bin > 0:
                 if mmt > 0:
-                    self.acc_sum[i] = mmt * self.acc_sum[i] \
-                        + (1 - mmt) * num_in_bin
+                    self.acc_sum[i] = mmt * self.acc_sum[i] + (1 - mmt) * num_in_bin
                     weights[inds] = tot / self.acc_sum[i]
                 else:
                     weights[inds] = tot / num_in_bin
@@ -91,25 +96,24 @@ class GHMC(nn.Module):
         #
         # return loss * self.loss_weight
 
-        loss = F.binary_cross_entropy_with_logits(
-            pred, target, weights, reduction='none') / tot
+        loss = (
+            F.binary_cross_entropy_with_logits(pred, target, weights, reduction="none")
+            / tot
+        )
         loss = loss * self.loss_weight
-        neg_loss = (2*(1-self.alpha)) * (target <= self.eps).float() * loss   # *2 to keep same as origin version when alpha=0.5
-        pos_loss = (2*self.alpha) * (target > self.eps).float() * loss
+        neg_loss = (
+            (2 * (1 - self.alpha)) * (target <= self.eps).float() * loss
+        )  # *2 to keep same as origin version when alpha=0.5
+        pos_loss = (2 * self.alpha) * (target > self.eps).float() * loss
         return [neg_loss.sum(), pos_loss.sum()]
 
 
 class GHMR(nn.Module):
-    def __init__(
-            self,
-            mu=0.02,
-            bins=10,
-            momentum=0,
-            loss_weight=1.0):
+    def __init__(self, mu=0.02, bins=10, momentum=0, loss_weight=1.0):
         super(GHMR, self).__init__()
         self.mu = mu
         self.bins = bins
-        self.edges = [float(x) / bins for x in range(bins+1)]
+        self.edges = [float(x) / bins for x in range(bins + 1)]
         self.edges[-1] = 1e3
         self.momentum = momentum
         if momentum > 0:
@@ -117,7 +121,7 @@ class GHMR(nn.Module):
         self.loss_weight = loss_weight
 
     def forward(self, pred, target, label_weight, avg_factor=None):
-        """ Args:
+        """Args:
         pred [batch_num, 4 (* class_num)]:
             The prediction of box regression layer. Channel number can be 4 or
             (4 * class_num) depending on whether it is class-agnostic.
@@ -142,13 +146,12 @@ class GHMR(nn.Module):
         tot = max(label_weight.float().sum().item(), 1.0)
         n = 0  # n: valid bins
         for i in range(self.bins):
-            inds = (g >= edges[i]) & (g < edges[i+1]) & valid
+            inds = (g >= edges[i]) & (g < edges[i + 1]) & valid
             num_in_bin = inds.sum().item()
             if num_in_bin > 0:
                 n += 1
                 if mmt > 0:
-                    self.acc_sum[i] = mmt * self.acc_sum[i] \
-                        + (1 - mmt) * num_in_bin
+                    self.acc_sum[i] = mmt * self.acc_sum[i] + (1 - mmt) * num_in_bin
                     weights[inds] = tot / self.acc_sum[i]
                 else:
                     weights[inds] = tot / num_in_bin

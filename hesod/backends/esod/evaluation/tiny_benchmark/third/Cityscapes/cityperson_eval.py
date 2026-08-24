@@ -2,7 +2,7 @@ import json
 import sys
 import os
 
-TOOL_DIR = os.path.abspath(__file__ + '/..') + '/evaluation/eval_script/'
+TOOL_DIR = os.path.abspath(__file__ + "/..") + "/evaluation/eval_script/"
 sys.path.insert(0, TOOL_DIR)
 import os
 from coco import COCO
@@ -27,37 +27,50 @@ cityperson评价指标的特点：
 def turn_bbox(src_file, dst_file):
     json_data = json.load(open(src_file))
     for data in json_data:
-        data['image_id'] = data['image_id'] + 1
-    json.dump(json_data, open(dst_file, 'w'))
+        data["image_id"] = data["image_id"] + 1
+    json.dump(json_data, open(dst_file, "w"))
 
 
-def cityperson_eval(src_pth, annFile, CUT_WH=None,
-                    ignore_uncertain=False, use_iod_for_ignore=False, catIds=[],
-                    use_citypersons_standard=True, tiny_scale=1.0, iou_ths=None, setup_labels=None):
+def cityperson_eval(
+    src_pth,
+    annFile,
+    CUT_WH=None,
+    ignore_uncertain=False,
+    use_iod_for_ignore=False,
+    catIds=[],
+    use_citypersons_standard=True,
+    tiny_scale=1.0,
+    iou_ths=None,
+    setup_labels=None,
+):
     if os.path.isdir(src_pth):
-        resFile = src_pth + '/' + 'bbox.json'
+        resFile = src_pth + "/" + "bbox.json"
     else:
         resFile = src_pth
     Params.CITYPERSON_STANDARD = use_citypersons_standard
     if use_citypersons_standard:
         kwargs = {}
-        if CUT_WH is None: CUT_WH = (1, 1)
+        if CUT_WH is None:
+            CUT_WH = (1, 1)
     else:
-        kwargs = {'filter_type': 'size'}
-        if CUT_WH is None: CUT_WH = (1, 1)
+        kwargs = {"filter_type": "size"}
+        if CUT_WH is None:
+            CUT_WH = (1, 1)
         Params.TINY_SCALE = tiny_scale
     Params.IOU_THS = iou_ths
 
-    kwargs.update({'use_iod_for_ignore': use_iod_for_ignore, 'ignore_uncertain': ignore_uncertain})
-    kwargs['given_catIds'] = len(catIds) > 0
+    kwargs.update(
+        {"use_iod_for_ignore": use_iod_for_ignore, "ignore_uncertain": ignore_uncertain}
+    )
+    kwargs["given_catIds"] = len(catIds) > 0
 
-    annType = 'bbox'      # specify type here
-    print('Running demo for *%s* results.' % annType)
+    annType = "bbox"  # specify type here
+    print("Running demo for *%s* results." % annType)
 
     # running evaluation
-    print('CUT_WH:', CUT_WH)
-    print('use_citypersons_standard:', use_citypersons_standard)
-    print('tiny_scale:', tiny_scale)
+    print("CUT_WH:", CUT_WH)
+    print("use_citypersons_standard:", use_citypersons_standard)
+    print("tiny_scale:", tiny_scale)
     print(kwargs)
     res_file = open("results.txt", "w")
     Params.CUT_WH = CUT_WH
@@ -67,16 +80,16 @@ def cityperson_eval(src_pth, annFile, CUT_WH=None,
             cocoGt = COCO(annFile)
             cocoDt = cocoGt.loadRes(resFile)
             imgIds = sorted(cocoGt.getImgIds())
-            cocoEval = COCOeval(cocoGt,cocoDt,annType, **kwargs)
+            cocoEval = COCOeval(cocoGt, cocoDt, annType, **kwargs)
             cocoEval.params.imgIds = imgIds
             cocoEval.evaluate(id_setup)
             cocoEval.accumulate()
-            cocoEval.summarize(id_setup,res_file)
+            cocoEval.summarize(id_setup, res_file)
 
     res_file.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # for exp_name in ['FPN_RCNN_OHEM2', 'FPN_RPN_OHEM2', 'FPN_topk', 'FPN_topk_random', 'FPN'][:2]:
     #     cityperson_eval('../../outputs/perdestrian/{}/inference/cityscapes_perdestrian_val_cocostyle'.format(exp_name))
     # cityperson_eval('/home/data/github/maskrcnn-benchmark/outputs/perdestrian/FPN/inference/cityscapes_perdestrian_val_cocostyle')
@@ -98,7 +111,11 @@ if __name__ == '__main__':
 
     cityperson_eval(
         # '../../outputs/cityperson/faster/base/inference/cityperson_pedestrian_val_coco/bbox.json',
-        '/home/hui/github/cur_code/outputs/cityperson_FPN_baseline1.json',
-        '/home/hui/dataset/cityscapes/perdestrian_annotations/citypersons_all_val.json', CUT_WH=(1, 1),
-        ignore_uncertain=False, use_iod_for_ignore=False, catIds=[],
-        use_citypersons_standard=True) #, tiny_scale=4.11886287119646)
+        "/home/hui/github/cur_code/outputs/cityperson_FPN_baseline1.json",
+        "/home/hui/dataset/cityscapes/perdestrian_annotations/citypersons_all_val.json",
+        CUT_WH=(1, 1),
+        ignore_uncertain=False,
+        use_iod_for_ignore=False,
+        catIds=[],
+        use_citypersons_standard=True,
+    )  # , tiny_scale=4.11886287119646)

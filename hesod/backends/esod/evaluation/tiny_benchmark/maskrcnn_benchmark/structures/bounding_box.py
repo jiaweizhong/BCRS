@@ -195,15 +195,16 @@ class BoxList(object):
 
     # ##################################################3 add by hui ######################################3
     def translate(self, delta_x, delta_y, clip=True):
-        bbox = copy.deepcopy(self) #BoxList(self.bbox, self.size, mode=self.mode)
+        bbox = copy.deepcopy(self)  # BoxList(self.bbox, self.size, mode=self.mode)
         bbox.bbox[:, 0] += delta_x
         bbox.bbox[:, 1] += delta_y
-        if self.mode == 'xyxy':
+        if self.mode == "xyxy":
             bbox.bbox[:, 2] += delta_x
             bbox.bbox[:, 3] += delta_y
         if clip:
             bbox = bbox.clip_to_image()
         return bbox
+
     ######################################3#################################################################
 
     # Tensor-like methods
@@ -241,7 +242,9 @@ class BoxList(object):
         box = self.bbox
         if self.mode == "xyxy":
             TO_REMOVE = 1
-            area = (box[:, 2] - box[:, 0] + TO_REMOVE) * (box[:, 3] - box[:, 1] + TO_REMOVE)
+            area = (box[:, 2] - box[:, 0] + TO_REMOVE) * (
+                box[:, 3] - box[:, 1] + TO_REMOVE
+            )
         elif self.mode == "xywh":
             area = box[:, 2] * box[:, 3]
         else:

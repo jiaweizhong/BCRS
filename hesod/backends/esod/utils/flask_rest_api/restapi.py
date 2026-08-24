@@ -1,6 +1,7 @@
 """
 Run a rest API exposing the yolov5s object detection model
 """
+
 import argparse
 import io
 
@@ -33,5 +34,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", default=5000, type=int, help="port number")
     args = parser.parse_args()
 
-    model = torch.hub.load("ultralytics/yolov5", "yolov5s", force_reload=True)  # force_reload to recache
+    model = torch.hub.load(
+        "ultralytics/yolov5", "yolov5s", force_reload=True
+    )  # force_reload to recache
     app.run(host="0.0.0.0", port=args.port)  # debug=True causes Restarting with stat

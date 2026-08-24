@@ -11,7 +11,6 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -26,12 +25,23 @@ def _load_module(path: Path, name: str):
 
 def _isolated_function(path: Path, name: str, globals_: dict):
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    nodes = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == name]
+    nodes = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    ]
     assert len(nodes) == 1
     node = nodes[0]
     node.decorator_list = []
     namespace = dict(globals_)
-    exec(compile(ast.fix_missing_locations(ast.Module(body=[node], type_ignores=[])), str(path), "exec"), namespace)
+    exec(
+        compile(
+            ast.fix_missing_locations(ast.Module(body=[node], type_ignores=[])),
+            str(path),
+            "exec",
+        ),
+        namespace,
+    )
     return namespace[name]
 
 
@@ -60,8 +70,12 @@ def test_metric_columns_map_ap50_then_coco_map():
     ):
         source = path.read_text(encoding="utf-8")
         assert "ap50, ap = ap[:, 0], ap.mean(1)" in source
-        assert "mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()" in source
-        assert "('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95'" in source
+        assert (
+            "mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()" in source
+        )
+        assert (
+            "('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95'" in source
+        )
 
 
 def test_sparse_head_rejects_unsupported_ispp_adapter_explicitly():
@@ -70,7 +84,10 @@ def test_sparse_head_rejects_unsupported_ispp_adapter_explicitly():
     )
     assert "dense_head_type not in sp_dict" in source
     assert "SparseHead adapter is not implemented" in source
-    assert "ISPPHead requires a dedicated sparse expand/partial-conv/project path" in source
+    assert (
+        "ISPPHead requires a dedicated sparse expand/partial-conv/project path"
+        in source
+    )
 
 
 def test_topk_router_is_exact_and_stable():
@@ -166,7 +183,9 @@ def test_recall_audit_is_one_to_one_and_rejects_unknown_image_ids(tmp_path: Path
         audit.audit_predictions(pred, labels, images, class_names=("object",))
 
 
-def test_selector_audit_uses_strict_paper_bprbox_and_validates_full_split(tmp_path: Path):
+def test_selector_audit_uses_strict_paper_bprbox_and_validates_full_split(
+    tmp_path: Path,
+):
     scripts = ROOT / "scripts" / "esod_baseline"
     _load_module(scripts / "audit_buckets.py", "audit_buckets")
     selector = _load_module(
@@ -237,7 +256,7 @@ def test_mask_protocol_is_explicit_and_runners_cannot_infer_it_from_environment(
     )
     assert 'choices=("gaussian", "released-hybrid")' in generator
     assert 'if mask_mode == "gaussian"' in generator
-    assert 'elif data_prepare.predictor is None' in generator
+    assert "elif data_prepare.predictor is None" in generator
 
     expected = {
         "run_baseline.sh": '--mask-mode "$MASK_MODE"',

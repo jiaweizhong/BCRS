@@ -87,20 +87,23 @@ class Normalize(object):
         image = F.normalize(image, mean=self.mean, std=self.std)
         return image, target
 
+
 # ################################### add by hui ###################################
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from math import floor, ceil
 import copy
+
 # from MyPackage.tools.debug_log.debug_log import Logger
 import os, time
 import numbers
 from .scale_match import *
+
 # logger = Logger('ERROR')
-PIL_RESIZE_MODE = {'bilinear': Image.BILINEAR, 'nearest': Image.NEAREST}
+PIL_RESIZE_MODE = {"bilinear": Image.BILINEAR, "nearest": Image.NEAREST}
 
 
 class ScaleResize(object):
-    def __init__(self, scales, mode='bilinear'):
+    def __init__(self, scales, mode="bilinear"):
         if not isinstance(scales, (list, tuple)):
             scales = (scales,)
         self.scales = scales
@@ -112,13 +115,18 @@ class ScaleResize(object):
         size = round(scale * image.height), round(scale * image.width)
         image = F.resize(image, size, self.mode)
         if scale == 1:
-            assert image.size == origin_size, (image.size, size, image.width, image.height)
+            assert image.size == origin_size, (
+                image.size,
+                size,
+                image.width,
+                image.height,
+            )
         target = target.resize(image.size)
         return image, target
 
 
 class RandomScaleResize(object):
-    def __init__(self, min_scale, max_scale, mode='bilinear'):
+    def __init__(self, min_scale, max_scale, mode="bilinear"):
         self.min_scale = min_scale
         self.max_scale = max_scale
         self.mode = PIL_RESIZE_MODE[mode]
@@ -184,11 +192,20 @@ class RandomCrop(torchvision.transforms.RandomCrop):
                 success = True
                 break
         if not success:
-            i, j, h, w = (self.padding[1], self.padding[0], size[0], size[1])  # (t, l, h, w)
+            i, j, h, w = (
+                self.padding[1],
+                self.padding[0],
+                size[0],
+                size[1],
+            )  # (t, l, h, w)
             target = target.translate(-j, -i, clip=True)
             self.not_success_time += 1
             if self.not_success_time % 100 == 0:
-                warnings.warn("translate in RandomCrop, failed for {} times".format(self.not_success_time))
+                warnings.warn(
+                    "translate in RandomCrop, failed for {} times".format(
+                        self.not_success_time
+                    )
+                )
 
         return F.crop(img, i, j, h, w), target
 
@@ -253,12 +270,12 @@ class RandomCrop(torchvision.transforms.RandomCrop):
 
 
 class ImageToImageTargetTransform(object):
-    def __init__(self, image_transform, transform_prob=1.):
+    def __init__(self, image_transform, transform_prob=1.0):
         self.image_transform = image_transform
         self.transform_prob = transform_prob
 
     def __call__(self, image, target):
-        if np.random.uniform(0, 1) > self.transform_prob:                   # whether use expand
+        if np.random.uniform(0, 1) > self.transform_prob:  # whether use expand
             return image, target
         image = self.image_transform(image)
         return image, target
@@ -269,11 +286,15 @@ class RandomExpand(object):
     random_expand: change from gluoncv gluoncv/data/transforms/image.py:220
 
     """
-    def __init__(self, max_ratio=4, fill=0, keep_ratio=True, transform_prob=1.):
+
+    def __init__(self, max_ratio=4, fill=0, keep_ratio=True, transform_prob=1.0):
         if not isinstance(fill, np.ndarray):
             fill = np.array(fill).reshape((-1,))
-        assert len(fill.shape) == 1 and (len(fill) == 1 or len(fill) == 3), 'fill shape must be (1,) or (3,).'
-        if len(fill) == 1 and len(fill.shape) == 1: fill = np.array([fill, fill, fill])
+        assert len(fill.shape) == 1 and (
+            len(fill) == 1 or len(fill) == 3
+        ), "fill shape must be (1,) or (3,)."
+        if len(fill) == 1 and len(fill.shape) == 1:
+            fill = np.array([fill, fill, fill])
         b, g, r = fill
         self.fill = np.array([r, g, b])
         self.max_ratio = max_ratio
@@ -281,17 +302,22 @@ class RandomExpand(object):
         self.transform_prob = transform_prob
 
     def __call__(self, image: Image.Image, target: BoxList):
-        if np.random.uniform(0, 1) > self.transform_prob:                   # whether use expand
+        if np.random.uniform(0, 1) > self.transform_prob:  # whether use expand
             return image, target
         mode, image = image.mode, np.array(image).astype(np.float32)
         image, (offset_x, offset_y, new_width, new_height) = self.random_expand(
-            image, self.max_ratio, self.fill, self.keep_ratio)
+            image, self.max_ratio, self.fill, self.keep_ratio
+        )
         image = Image.fromarray(image.astype(np.uint8), mode)
-        target = BoxList(target.bbox, (new_width, new_height), target.mode)   # size changed
-        target = target.translate(offset_x, offset_y)                         # box translate
+        target = BoxList(
+            target.bbox, (new_width, new_height), target.mode
+        )  # size changed
+        target = target.translate(offset_x, offset_y)  # box translate
         return image, target
 
-    def random_expand(self, src, max_ratio=4, fill=torch.Tensor([0, 0, 0]), keep_ratio=True):
+    def random_expand(
+        self, src, max_ratio=4, fill=torch.Tensor([0, 0, 0]), keep_ratio=True
+    ):
         """Random expand original image with borders, this is identical to placing
         the original image on a larger canvas.
 
@@ -332,7 +358,7 @@ class RandomExpand(object):
 
         # make canvas
         dst = np.tile(fill, (oh, ow, 1))
-        dst[off_y:off_y + h, off_x:off_x + w, :] = src
+        dst[off_y : off_y + h, off_x : off_x + w, :] = src
         return dst, (off_x, off_y, ow, oh)
 
 
@@ -359,15 +385,27 @@ class RandomCropResizeForBBox(object):
     in crop_image and crop_bbox
     add image scale for scale < 1 to prevent allocate a big memory dst in crop image, and speed up for big image
     """
-    def __init__(self, bbox_size_range, crop_size_before_scale=None, fill=0, scale_range=(0, inf), min_crop_size_ratio=0.5,
-                 min_crop_overlap=None, transform_prob=1.):
+
+    def __init__(
+        self,
+        bbox_size_range,
+        crop_size_before_scale=None,
+        fill=0,
+        scale_range=(0, inf),
+        min_crop_size_ratio=0.5,
+        min_crop_overlap=None,
+        transform_prob=1.0,
+    ):
         self.bbox_size_range = bbox_size_range
         self.crop_size_before_scale = crop_size_before_scale  # None mean use input image size as crop_size_before_scale
         self.transform_prob = transform_prob
         if not isinstance(fill, np.ndarray):
             fill = np.array(fill).reshape((-1,))
-        assert len(fill.shape) == 1 and (len(fill) == 1 or len(fill) == 3), 'fill shape must be (1,) or (3,).'
-        if len(fill) == 1 and len(fill.shape) == 1: fill = np.array([fill, fill, fill]).reshape((-1,))
+        assert len(fill.shape) == 1 and (
+            len(fill) == 1 or len(fill) == 3
+        ), "fill shape must be (1,) or (3,)."
+        if len(fill) == 1 and len(fill.shape) == 1:
+            fill = np.array([fill, fill, fill]).reshape((-1,))
         b, g, r = fill
         self.fill = np.array([r, g, b])
         self.min_crop_size_ratio = min_crop_size_ratio
@@ -390,29 +428,38 @@ class RandomCropResizeForBBox(object):
         :return:
         """
         # print('image w, h', image.width, image.height)
-        if np.random.uniform(0, 1) > self.transform_prob:                   # whether use expand
+        if np.random.uniform(0, 1) > self.transform_prob:  # whether use expand
             return image, target
         old_image, old_target = copy.deepcopy(image), copy.deepcopy(target)
         try:
             # filter ignore and too big gt out, just to choose a scale and crop, final return will keep it.
             # TODO: should be replace with other policy to remove most ignore.
             boxes = target.bbox.cpu().numpy()
-            non_ignore_boxes = np.all([boxes[:, 2] - boxes[:, 0] < self.MAX_GT_WH,
-                                       boxes[:, 3] - boxes[:, 1] < self.MAX_GT_WH], axis=0)
+            non_ignore_boxes = np.all(
+                [
+                    boxes[:, 2] - boxes[:, 0] < self.MAX_GT_WH,
+                    boxes[:, 3] - boxes[:, 1] < self.MAX_GT_WH,
+                ],
+                axis=0,
+            )
             boxes = boxes[non_ignore_boxes]
-            if len(boxes) == 0: return old_image, old_target
+            if len(boxes) == 0:
+                return old_image, old_target
 
             # choose a scale and a crop r.s.t the scale
             scale = self.choose_scale(boxes)
-            if scale is None: scale = 1.
+            if scale is None:
+                scale = 1.0
             # choose a crop
             if self.crop_size_before_scale is None:
                 crop_w_before_scale, crop_h_before_scale = image.width, image.height
             else:
                 crop_w_before_scale, crop_h_before_scale = self.crop_size_before_scale
-            crop = self.choose_crop(crop_w_before_scale, crop_h_before_scale,
-                                    scale, boxes)  # crop can out of origin image
-            if crop is None: return old_image, old_target
+            crop = self.choose_crop(
+                crop_w_before_scale, crop_h_before_scale, scale, boxes
+            )  # crop can out of origin image
+            if crop is None:
+                return old_image, old_target
             # print(scale, crop, crop[2]-crop[0], crop[3]-crop[1])
 
             # crop bbox and image r.s.t choosed crop
@@ -420,7 +467,9 @@ class RandomCropResizeForBBox(object):
             target = self.crop_bbox(target, crop, image.size)
         except BaseException as e:
             print(e)
-            warnings.warn("exception happened which should not happened, may be some bug in code.")
+            warnings.warn(
+                "exception happened which should not happened, may be some bug in code."
+            )
             return old_image, old_target
         return image, target
 
@@ -428,7 +477,7 @@ class RandomCropResizeForBBox(object):
         min_scale, max_scale = self.scale_range
         if self.bbox_size_range is not None:
             areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-            sizes = areas ** 0.5
+            sizes = areas**0.5
             min_size, max_size = sizes.min(), sizes.max()
             max_scale = self.bbox_size_range[1] / max_size
             min_scale = self.bbox_size_range[0] / min_size
@@ -442,20 +491,35 @@ class RandomCropResizeForBBox(object):
         # print('sizes', min_size, max_size, min_scale, max_scale, scale)
         return scale
 
-    def choose_crop(self, crop_w_before_scale, crop_h_before_scale, scale, boxes: np.ndarray):
-        crop_w_after_scale, crop_h_after_scale = crop_w_before_scale / scale, crop_h_before_scale / scale
+    def choose_crop(
+        self, crop_w_before_scale, crop_h_before_scale, scale, boxes: np.ndarray
+    ):
+        crop_w_after_scale, crop_h_after_scale = (
+            crop_w_before_scale / scale,
+            crop_h_before_scale / scale,
+        )
         # crop can out of origin image, but must contain >=1 gt boxes.
         prob = np.random.random()
-        if prob < 0.25:   contain_bbox = boxes[np.argmin(boxes[:, 0])]  # left box
-        elif prob < 0.5:  contain_bbox = boxes[np.argmin(boxes[:, 1])]  # upper box
-        elif prob < 0.75: contain_bbox = boxes[np.argmax(boxes[:, 2])]  # right box
-        else:             contain_bbox = boxes[np.argmax(boxes[:, 3])]  # bottom box
-        min_image_x1, min_image_y1 = contain_bbox[2] - crop_w_after_scale, contain_bbox[3] - crop_h_after_scale
+        if prob < 0.25:
+            contain_bbox = boxes[np.argmin(boxes[:, 0])]  # left box
+        elif prob < 0.5:
+            contain_bbox = boxes[np.argmin(boxes[:, 1])]  # upper box
+        elif prob < 0.75:
+            contain_bbox = boxes[np.argmax(boxes[:, 2])]  # right box
+        else:
+            contain_bbox = boxes[np.argmax(boxes[:, 3])]  # bottom box
+        min_image_x1, min_image_y1 = (
+            contain_bbox[2] - crop_w_after_scale,
+            contain_bbox[3] - crop_h_after_scale,
+        )
         max_image_x1, max_image_y1 = contain_bbox[0], contain_bbox[1]
 
         # crop area must cover min_crop_size_ratio^2 of origin image, to avoid too least foreground info.
         if self.min_crop_size_ratio > 0:
-            min_w, min_h = crop_w_after_scale * self.min_crop_size_ratio, crop_h_after_scale * self.min_crop_size_ratio
+            min_w, min_h = (
+                crop_w_after_scale * self.min_crop_size_ratio,
+                crop_h_after_scale * self.min_crop_size_ratio,
+            )
         else:
             min_w, min_h = np.array(self.min_crop_overlap) / scale
         min_image_x1 = max(min_image_x1, min_w - crop_w_after_scale)
@@ -467,8 +531,12 @@ class RandomCropResizeForBBox(object):
             return None
 
         # random choose a crop available
-        image_x1 = int(np.random.random() * (max_image_x1 - min_image_x1) + min_image_x1)
-        image_y1 = int(np.random.random() * (max_image_y1 - min_image_y1) + min_image_y1)
+        image_x1 = int(
+            np.random.random() * (max_image_x1 - min_image_x1) + min_image_x1
+        )
+        image_y1 = int(
+            np.random.random() * (max_image_y1 - min_image_y1) + min_image_y1
+        )
         image_x2 = int(image_x1 + crop_w_after_scale)
         image_y2 = int(image_y1 + crop_h_after_scale)
         crop = (image_x1, image_y1, image_x2, image_y2)
@@ -479,15 +547,21 @@ class RandomCropResizeForBBox(object):
         image_width, image_height = image.width, image.height
         if scale is not None:
             crop = (np.array(crop) * scale).astype(np.int32)
-            image_width, image_height = int(image_width * scale), int(image_height * scale)
+            image_width, image_height = int(image_width * scale), int(
+                image_height * scale
+            )
             image = image.resize((image_width, image_height))
 
         image_x1, image_y1, image_x2, image_y2 = crop
         new_image_w, new_image_h = image_x2 - image_x1, image_y2 - image_y1
-        if image_y1 < 0: dst_off_y, src_off_y = -image_y1, 0
-        else: dst_off_y, src_off_y = 0, image_y1
-        if image_x1 < 0: dst_off_x, src_off_x = -image_x1, 0
-        else: dst_off_x, src_off_x = 0, image_x1
+        if image_y1 < 0:
+            dst_off_y, src_off_y = -image_y1, 0
+        else:
+            dst_off_y, src_off_y = 0, image_y1
+        if image_x1 < 0:
+            dst_off_x, src_off_x = -image_x1, 0
+        else:
+            dst_off_x, src_off_x = 0, image_x1
         if image_x2 > image_width:
             dst_off_x2, src_off_x2 = image_width - image_x1, image_width
         else:
@@ -499,7 +573,9 @@ class RandomCropResizeForBBox(object):
 
         src = np.array(image).astype(np.float32)
         dst = np.tile(self.fill, (new_image_h, new_image_w, 1))
-        dst[dst_off_y:dst_off_y2, dst_off_x:dst_off_x2, :] = src[src_off_y:src_off_y2, src_off_x:src_off_x2, :]
+        dst[dst_off_y:dst_off_y2, dst_off_x:dst_off_x2, :] = src[
+            src_off_y:src_off_y2, src_off_x:src_off_x2, :
+        ]
         dst = dst.astype(np.uint8)
         # assert dst.shape[0] > 0 and dst.shape[1] > 0
         # try:
@@ -514,22 +590,24 @@ class RandomCropResizeForBBox(object):
     def crop_bbox(self, target, crop, image_size=None):
         _old_target = copy.deepcopy(target)
         image_x1, image_y1, image_x2, image_y2 = crop
-        bboxes = target.convert('xyxy').bbox
+        bboxes = target.convert("xyxy").bbox
         # translate(-image_x1, -image_y1)
         bboxes[:, 0] += -image_x1
         bboxes[:, 1] += -image_y1
         bboxes[:, 2] += -image_x1
         bboxes[:, 3] += -image_y1
         # crop(image_x1, image_y1, image_x2, image_y2)
-        bboxes[:, 0] = bboxes[:, 0].clamp(0, image_x2-image_x1)
-        bboxes[:, 1] = bboxes[:, 1].clamp(0, image_y2-image_y1)
-        bboxes[:, 2] = bboxes[:, 2].clamp(0, image_x2-image_x1)
-        bboxes[:, 3] = bboxes[:, 3].clamp(0, image_y2-image_y1)
+        bboxes[:, 0] = bboxes[:, 0].clamp(0, image_x2 - image_x1)
+        bboxes[:, 1] = bboxes[:, 1].clamp(0, image_y2 - image_y1)
+        bboxes[:, 2] = bboxes[:, 2].clamp(0, image_x2 - image_x1)
+        bboxes[:, 3] = bboxes[:, 3].clamp(0, image_y2 - image_y1)
         old_target = target
-        target = BoxList(bboxes, (image_x2-image_x1, image_y2-image_y1), 'xyxy').convert(target.mode)
+        target = BoxList(
+            bboxes, (image_x2 - image_x1, image_y2 - image_y1), "xyxy"
+        ).convert(target.mode)
         target._copy_extra_fields(old_target)
         target = target.clip_to_image()
-        assert len(target.extra_fields['labels']) == len(target.bbox)
+        assert len(target.extra_fields["labels"]) == len(target.bbox)
         assert len(target.bbox) != 0, (crop, _old_target.bbox)
         if image_size is not None:
             target = target.resize(image_size)
@@ -556,17 +634,40 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
         2. get a scale s to keep B size in [bbox_size_range] and s in [scale_range], get crop's width and height
         3. get a crop start_point that cover B and cover [min_crop_size_ratio]^2 of origin image at least
     """
-    def __init__(self, bbox_size_range, crop_size_before_scale, fill=0, scale_range=(0, inf),
-                 min_crop_size_ratio=0.5, min_crop_overlap=None, scale_constraint_type='all', crop_constrain_type='all',
-                 constraint_auto=False, transform_prob=1., info_collector=None):
-        super().__init__(bbox_size_range, crop_size_before_scale, fill, scale_range, min_crop_size_ratio,
-                         min_crop_overlap, transform_prob)
+
+    def __init__(
+        self,
+        bbox_size_range,
+        crop_size_before_scale,
+        fill=0,
+        scale_range=(0, inf),
+        min_crop_size_ratio=0.5,
+        min_crop_overlap=None,
+        scale_constraint_type="all",
+        crop_constrain_type="all",
+        constraint_auto=False,
+        transform_prob=1.0,
+        info_collector=None,
+    ):
+        super().__init__(
+            bbox_size_range,
+            crop_size_before_scale,
+            fill,
+            scale_range,
+            min_crop_size_ratio,
+            min_crop_overlap,
+            transform_prob,
+        )
         self.scale_constraint_type = scale_constraint_type
         self.crop_constrain_type = crop_constrain_type
         self.constraint_auto = constraint_auto
-        if self.constraint_auto and (scale_constraint_type is not None or crop_constrain_type is not None):
-            warnings.warn("constrain_auto set to True, scale_constraint_type and crop_constrain_type"
-                          " will not use again.")
+        if self.constraint_auto and (
+            scale_constraint_type is not None or crop_constrain_type is not None
+        ):
+            warnings.warn(
+                "constrain_auto set to True, scale_constraint_type and crop_constrain_type"
+                " will not use again."
+            )
         self.info_collector = info_collector
 
         if self.bbox_size_range is not None and self.bbox_size_range[1] is None:
@@ -588,17 +689,25 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
         :return:
         """
         if self.info_collector is not None:
-            self._analysis_info = {'function_call':
-                              {'deal_background': 0, 'crop_constraint_type=="all"': 0, 'crop_constraint_type=="one"': 0,
-                               'scale_constraint_type=="all"': 0, 'scale_constraint_type=="one"': 0,
-                               'scale_constraint_type=="mean"': 0, 'success': 0, 'crop_no_scale_constraint': 0}}
+            self._analysis_info = {
+                "function_call": {
+                    "deal_background": 0,
+                    'crop_constraint_type=="all"': 0,
+                    'crop_constraint_type=="one"': 0,
+                    'scale_constraint_type=="all"': 0,
+                    'scale_constraint_type=="one"': 0,
+                    'scale_constraint_type=="mean"': 0,
+                    "success": 0,
+                    "crop_no_scale_constraint": 0,
+                }
+            }
 
         # print('image w, h', image.width, image.height)
-        if np.random.uniform(0, 1) > self.transform_prob:                   # whether use expand
+        if np.random.uniform(0, 1) > self.transform_prob:  # whether use expand
             return self.deal_background(image, target)
         old_image, old_target = copy.deepcopy(image), copy.deepcopy(target)
         if True:
-        # try:
+            # try:
             # 1. filter ignore and too big gt out, just to choose a scale and crop, final return will keep it.
             # TODO: should be replace with other policy to remove most ignore.
             boxes = target.bbox.cpu().numpy()
@@ -613,8 +722,10 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
             boxes = self.choose_boxes(boxes)
 
             # 3. choose a scale and a crop r.s.t the scale
-            if self.constraint_auto:  # constraint_auto will try ['all', 'mean', 'one'] one by one.
-                for constraint_type in ['all', 'mean', 'one']:
+            if (
+                self.constraint_auto
+            ):  # constraint_auto will try ['all', 'mean', 'one'] one by one.
+                for constraint_type in ["all", "mean", "one"]:
                     scale = self.choose_scale(boxes, constraint_type)
                     if scale is not None:
                         break
@@ -631,14 +742,28 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
                 crop_w_before_scale, crop_h_before_scale = self.crop_size_before_scale
 
             if self.constraint_auto:
-                for constrain_type in ['all', 'one']:
-                    crop = self.choose_crop(crop_w_before_scale, crop_h_before_scale, image.width, image.height,
-                                            scale, boxes, constrain_type)
+                for constrain_type in ["all", "one"]:
+                    crop = self.choose_crop(
+                        crop_w_before_scale,
+                        crop_h_before_scale,
+                        image.width,
+                        image.height,
+                        scale,
+                        boxes,
+                        constrain_type,
+                    )
                     if crop is not None:
                         break
             else:
-                crop = self.choose_crop(crop_w_before_scale, crop_h_before_scale, image.width, image.height,
-                                        scale, boxes, self.crop_constrain_type)  # crop can out of origin image
+                crop = self.choose_crop(
+                    crop_w_before_scale,
+                    crop_h_before_scale,
+                    image.width,
+                    image.height,
+                    scale,
+                    boxes,
+                    self.crop_constrain_type,
+                )  # crop can out of origin image
 
             if crop is None:
                 return self.deal_background(old_image, old_target)
@@ -648,8 +773,7 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
             image = self.crop_image(image, crop, scale if scale < 1 else None)
             target = self.crop_bbox(target, crop, image.size)
             # if target is None:
-                # return self.deal_background(old_image, old_target)
-
+            # return self.deal_background(old_image, old_target)
 
         # except BaseException as e:
         #     # print(e)
@@ -659,19 +783,19 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
         # print(crop[2]-crop[0], crop[3]-crop[1], image.size)
 
         if self.info_collector is not None:
-            self._analysis_info['function_call']['success'] += 1
+            self._analysis_info["function_call"]["success"] += 1
             self.info_collector(self._analysis_info)
         return image, target
 
     def deal_background(self, image, target):
-        """ random crop image """
+        """random crop image"""
         if len(target.bbox) > 0:
             result = self.crop_with_no_scale_constraint(image, target)
             if result is not None:
                 image, target = result
 
         if self.info_collector is not None:
-            self._analysis_info['function_call']['deal_background'] += 1
+            self._analysis_info["function_call"]["deal_background"] += 1
             self.info_collector(self._analysis_info)
         return image, target
 
@@ -683,7 +807,7 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
         choose_box_idxes = permutation[:choose_bbox_count]
         return boxes[choose_box_idxes].copy()
 
-    def choose_scale(self, boxes: np.ndarray, constraint_type='all'):
+    def choose_scale(self, boxes: np.ndarray, constraint_type="all"):
         """
         :param boxes:
         :param constraint_type: option in ["one", "mean", "all"],
@@ -693,35 +817,48 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
         :return:
         """
         if self.info_collector is not None:
-            self._analysis_info['function_call']['scale_constraint_type=="{}"'.format(constraint_type)] += 1
+            self._analysis_info["function_call"][
+                'scale_constraint_type=="{}"'.format(constraint_type)
+            ] += 1
         min_scale, max_scale = self.scale_range
         if self.bbox_size_range is not None:
             areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-            sizes = areas ** 0.5
-            if constraint_type == 'all':
+            sizes = areas**0.5
+            if constraint_type == "all":
                 min_size, max_size = sizes.min(), sizes.max()
                 max_scale = self.bbox_size_range[1] / max_size
                 min_scale = self.bbox_size_range[0] / min_size
-            elif constraint_type == 'mean':
+            elif constraint_type == "mean":
                 size = sizes.mean()
                 max_scale = self.bbox_size_range[1] / size
                 min_scale = self.bbox_size_range[0] / size
-            elif constraint_type == 'one':
+            elif constraint_type == "one":
                 min_size, max_size = sizes.min(), sizes.max()
                 max_scale = self.bbox_size_range[1] / min_size
                 min_scale = self.bbox_size_range[0] / max_size
             else:
-                raise ValueError("constraint_type '{}' is unknown, must be one of ['all', 'mean', 'one']"
-                                 .format(constraint_type))
+                raise ValueError(
+                    "constraint_type '{}' is unknown, must be one of ['all', 'mean', 'one']".format(
+                        constraint_type
+                    )
+                )
             if min_scale >= max_scale:
-                logger("BG2, no scale in {} can scale selected boxes to {}".format(
-                    self.bbox_size_range, (min_scale, max_scale)), 'DEBUG')
+                logger(
+                    "BG2, no scale in {} can scale selected boxes to {}".format(
+                        self.bbox_size_range, (min_scale, max_scale)
+                    ),
+                    "DEBUG",
+                )
 
             min_scale = max(min_scale, self.scale_range[0])
             max_scale = min(max_scale, self.scale_range[1])
             if min_scale >= max_scale:
-                logger("scale_constraint_type={}, BG2, scale range {} is empty.".format(
-                    constraint_type, (min_scale, max_scale)), 'DEBUG')
+                logger(
+                    "scale_constraint_type={}, BG2, scale range {} is empty.".format(
+                        constraint_type, (min_scale, max_scale)
+                    ),
+                    "DEBUG",
+                )
                 # warnings.warn('RandomPadScaleForBBox failed, min_scale{} >= max_scale{}, cause bbox size({}, {})'
                 #              ' variances are too big.'.format(min_scale, max_scale, min_size, max_size))
                 return None
@@ -729,8 +866,16 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
         # print('sizes', min_size, max_size, min_scale, max_scale, scale)
         return scale
 
-    def choose_crop(self, crop_w_before_scale, crop_h_before_scale, image_width, image_height,
-                    scale, boxes: np.ndarray, constraint_type='all'):
+    def choose_crop(
+        self,
+        crop_w_before_scale,
+        crop_h_before_scale,
+        image_width,
+        image_height,
+        scale,
+        boxes: np.ndarray,
+        constraint_type="all",
+    ):
         """
         :param crop_w_before_scale:
         :param crop_h_before_scale:
@@ -742,26 +887,50 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
         :return:
         """
         if self.info_collector is not None:
-            self._analysis_info['function_call']['crop_constraint_type=="{}"'.format(constraint_type)] += 1
-        crop_w_after_scale, crop_h_after_scale = crop_w_before_scale / scale, crop_h_before_scale / scale
+            self._analysis_info["function_call"][
+                'crop_constraint_type=="{}"'.format(constraint_type)
+            ] += 1
+        crop_w_after_scale, crop_h_after_scale = (
+            crop_w_before_scale / scale,
+            crop_h_before_scale / scale,
+        )
         # crop can out of origin image, but must contain >=1 gt boxes.
-        if constraint_type == 'all':
-            cover_box = [np.min(boxes[:, 0]), np.min(boxes[:, 1]), np.max(boxes[:, 2]), np.max(boxes[:, 3])]
-        elif constraint_type == 'one':
+        if constraint_type == "all":
+            cover_box = [
+                np.min(boxes[:, 0]),
+                np.min(boxes[:, 1]),
+                np.max(boxes[:, 2]),
+                np.max(boxes[:, 3]),
+            ]
+        elif constraint_type == "one":
             cover_box = boxes[np.random.randint(len(boxes))]
         else:
-            raise ValueError("constrain_type '{}' is unknown, must be one of ['all', 'one']".format(constraint_type))
-        min_image_x1, min_image_y1 = cover_box[2] - crop_w_after_scale, cover_box[3] - crop_h_after_scale
+            raise ValueError(
+                "constrain_type '{}' is unknown, must be one of ['all', 'one']".format(
+                    constraint_type
+                )
+            )
+        min_image_x1, min_image_y1 = (
+            cover_box[2] - crop_w_after_scale,
+            cover_box[3] - crop_h_after_scale,
+        )
         max_image_x1, max_image_y1 = cover_box[0], cover_box[1]
         if min_image_x1 >= max_image_x1 or min_image_y1 >= max_image_y1:
-            logger('crop_constraint_type={}, BG3, no crop box (w={},h={}) can cover selected boxes {}'.format(
-                constraint_type, crop_w_after_scale, crop_h_after_scale, cover_box), 'DEBUG')
+            logger(
+                "crop_constraint_type={}, BG3, no crop box (w={},h={}) can cover selected boxes {}".format(
+                    constraint_type, crop_w_after_scale, crop_h_after_scale, cover_box
+                ),
+                "DEBUG",
+            )
             return None
 
         # TODO: must change to insert of image(not union) as crop area ratio
         # crop area must cover min_crop_size_ratio^2 of origin image, to avoid too least foreground info.
         if self.min_crop_size_ratio > 0:
-            min_w, min_h = crop_w_after_scale * self.min_crop_size_ratio, crop_h_after_scale * self.min_crop_size_ratio
+            min_w, min_h = (
+                crop_w_after_scale * self.min_crop_size_ratio,
+                crop_h_after_scale * self.min_crop_size_ratio,
+            )
         else:
             min_w, min_h = np.array(self.min_crop_overlap) / scale
         if crop_w_after_scale < image_width:
@@ -777,14 +946,22 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
             min_image_y1 = max(min_image_y1, image_height - crop_h_after_scale)
             max_image_y1 = min(max_image_y1, 0)
         if min_image_x1 >= max_image_x1 or min_image_y1 >= max_image_y1:
-            logger('crop_overlap_constraint, BG3, no crop box can have >= {}% in origin image'.format(
-                self.min_crop_size_ratio * 100), 'DEBUG')
+            logger(
+                "crop_overlap_constraint, BG3, no crop box can have >= {}% in origin image".format(
+                    self.min_crop_size_ratio * 100
+                ),
+                "DEBUG",
+            )
             # warnings.warn('RandomPadScaleForBBox failed, no crop available can find for scale.')
             return None
 
         # random choose a crop available
-        image_x1 = floor(np.random.random() * (max_image_x1 - min_image_x1) + min_image_x1)
-        image_y1 = floor(np.random.random() * (max_image_y1 - min_image_y1) + min_image_y1)
+        image_x1 = floor(
+            np.random.random() * (max_image_x1 - min_image_x1) + min_image_x1
+        )
+        image_y1 = floor(
+            np.random.random() * (max_image_y1 - min_image_y1) + min_image_y1
+        )
         image_x2 = ceil(image_x1 + crop_w_after_scale)
         image_y2 = ceil(image_y1 + crop_h_after_scale)
         crop = (image_x1, image_y1, image_x2, image_y2)
@@ -794,21 +971,33 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
     def crop_with_no_scale_constraint(self, image, target):
         boxes = target.bbox.cpu().numpy()
         W, H = boxes[:, 2] - boxes[:, 0], boxes[:, 3] - boxes[:, 1]
-        boxes = boxes[np.all([W <= self.crop_size_before_scale[0], H <= self.crop_size_before_scale[1]], axis=0)]
+        boxes = boxes[
+            np.all(
+                [
+                    W <= self.crop_size_before_scale[0],
+                    H <= self.crop_size_before_scale[1],
+                ],
+                axis=0,
+            )
+        ]
         if len(boxes) == 0:
-            logger("BG, crop {} can not smaller than all gt boxes {}".format(
-                self.crop_size_before_scale, target.bbox.cpu().numpy()), 'DEBUG')
+            logger(
+                "BG, crop {} can not smaller than all gt boxes {}".format(
+                    self.crop_size_before_scale, target.bbox.cpu().numpy()
+                ),
+                "DEBUG",
+            )
             return None
 
         if self.info_collector is not None:
-            self._analysis_info['function_call']['crop_no_scale_constraint'] += 1
+            self._analysis_info["function_call"]["crop_no_scale_constraint"] += 1
 
         bbox = self.choose_boxes(boxes, 1)[0]
         w, h = self.crop_size_before_scale
         min_x1, min_y1 = bbox[2] - w, bbox[3] - h
         max_x1, max_y1 = bbox[0], bbox[1]
-        x = np.random.randint(min_x1, max_x1+1)
-        y = np.random.randint(min_y1, max_y1+1)
+        x = np.random.randint(min_x1, max_x1 + 1)
+        y = np.random.randint(min_y1, max_y1 + 1)
         crop = (x, y, x + w, y + h)
         target = self.crop_bbox(target, crop)
         image = self.crop_image(image, crop)
@@ -817,30 +1006,53 @@ class RandomCropResizeForBBox2(RandomCropResizeForBBox):
 
 class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
     """
-        should combine with ScaleResize(scale)
-       constrain:
-           bbox constrain : at least have a gt box;
-           scale constrain: 1. gt box scale to wanted [bbox_size_range]
-                            2. cover at least [min_crop_size_ratio]^2 of origin image
-                            3. scale must between [scale_range]
-           translate      : cover at least [min_crop_size_ratio]^2 of origin image
-       Method1:
-           1. try getting a scale s that keep all gt boxes in origin image in [bbox_size_range] and s in [scale_range]
-               -> choose_scale
-           2. get crop's width and height (new_image_w, new_image_h) to origin image r.s.t scale s.
-           3. try getting a crop that cover one of (leftest, topest, rightest, most bottom) gt box at least,
-               and crop's left up point must left and up to center of origin image.  -> choose_crop
-       Method2:
-           1. random choose one of gt boxes B
-           2. get a scale s to keep B size in [bbox_size_range] and s in [scale_range], get crop's width and height
-           3. get a crop start_point that cover B and cover [min_crop_size_ratio]^2 of origin image at least
-       """
+     should combine with ScaleResize(scale)
+    constrain:
+        bbox constrain : at least have a gt box;
+        scale constrain: 1. gt box scale to wanted [bbox_size_range]
+                         2. cover at least [min_crop_size_ratio]^2 of origin image
+                         3. scale must between [scale_range]
+        translate      : cover at least [min_crop_size_ratio]^2 of origin image
+    Method1:
+        1. try getting a scale s that keep all gt boxes in origin image in [bbox_size_range] and s in [scale_range]
+            -> choose_scale
+        2. get crop's width and height (new_image_w, new_image_h) to origin image r.s.t scale s.
+        3. try getting a crop that cover one of (leftest, topest, rightest, most bottom) gt box at least,
+            and crop's left up point must left and up to center of origin image.  -> choose_crop
+    Method2:
+        1. random choose one of gt boxes B
+        2. get a scale s to keep B size in [bbox_size_range] and s in [scale_range], get crop's width and height
+        3. get a crop start_point that cover B and cover [min_crop_size_ratio]^2 of origin image at least
+    """
 
-    def __init__(self, bbox_size_range, max_crop_wh, fill=0, scale_range=(0, inf),
-                 min_crop_size_ratio=0.5, min_crop_overlap=None, scale_constraint_type='all', crop_constrain_type='all',
-                 constraint_auto=False, transform_prob=1., translate_range=(-16, 16), info_collector=None):
-        super().__init__(bbox_size_range, max_crop_wh, fill, scale_range, min_crop_size_ratio, min_crop_overlap,
-                         scale_constraint_type, crop_constrain_type, constraint_auto, transform_prob, info_collector)
+    def __init__(
+        self,
+        bbox_size_range,
+        max_crop_wh,
+        fill=0,
+        scale_range=(0, inf),
+        min_crop_size_ratio=0.5,
+        min_crop_overlap=None,
+        scale_constraint_type="all",
+        crop_constrain_type="all",
+        constraint_auto=False,
+        transform_prob=1.0,
+        translate_range=(-16, 16),
+        info_collector=None,
+    ):
+        super().__init__(
+            bbox_size_range,
+            max_crop_wh,
+            fill,
+            scale_range,
+            min_crop_size_ratio,
+            min_crop_overlap,
+            scale_constraint_type,
+            crop_constrain_type,
+            constraint_auto,
+            transform_prob,
+            info_collector,
+        )
         self.max_crop_size = max_crop_wh
         self.translate_range = translate_range
         self.set_random_seed = False
@@ -858,15 +1070,19 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
         :return:
         """
         if self.info_collector is not None:
-            self._analysis_info = {'function_call':
-                                       {'deal_background': 0, 'crop_constraint_type=="all"': 0,
-                                        'crop_constraint_type=="one"': 0,
-                                        'scale_constraint_type=="all"': 0, 'scale_constraint_type=="one"': 0,
-                                        'scale_constraint_type=="mean"': 0, 'success': 0,
-                                        'crop_no_scale_constraint': 0},
-                                   'statistic':
-                                       {'count(<max_size)': 0}
-                                   }
+            self._analysis_info = {
+                "function_call": {
+                    "deal_background": 0,
+                    'crop_constraint_type=="all"': 0,
+                    'crop_constraint_type=="one"': 0,
+                    'scale_constraint_type=="all"': 0,
+                    'scale_constraint_type=="one"': 0,
+                    'scale_constraint_type=="mean"': 0,
+                    "success": 0,
+                    "crop_no_scale_constraint": 0,
+                },
+                "statistic": {"count(<max_size)": 0},
+            }
         if not self.set_random_seed:
             seed = int(time.time() + os.getpid())
             np.random.seed(seed)
@@ -892,8 +1108,10 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
             boxes = self.choose_boxes(boxes)
 
             # 3. choose a scale and a crop r.s.t the scale
-            if self.constraint_auto:  # constraint_auto will try ['all', 'mean', 'one'] one by one.
-                for constraint_type in ['all', 'mean', 'one']:
+            if (
+                self.constraint_auto
+            ):  # constraint_auto will try ['all', 'mean', 'one'] one by one.
+                for constraint_type in ["all", "mean", "one"]:
                     scale = self.choose_scale(boxes, constraint_type)
                     if scale is not None:
                         break
@@ -910,14 +1128,28 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
                 crop_w_before_scale, crop_h_before_scale = self.crop_size_before_scale
 
             if self.constraint_auto:
-                for constrain_type in ['all', 'one']:
-                    crop = self.choose_crop(crop_w_before_scale, crop_h_before_scale, image.width, image.height,
-                                            scale, boxes, constrain_type)
+                for constrain_type in ["all", "one"]:
+                    crop = self.choose_crop(
+                        crop_w_before_scale,
+                        crop_h_before_scale,
+                        image.width,
+                        image.height,
+                        scale,
+                        boxes,
+                        constrain_type,
+                    )
                     if crop is not None:
                         break
             else:
-                crop = self.choose_crop(crop_w_before_scale, crop_h_before_scale, image.width, image.height,
-                                        scale, boxes, self.crop_constrain_type)  # crop can out of origin image
+                crop = self.choose_crop(
+                    crop_w_before_scale,
+                    crop_h_before_scale,
+                    image.width,
+                    image.height,
+                    scale,
+                    boxes,
+                    self.crop_constrain_type,
+                )  # crop can out of origin image
 
             if crop is None:
                 return self.deal_background(old_image, old_target)
@@ -931,7 +1163,9 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
             # 6. scale image and bbox
             need_scale = scale > 1
             image_size = (np.array(image.size) * scale).astype(np.int32)
-            if image_size[0] > self.max_crop_size[0]:  # for int get bigger input, like max_crop_size + 1
+            if (
+                image_size[0] > self.max_crop_size[0]
+            ):  # for int get bigger input, like max_crop_size + 1
                 image_size[0] = self.max_crop_size[0]
                 need_scale = True
             if image_size[1] > self.max_crop_size[1]:
@@ -949,12 +1183,20 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
         # print(crop[2]-crop[0], crop[3]-crop[1], image.size)
 
         if self.info_collector is not None:
-            self._analysis_info['function_call']['success'] += 1
+            self._analysis_info["function_call"]["success"] += 1
             self.info_collector(self._analysis_info)
         return image, target
 
-    def choose_crop(self, crop_max_w, crop_max_h, image_width, image_height,
-                    scale, boxes: np.ndarray, constraint_type='all'):
+    def choose_crop(
+        self,
+        crop_max_w,
+        crop_max_h,
+        image_width,
+        image_height,
+        scale,
+        boxes: np.ndarray,
+        constraint_type="all",
+    ):
         """
         :param crop_max_w:
         :param crop_max_h:
@@ -966,26 +1208,47 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
         :return:
         """
         if self.info_collector is not None:
-            self._analysis_info['function_call']['crop_constraint_type=="{}"'.format(constraint_type)] += 1
+            self._analysis_info["function_call"][
+                'crop_constraint_type=="{}"'.format(constraint_type)
+            ] += 1
         crop_w_after_scale, crop_h_after_scale = crop_max_w / scale, crop_max_h / scale
         # crop can out of origin image, but must contain >=1 gt boxes.
-        if constraint_type == 'all':
-            cover_box = [np.min(boxes[:, 0]), np.min(boxes[:, 1]), np.max(boxes[:, 2]), np.max(boxes[:, 3])]
-        elif constraint_type == 'one':
+        if constraint_type == "all":
+            cover_box = [
+                np.min(boxes[:, 0]),
+                np.min(boxes[:, 1]),
+                np.max(boxes[:, 2]),
+                np.max(boxes[:, 3]),
+            ]
+        elif constraint_type == "one":
             cover_box = boxes[np.random.randint(len(boxes))]
         else:
-            raise ValueError("constrain_type '{}' is unknown, must be one of ['all', 'one']".format(constraint_type))
-        min_image_x1, min_image_y1 = cover_box[2] - crop_w_after_scale, cover_box[3] - crop_h_after_scale
+            raise ValueError(
+                "constrain_type '{}' is unknown, must be one of ['all', 'one']".format(
+                    constraint_type
+                )
+            )
+        min_image_x1, min_image_y1 = (
+            cover_box[2] - crop_w_after_scale,
+            cover_box[3] - crop_h_after_scale,
+        )
         max_image_x1, max_image_y1 = cover_box[0], cover_box[1]
         if min_image_x1 >= max_image_x1 or min_image_y1 >= max_image_y1:
-            logger('crop_constraint_type={}, BG3, no crop box (w={},h={}) can cover selected boxes {}'.format(
-                constraint_type, crop_w_after_scale, crop_h_after_scale, cover_box), 'DEBUG')
+            logger(
+                "crop_constraint_type={}, BG3, no crop box (w={},h={}) can cover selected boxes {}".format(
+                    constraint_type, crop_w_after_scale, crop_h_after_scale, cover_box
+                ),
+                "DEBUG",
+            )
             return None
 
         # TODO: must change to insert of image(not union) as crop area ratio
         # crop area must cover min_crop_size_ratio^2 of origin image, to avoid too least foreground info.
         if self.min_crop_size_ratio > 0:
-            min_w, min_h = crop_w_after_scale * self.min_crop_size_ratio, crop_h_after_scale * self.min_crop_size_ratio
+            min_w, min_h = (
+                crop_w_after_scale * self.min_crop_size_ratio,
+                crop_h_after_scale * self.min_crop_size_ratio,
+            )
         else:
             min_w, min_h = np.array(self.min_crop_overlap) / scale
         if crop_w_after_scale < image_width:
@@ -1003,15 +1266,23 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
             crop_h_after_scale = image_height
             # self._analysis_info['statistic']['count(<max_size)'] += 1
         if min_image_x1 >= max_image_x1 or min_image_y1 >= max_image_y1:
-            logger('crop_overlap_constraint, BG3, no crop box can have >= {}% in origin image'.format(
-                self.min_crop_size_ratio * 100), 'DEBUG')
+            logger(
+                "crop_overlap_constraint, BG3, no crop box can have >= {}% in origin image".format(
+                    self.min_crop_size_ratio * 100
+                ),
+                "DEBUG",
+            )
             # warnings.warn('RandomPadScaleForBBox failed, no crop available can find for scale.')
             return None
 
         # random choose a crop available
-        image_x1 = floor(np.random.random() * (max_image_x1 - min_image_x1) + min_image_x1)
+        image_x1 = floor(
+            np.random.random() * (max_image_x1 - min_image_x1) + min_image_x1
+        )
         image_x2 = ceil(image_x1 + crop_w_after_scale)
-        image_y1 = floor(np.random.random() * (max_image_y1 - min_image_y1) + min_image_y1)
+        image_y1 = floor(
+            np.random.random() * (max_image_y1 - min_image_y1) + min_image_y1
+        )
         image_y2 = ceil(image_y1 + crop_h_after_scale)
         crop = (image_x1, image_y1, image_x2, image_y2)
         # print(boxes, min_image_x1, max_image_x1, min_image_y1, max_image_y1)
@@ -1021,25 +1292,38 @@ class RandomCropResizeForBBox3(RandomCropResizeForBBox2):
     def crop_with_no_scale_constraint(self, image, target):
         boxes = target.bbox.cpu().numpy()
         W, H = boxes[:, 2] - boxes[:, 0], boxes[:, 3] - boxes[:, 1]
-        boxes = boxes[np.all([W <= self.crop_size_before_scale[0], H <= self.crop_size_before_scale[1]], axis=0)]
+        boxes = boxes[
+            np.all(
+                [
+                    W <= self.crop_size_before_scale[0],
+                    H <= self.crop_size_before_scale[1],
+                ],
+                axis=0,
+            )
+        ]
         if len(boxes) == 0:
-            logger("BG, crop {} can not smaller than all gt boxes {}".format(
-                self.crop_size_before_scale, target.bbox.cpu().numpy()), 'DEBUG')
+            logger(
+                "BG, crop {} can not smaller than all gt boxes {}".format(
+                    self.crop_size_before_scale, target.bbox.cpu().numpy()
+                ),
+                "DEBUG",
+            )
             return None
 
         if self.info_collector is not None:
-            self._analysis_info['function_call']['crop_no_scale_constraint'] += 1
+            self._analysis_info["function_call"]["crop_no_scale_constraint"] += 1
 
         bbox = self.choose_boxes(boxes, 1)[0]
         w, h = self.crop_size_before_scale
         min_x1, min_y1 = bbox[2] - w, bbox[3] - h
         max_x1, max_y1 = bbox[0], bbox[1]
-        x = np.random.randint(min_x1, max_x1+1)
-        y = np.random.randint(min_y1, max_y1+1)
+        x = np.random.randint(min_x1, max_x1 + 1)
+        y = np.random.randint(min_y1, max_y1 + 1)
         crop = (x, y, x + w, y + h)
         target = self.crop_bbox(target, crop)
         image = self.crop_image(image, crop)
         return image, target
+
 
 # class RandomCropWithConstraints(object):
 #     def __init__(self, min_scale=0.3, max_scale=1, max_aspect_ratio=2, constraints=None, max_trial=50,

@@ -20,7 +20,6 @@ import sys
 import pytest
 from PIL import Image
 
-
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_DIR = ROOT / "hesod" / "backends" / "baseline"
 
@@ -50,7 +49,8 @@ def coco_utils_mod(datasets_mod):
 @pytest.fixture(scope="module")
 def audit_buckets_mod():
     return _load_module(
-        ROOT / "scripts" / "esod_baseline" / "audit_buckets.py", "baseline_test_audit_buckets"
+        ROOT / "scripts" / "esod_baseline" / "audit_buckets.py",
+        "baseline_test_audit_buckets",
     )
 
 
@@ -77,7 +77,10 @@ class TestParseYoloLabels:
 
     def test_skips_degenerate_box(self, datasets_mod):
         boxes, class_ids = datasets_mod.parse_yolo_labels(
-            _fake_label_path("0 0.005 0.005 0.001 0.001"), width=100, height=80, num_classes=1
+            _fake_label_path("0 0.005 0.005 0.001 0.001"),
+            width=100,
+            height=80,
+            num_classes=1,
         )
         assert boxes == []
         assert class_ids == []
@@ -95,7 +98,10 @@ class TestParseYoloLabels:
     def test_rejects_out_of_range_class(self, datasets_mod):
         with pytest.raises(ValueError):
             datasets_mod.parse_yolo_labels(
-                _fake_label_path("5 0.5 0.5 0.2 0.25"), width=100, height=80, num_classes=1
+                _fake_label_path("5 0.5 0.5 0.2 0.25"),
+                width=100,
+                height=80,
+                num_classes=1,
             )
 
     def test_rejects_malformed_line(self, datasets_mod):
@@ -133,7 +139,9 @@ class TestYoloDetectionDataset:
         ds = self._build(datasets_mod, tmp_path)
         image_tensor, target = ds[0]
         assert image_tensor.shape == (3, 80, 100)
-        assert target["labels"].tolist() == [1]  # class 0 in file -> torchvision label 1
+        assert target["labels"].tolist() == [
+            1
+        ]  # class 0 in file -> torchvision label 1
         assert target["boxes"].tolist() == [[40.0, 30.0, 60.0, 50.0]]
 
     def test_raw_targets_stay_zero_indexed(self, datasets_mod, tmp_path):
@@ -157,10 +165,16 @@ class TestYoloDetectionDataset:
 
 
 class TestPredictionSchema:
-    def test_prediction_dict_matches_audit_buckets_schema(self, test_mod, audit_buckets_mod, tmp_path):
+    def test_prediction_dict_matches_audit_buckets_schema(
+        self, test_mod, audit_buckets_mod, tmp_path
+    ):
         rows = [
-            test_mod.prediction_dict("img0001", (40.0, 30.0, 60.0, 70.0), label=1, score=0.9),
-            test_mod.prediction_dict("img0001", (0.0, 0.0, 10.0, 10.0), label=1, score=0.4),
+            test_mod.prediction_dict(
+                "img0001", (40.0, 30.0, 60.0, 70.0), label=1, score=0.9
+            ),
+            test_mod.prediction_dict(
+                "img0001", (0.0, 0.0, 10.0, 10.0), label=1, score=0.4
+            ),
         ]
         pred_path = tmp_path / "predictions.json"
         pred_path.write_text(json.dumps(rows), encoding="utf-8")
@@ -174,19 +188,29 @@ class TestPredictionSchema:
         assert first.box == pytest.approx((40.0, 30.0, 60.0, 70.0))
         assert first.score == pytest.approx(0.9)
 
-    def test_category_id_stays_in_range_for_multiclass(self, test_mod, audit_buckets_mod, tmp_path):
-        rows = [test_mod.prediction_dict("img0001", (0.0, 0.0, 10.0, 10.0), label=3, score=0.5)]
+    def test_category_id_stays_in_range_for_multiclass(
+        self, test_mod, audit_buckets_mod, tmp_path
+    ):
+        rows = [
+            test_mod.prediction_dict(
+                "img0001", (0.0, 0.0, 10.0, 10.0), label=3, score=0.5
+            )
+        ]
         pred_path = tmp_path / "predictions.json"
         pred_path.write_text(json.dumps(rows), encoding="utf-8")
 
         predictions = audit_buckets_mod.load_predictions(
             pred_path, confidence_threshold=0.0, class_names=("car", "truck", "bus")
         )
-        assert predictions[0].class_id == 2  # label 3 (1-indexed) -> category_id 2 (0-indexed)
+        assert (
+            predictions[0].class_id == 2
+        )  # label 3 (1-indexed) -> category_id 2 (0-indexed)
 
 
 class TestCocoGt:
-    def test_build_coco_gt_uses_zero_indexed_category_id(self, datasets_mod, coco_utils_mod, tmp_path):
+    def test_build_coco_gt_uses_zero_indexed_category_id(
+        self, datasets_mod, coco_utils_mod, tmp_path
+    ):
         images_dir = tmp_path / "images"
         labels_dir = tmp_path / "labels"
         images_dir.mkdir()

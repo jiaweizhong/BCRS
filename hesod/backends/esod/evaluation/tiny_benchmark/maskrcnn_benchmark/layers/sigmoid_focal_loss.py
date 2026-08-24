@@ -5,6 +5,7 @@ from torch.autograd.function import once_differentiable
 
 from maskrcnn_benchmark import _C
 
+
 # TODO: Use JIT to replace CUDA implementation in the future.
 class _SigmoidFocalLoss(Function):
     @staticmethod
@@ -43,13 +44,17 @@ def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha):
     alpha = alpha[0]
     dtype = targets.dtype
     device = targets.device
-    class_range = torch.arange(1, num_classes+1, dtype=dtype, device=device).unsqueeze(0)
+    class_range = torch.arange(
+        1, num_classes + 1, dtype=dtype, device=device
+    ).unsqueeze(0)
 
     t = targets.unsqueeze(1)
     p = torch.sigmoid(logits)
     term1 = (1 - p) ** gamma * torch.log(p)
-    term2 = p ** gamma * torch.log(1 - p)
-    return -(t == class_range).float() * term1 * alpha - ((t != class_range) * (t >= 0)).float() * term2 * (1 - alpha)
+    term2 = p**gamma * torch.log(1 - p)
+    return -(t == class_range).float() * term1 * alpha - (
+        (t != class_range) * (t >= 0)
+    ).float() * term2 * (1 - alpha)
 
 
 class SigmoidFocalLoss(nn.Module):
@@ -76,7 +81,11 @@ class SigmoidFocalLoss(nn.Module):
         return tmpstr
 
 
-from maskrcnn_benchmark.modeling.rpn.gaussian_net.gau_label_infer import three_points_solve
+from maskrcnn_benchmark.modeling.rpn.gaussian_net.gau_label_infer import (
+    three_points_solve,
+)
+
+
 class FixedIOULoss(nn.Module):
     def three_point_solve(self, li, lj, lk, a, b, eps=1e-6):
         lkj, lji = lk - lj, lj - li
@@ -88,9 +97,9 @@ class FixedIOULoss(nn.Module):
     def cross_points_set_solve_3d(self, L, points, a, b, step=1, solver=1):
         # points_set: (N, 3), # (c, y, x)
         """
-                                 L[cj, yj-a, xj]
-               L[cj, yj, xj-a]   L[cj, yj, xj]    L[cj, yj, xj + b]
-                                 L[cj, yj+b, xj]
+                          L[cj, yj-a, xj]
+        L[cj, yj, xj-a]   L[cj, yj, xj]    L[cj, yj, xj + b]
+                          L[cj, yj+b, xj]
         """
         cj, yj, xj = points[:, 0], points[:, 1], points[:, 2]
         idx = torch.arange(len(points))
@@ -121,6 +130,7 @@ class FixedIOULoss(nn.Module):
             t = h / 2 - dy
             b = h / 2 + dy
             return l, t, r, b
+
         pred_l, pred_t, pred_r, pred_b = center2corner(*bbox)
         targ_l, targ_t, targ_r, targ_b = center2corner(*target)
 
@@ -137,7 +147,9 @@ class FixedIOULoss(nn.Module):
         area_intersect = w_intersect * h_intersect
         area_union = target_aera + pred_aera - area_intersect
         # iou_losses = -torch.log((area_intersect.clamp(0) + 1.0) / (area_union.clamp(0) + 1.0))
-        iou_losses = -torch.log(((area_intersect.clamp(0) + 1.0) / (area_union.clamp(0) + 1.0)).clamp(0.1))
+        iou_losses = -torch.log(
+            ((area_intersect.clamp(0) + 1.0) / (area_union.clamp(0) + 1.0)).clamp(0.1)
+        )
 
         # if iou_losses.max() > 10:
         #     print("ok")
@@ -156,14 +168,14 @@ class FixedIOULoss(nn.Module):
         return iou_losses * 0, iou_losses * 0
 
 
-def smooth_l1(error, beta=1. / 9):
+def smooth_l1(error, beta=1.0 / 9):
     """
     very similar to the smooth_l1_loss from pytorch, but with
     the extra beta parameter
     """
     n = torch.abs(error)
     cond = n < beta
-    loss = torch.where(cond, 0.5 * n ** 2 / beta, n - 0.5 * beta)
+    loss = torch.where(cond, 0.5 * n**2 / beta, n - 0.5 * beta)
     return loss
 
 
@@ -302,8 +314,8 @@ class FixSigmoidFocalLoss(nn.Module):
         # return neg_loss.sum(), pos_loss.sum(), gau_neg_loss.sum() * 0, gau_loss.sum(), wh_loss.sum(), xy_loss.sum()
 
         # loss4, IOU
-        neg_loss = (q <= eps).float() * (1 - alpha) * (- p ** gamma * torch.log(1 - p))
-        pos_loss = (q > eps).float() * alpha * (- (1 - p) ** gamma * torch.log(p))
+        neg_loss = (q <= eps).float() * (1 - alpha) * (-(p**gamma) * torch.log(1 - p))
+        pos_loss = (q > eps).float() * alpha * (-((1 - p) ** gamma) * torch.log(p))
 
         g = g.permute((0, 3, 1, 2))
         q = q.permute((0, 3, 1, 2))
@@ -313,24 +325,35 @@ class FixSigmoidFocalLoss(nn.Module):
         log_p = -torch.log(g + eps) * factor
         log_q = -torch.log(q + eps) * factor
 
-        fpn_stride, object_range, out_factor = self.fpn_strides[0], torch.Tensor([32, 64]), 2
+        fpn_stride, object_range, out_factor = (
+            self.fpn_strides[0],
+            torch.Tensor([32, 64]),
+            2,
+        )
         sf = 1 / ((object_range[0] / fpn_stride * object_range[1] / fpn_stride) ** 0.5)
 
-        iou_losses = 0.
-        l1_losses = 0.
+        iou_losses = 0.0
+        l1_losses = 0.0
         for b in range(len(valid)):
             idx = torch.nonzero(valid[b])
-            if len(idx) == 0: continue
+            if len(idx) == 0:
+                continue
             idx[:, 1:] += 1
-            p_bboxes = self.iou_loss.cross_points_set_solve_3d(log_p[b], idx, 1, 1, step=1, solver=1)
-            q_bboxes = self.iou_loss.cross_points_set_solve_3d(log_q[b], idx, 1, 1, step=1, solver=1)
+            p_bboxes = self.iou_loss.cross_points_set_solve_3d(
+                log_p[b], idx, 1, 1, step=1, solver=1
+            )
+            q_bboxes = self.iou_loss.cross_points_set_solve_3d(
+                log_q[b], idx, 1, 1, step=1, solver=1
+            )
             iou_loss, l1_loss = self.iou_loss(p_bboxes, q_bboxes, sf)
             valid_q = q[b, :, 1:-1, 1:-1][valid[b]]
             iou_losses += (valid_q * iou_loss).sum()
             l1_losses += (valid_q * l1_loss).sum()
 
-        def ri(x): return round(x.item(), 3)
-        print("neg_loss", ri(neg_loss.max()), ri(neg_loss.mean()), end=';')
+        def ri(x):
+            return round(x.item(), 3)
+
+        print("neg_loss", ri(neg_loss.max()), ri(neg_loss.mean()), end=";")
         print(iou_losses, l1_losses)
         return neg_loss.sum(), pos_loss.sum(), iou_losses * 0, l1_losses * 0
 
@@ -338,7 +361,7 @@ class FixSigmoidFocalLoss(nn.Module):
 class L2LossWithLogit(nn.Module):
     def __init__(self):
         super(L2LossWithLogit, self).__init__()
-        self.mse = nn.MSELoss(reduction='sum')
+        self.mse = nn.MSELoss(reduction="sum")
 
     def forward(self, logits, targets):
         p = torch.sigmoid(logits)

@@ -59,7 +59,7 @@ class AnchorGenerator(nn.Module):
                 generate_anchors(
                     anchor_stride,
                     size if isinstance(size, (tuple, list)) else (size,),
-                    aspect_ratios
+                    aspect_ratios,
                 ).float()
                 for anchor_stride, size in zip(anchor_strides, sizes)
             ]
@@ -164,6 +164,7 @@ def make_anchor_generator_retinanet(config):
         tuple(new_anchor_sizes), aspect_ratios, anchor_strides, straddle_thresh
     )
     return anchor_generator
+
 
 # Copyright (c) 2017-present, Facebook, Inc.
 #

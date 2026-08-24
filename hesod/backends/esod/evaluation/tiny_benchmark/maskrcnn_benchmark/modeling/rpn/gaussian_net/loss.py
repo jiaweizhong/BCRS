@@ -16,7 +16,6 @@ from maskrcnn_benchmark.modeling.utils import cat
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 from maskrcnn_benchmark.structures.boxlist_ops import cat_boxlist
 
-
 INF = 100000000
 
 
@@ -26,7 +25,7 @@ class TargetGenerator(object):
         self.inflection_point = 0.25
         self.num_classes = num_classes
         beta = self.beta
-        self.sigma = self.inflection_point * ((beta / (beta - 1)) ** (1.0/beta))
+        self.sigma = self.inflection_point * ((beta / (beta - 1)) ** (1.0 / beta))
         self.object_sizes_of_interest = object_sizes_of_interest
         self.eps = 1e-6
         self.label_radius = label_radius
@@ -37,8 +36,10 @@ class TargetGenerator(object):
         matched_gt_idxs = []
         self.care = [0, 0]
         for l, locations_level in enumerate(locations):
-            cls_label, matched_gt_idx = self.prepare_target_per_level(locations_level, targets, object_sizes_of_interest[l], l)
-            cls_label = torch.cat(cls_label, dim=0)   # cat all image label together
+            cls_label, matched_gt_idx = self.prepare_target_per_level(
+                locations_level, targets, object_sizes_of_interest[l], l
+            )
+            cls_label = torch.cat(cls_label, dim=0)  # cat all image label together
             matched_gt_idx = torch.cat(matched_gt_idx, dim=0)
             cls_labels.append(cls_label)
             matched_gt_idxs.append(matched_gt_idx)
@@ -46,11 +47,11 @@ class TargetGenerator(object):
 
     def prepare_target_per_level(self, locations, targets, object_sizes, level=0):
         """
-            match_gt_idx = match_gt_idxs[img_idx]
-            match_gt_idx[loc_idx, class_id-1] = {  # class_id start from 1
-                -1, if no object match
-                object_idx, if match object with object_idx
-            }
+        match_gt_idx = match_gt_idxs[img_idx]
+        match_gt_idx[loc_idx, class_id-1] = {  # class_id start from 1
+            -1, if no object match
+            object_idx, if match object with object_idx
+        }
         """
         beta = self.beta
         sigma = self.sigma
@@ -62,12 +63,14 @@ class TargetGenerator(object):
         for im_i in range(len(targets)):
             # select object for this fpn level
             targets_per_im = targets[im_i]
-            targets_per_im = targets_per_im.convert('xywh')
+            targets_per_im = targets_per_im.convert("xywh")
             sizes = torch.sqrt((targets_per_im.bbox[:, 2] * targets_per_im.bbox[:, 3]))
 
             min_e = targets_per_im.bbox[:, [2, 3]].min(dim=1)[0] / fpn_stride
             # cause cross method need 3 point with same x or y.
-            is_card1_in_the_level = (sizes <= object_sizes[1]) & (sizes > object_sizes[0])
+            is_card1_in_the_level = (sizes <= object_sizes[1]) & (
+                sizes > object_sizes[0]
+            )
             # is_card2_in_the_level = min_e < 6
             # if level > 0:
             #     is_card1_in_the_level = is_card1_in_the_level & (min_e >= 3)
@@ -77,14 +80,17 @@ class TargetGenerator(object):
             targets_per_im = targets_per_im[is_card_in_the_level]
 
             cls_label = torch.zeros(size=(len(xs), self.num_classes), device=xs.device)
-            matched_gt_idx = torch.zeros(size=(len(xs), self.num_classes), device=xs.device).long() - 1
+            matched_gt_idx = (
+                torch.zeros(size=(len(xs), self.num_classes), device=xs.device).long()
+                - 1
+            )
             if len(targets_per_im) == 0:
                 cls_labels.append(cls_label)
                 matched_gt_idxs.append(matched_gt_idx)
                 continue
 
             # get gt-boxes infos
-            targets_per_im = targets_per_im.convert('xyxy')
+            targets_per_im = targets_per_im.convert("xyxy")
             bboxes = targets_per_im.bbox
             cx = (bboxes[:, 0] + bboxes[:, 2]) / 2
             cy = (bboxes[:, 1] + bboxes[:, 3]) / 2
@@ -92,8 +98,9 @@ class TargetGenerator(object):
             H = bboxes[:, 3] - bboxes[:, 1] + 1
 
             # match locations to bbox one by one, and get the score
-            D = ((xs[:, None] - cx[None, :]).abs() / (sigma * W[None, :])) ** beta + \
-                ((ys[:, None] - cy[None, :]).abs() / (sigma * H[None, :])) ** beta
+            D = ((xs[:, None] - cx[None, :]).abs() / (sigma * W[None, :])) ** beta + (
+                (ys[:, None] - cy[None, :]).abs() / (sigma * H[None, :])
+            ) ** beta
             Q = torch.exp(-D)
 
             # clip gaussian range: in boxes make it positive, or get negative
@@ -106,9 +113,12 @@ class TargetGenerator(object):
             for c in set(labels_per_im):
                 targets_the_class = torch.nonzero(labels_per_im == c).squeeze(dim=1)
                 Qc = Q[:, targets_the_class]
-                cls_label[:, c-1], m_idx = Qc.max(dim=1)
-                matched_gt_idx[:, c-1] = torch.where(
-                    cls_label[:, c-1] > self.eps, card_idx[targets_the_class[m_idx]], torch.LongTensor([-1]).to(m_idx.device))
+                cls_label[:, c - 1], m_idx = Qc.max(dim=1)
+                matched_gt_idx[:, c - 1] = torch.where(
+                    cls_label[:, c - 1] > self.eps,
+                    card_idx[targets_the_class[m_idx]],
+                    torch.LongTensor([-1]).to(m_idx.device),
+                )
             matched_gt_idxs.append(matched_gt_idx)
             cls_labels.append(cls_label)
         return cls_labels, matched_gt_idxs
@@ -150,16 +160,18 @@ class GAULossComputation(object):
             [512, INF],
         ]
 
-        self.prepare_targets = TargetGenerator(cfg.MODEL.GAU.LABEL_BETA,
-                                               cfg.MODEL.GAU.NUM_CLASSES-1,
-                                               object_sizes_of_interest,
-                                               cfg.MODEL.GAU.LABEL_RADIUS)
+        self.prepare_targets = TargetGenerator(
+            cfg.MODEL.GAU.LABEL_BETA,
+            cfg.MODEL.GAU.NUM_CLASSES - 1,
+            object_sizes_of_interest,
+            cfg.MODEL.GAU.LABEL_RADIUS,
+        )
         self.cls_loss_func = FixSigmoidFocalLoss(
             cfg.MODEL.GAU.LOSS_GAMMA,
             cfg.MODEL.GAU.LOSS_ALPHA,
             self.prepare_targets.sigma,
             cfg.MODEL.GAU.FPN_STRIDES,
-            cfg.MODEL.GAU.C
+            cfg.MODEL.GAU.C,
         )
         # we make use of IOU Loss for bounding boxes regression,
         # but we found that L1 in log scale can yield a similar performance
@@ -179,7 +191,13 @@ class GAULossComputation(object):
             bottom = match[:, 2:, 1:-1, :]
             left = match[:, 1:-1, :-2, :]
             right = match[:, 1:-1, 2:, :]
-            valid = (left == right) & (top == bottom) & (left == top) & (left == center) & (center >= 0)
+            valid = (
+                (left == right)
+                & (top == bottom)
+                & (left == top)
+                & (left == center)
+                & (center >= 0)
+            )
             valids.append(valid)
         return valids
 
@@ -223,11 +241,14 @@ class GAULossComputation(object):
         labels, matched_gt_idxs = self.prepare_targets(locations, targets)
 
         # list of flatten tensor shape (B, M) to list of shape(B, H, W, C)
-        cls_logits, gau_logits, lables, matched_gt_idxs = self.reshape(labels, cls_logits, gau_logits, matched_gt_idxs)
+        cls_logits, gau_logits, lables, matched_gt_idxs = self.reshape(
+            labels, cls_logits, gau_logits, matched_gt_idxs
+        )
         valids_pos = self.valid_pos(matched_gt_idxs)
 
         show_label_map(lables, matched_gt_idxs, valids_pos, cls_logits, gau_logits)
-        if self.vis_labels: show_label_map(lables, matched_gt_idxs, valids_pos, cls_logits, gau_logits)
+        if self.vis_labels:
+            show_label_map(lables, matched_gt_idxs, valids_pos, cls_logits, gau_logits)
 
         # box_cls_flatten = torch.cat(box_cls_flatten, dim=0)
         # labels_flatten = torch.cat(labels_flatten, dim=0)
@@ -245,12 +266,16 @@ class GAULossComputation(object):
         # norm = sum([label.sum() / (4**i) for i, label in enumerate(labels_flatten)]) + N
         norm = sum([label.sum() for i, label in enumerate(lables)]) + N
         npos = sum([(label > 0).sum() for i, label in enumerate(lables)]) + N
-        losses_fpn = [0.] * 4  # 6
+        losses_fpn = [0.0] * 4  # 6
         norms = [npos, npos] + [norm] * 2  # 4
         if self.vis_labels:
-            print(sum([(label > 0).sum() for i, label in enumerate(lables)]), '+', end='')
-            print(sum([label.sum() for i, label in enumerate(lables)]), '+', end='')
-            print(norm, )
+            print(
+                sum([(label > 0).sum() for i, label in enumerate(lables)]), "+", end=""
+            )
+            print(sum([label.sum() for i, label in enumerate(lables)]), "+", end="")
+            print(
+                norm,
+            )
         for i, (label, box_cls, gau) in enumerate(zip(lables, cls_logits, gau_logits)):
             losses = self.cls_loss_func(box_cls, gau, label, valids_pos[i])
             for i in range(len(losses)):
@@ -259,16 +284,18 @@ class GAULossComputation(object):
             #     "neg_loss{}".format(i): neg_loss / norm,
             #     "pos_loss{}".format(i): pos_loss / norm
             # })
-        loss.update({
-            "neg_loss": losses_fpn[0],
-            "pos_loss": losses_fpn[1],
-            "iou_loss": losses_fpn[2],
-            "l1_loss": losses_fpn[3],
-            # "gau_neg_loss": losses_fpn[2],
-            # "gau_loss": losses_fpn[3],
-            # "wh_loss": losses_fpn[4],
-            # "xy_loss": losses_fpn[5],
-        })
+        loss.update(
+            {
+                "neg_loss": losses_fpn[0],
+                "pos_loss": losses_fpn[1],
+                "iou_loss": losses_fpn[2],
+                "l1_loss": losses_fpn[3],
+                # "gau_neg_loss": losses_fpn[2],
+                # "gau_loss": losses_fpn[3],
+                # "wh_loss": losses_fpn[4],
+                # "xy_loss": losses_fpn[5],
+            }
+        )
         return loss  # neg_losses, pos_losses
 
 
@@ -276,13 +303,18 @@ def make_gau_loss_evaluator(cfg):
     loss_evaluator = GAULossComputation(cfg)
     return loss_evaluator
 
+
 iter = 0
+
+
 def show_label_map(labels, matched_gt_idxs, valids_pos, box_cls, gaus):
     import matplotlib.pyplot as plt
     import numpy as np
+
     global iter
     iter += 1
-    if iter % 20 != 0: return
+    if iter % 20 != 0:
+        return
     new_labels = []
     new_clses = []
     new_match = []
@@ -305,30 +337,46 @@ def show_label_map(labels, matched_gt_idxs, valids_pos, box_cls, gaus):
     C = 4
     n = 1
     # print(N)
-    plt.figure(figsize=(12, N*4))
+    plt.figure(figsize=(12, N * 4))
     for l, label in enumerate(labels):
         for c in range(label.shape[-1]):
             if label[0, :, :, c].sum() > 0:
                 plt.subplot(N, C, n)
                 # print(label.shape)
-                plt.imshow(np.log(label[0, :, :, c] + 0.01), vmin=np.log(0.01), vmax=np.log(1.01))  # if no vmin vmax set, will linear normal
-                plt_str = ("pos_count:{}; {}, {}".format((label[0, :, :, c] > 0).sum(), l, c))
+                plt.imshow(
+                    np.log(label[0, :, :, c] + 0.01),
+                    vmin=np.log(0.01),
+                    vmax=np.log(1.01),
+                )  # if no vmin vmax set, will linear normal
+                plt_str = "pos_count:{}; {}, {}".format(
+                    (label[0, :, :, c] > 0).sum(), l, c
+                )
                 plt.title(plt_str)
 
                 plt.subplot(N, C, n + 1)
                 pred = sigmoid(box_cls[l][0, :, :, c])
-                plt.imshow(np.log(pred+0.01), vmin=np.log(0.01), vmax=np.log(1.01))  # if no vmin vmax set, will linear normal, not show absolute value
+                plt.imshow(
+                    np.log(pred + 0.01), vmin=np.log(0.01), vmax=np.log(1.01)
+                )  # if no vmin vmax set, will linear normal, not show absolute value
                 plt.title("p: [{:.4f}, {:.4f}]".format(pred.min(), pred.max()))
 
                 plt.subplot(N, C, n + 2)
                 pred = sigmoid(gaus[l][0, :, :, c])
-                plt.imshow(np.log(pred+0.01), vmin=np.log(0.01), vmax=np.log(1.01))  # if no vmin vmax set, will linear normal, not show absolute value
+                plt.imshow(
+                    np.log(pred + 0.01), vmin=np.log(0.01), vmax=np.log(1.01)
+                )  # if no vmin vmax set, will linear normal, not show absolute value
                 plt.title("g: [{:.4f}, {:.4f}]".format(pred.min(), pred.max()))
 
                 plt.subplot(N, C, n + 3)
-                pred = (sigmoid(gaus[l][0, :, :, c]) * sigmoid(box_cls[l][0, :, :, c])) ** 0.5
-                plt.imshow(np.log(pred+0.01), vmin=np.log(0.01), vmax=np.log(1.01))  # if no vmin vmax set, will linear normal, not show absolute value
-                plt.title("(p*g)^(0.5): [{:.4f}, {:.4f}]".format(pred.min(), pred.max()))
+                pred = (
+                    sigmoid(gaus[l][0, :, :, c]) * sigmoid(box_cls[l][0, :, :, c])
+                ) ** 0.5
+                plt.imshow(
+                    np.log(pred + 0.01), vmin=np.log(0.01), vmax=np.log(1.01)
+                )  # if no vmin vmax set, will linear normal, not show absolute value
+                plt.title(
+                    "(p*g)^(0.5): [{:.4f}, {:.4f}]".format(pred.min(), pred.max())
+                )
                 # print(plt_str)
                 n += C
     # plt.show()

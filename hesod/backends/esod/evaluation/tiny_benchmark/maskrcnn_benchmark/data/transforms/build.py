@@ -2,6 +2,7 @@
 from . import transforms as T
 import torchvision.transforms as TT
 import numpy as np
+
 MT = T
 
 
@@ -35,10 +36,20 @@ def build_transforms(cfg, is_train=True):
     )
 
     # ############################################# add by hui ##############################################
-    assert not cfg.DATALOADER.USE_SCALE_MATCH or cfg.DATALOADER.USE_MORE_DA == 4, 'current only DA4 support SCALE_MATCH.'
+    assert (
+        not cfg.DATALOADER.USE_SCALE_MATCH or cfg.DATALOADER.USE_MORE_DA == 4
+    ), "current only DA4 support SCALE_MATCH."
     if is_train and cfg.DATALOADER.USE_MORE_DA == 2:
-        min_crop_overlap = cfg.DATALOADER.DA_MIN_CROP_OVERLAP if len(cfg.DATALOADER.DA_MIN_CROP_OVERLAP) > 0 else None
-        gt_range = cfg.DATALOADER.DA_WANT_GT_RANGE if len(cfg.DATALOADER.DA_WANT_GT_RANGE) > 0 else None
+        min_crop_overlap = (
+            cfg.DATALOADER.DA_MIN_CROP_OVERLAP
+            if len(cfg.DATALOADER.DA_MIN_CROP_OVERLAP) > 0
+            else None
+        )
+        gt_range = (
+            cfg.DATALOADER.DA_WANT_GT_RANGE
+            if len(cfg.DATALOADER.DA_WANT_GT_RANGE) > 0
+            else None
+        )
 
         crop_size = cfg.DATALOADER.DA_CROP_SIZE
         min_size, max_size = min(crop_size), max(crop_size)
@@ -46,13 +57,21 @@ def build_transforms(cfg, is_train=True):
             [
                 # MT.RandomExpand(max_ratio=1.25, fill=cfg.INPUT.PIXEL_MEAN, keep_ratio=False, transform_prob=0.5),
                 MT.ImageToImageTargetTransform(
-                    TT.ColorJitter(brightness=32 / 255, contrast=0.5, saturation=0.5, hue=0.1),
-                    transform_prob=0.5),
-                MT.RandomCropResizeForBBox2(gt_range, crop_size,
-                                            fill=cfg.INPUT.PIXEL_MEAN, scale_range=cfg.DATALOADER.DA_GT_SCALE_RANGE,
-                                            min_crop_size_ratio=cfg.DATALOADER.DA_MIN_CROP_SIZE_RATIO,
-                                            min_crop_overlap=min_crop_overlap,
-                                            constraint_auto=True, transform_prob=cfg.DATALOADER.DA_CROP_RESIZE_PROB),
+                    TT.ColorJitter(
+                        brightness=32 / 255, contrast=0.5, saturation=0.5, hue=0.1
+                    ),
+                    transform_prob=0.5,
+                ),
+                MT.RandomCropResizeForBBox2(
+                    gt_range,
+                    crop_size,
+                    fill=cfg.INPUT.PIXEL_MEAN,
+                    scale_range=cfg.DATALOADER.DA_GT_SCALE_RANGE,
+                    min_crop_size_ratio=cfg.DATALOADER.DA_MIN_CROP_SIZE_RATIO,
+                    min_crop_overlap=min_crop_overlap,
+                    constraint_auto=True,
+                    transform_prob=cfg.DATALOADER.DA_CROP_RESIZE_PROB,
+                ),
                 T.Resize(min_size, max_size),
                 T.RandomHorizontalFlip(0.5),
                 T.ToTensor(),
@@ -60,22 +79,38 @@ def build_transforms(cfg, is_train=True):
             ]
         )
     elif is_train and cfg.DATALOADER.USE_MORE_DA == 3:
-        min_crop_overlap = cfg.DATALOADER.DA_MIN_CROP_OVERLAP if len(cfg.DATALOADER.DA_MIN_CROP_OVERLAP) > 0 else None
-        gt_range = cfg.DATALOADER.DA_WANT_GT_RANGE if len(cfg.DATALOADER.DA_WANT_GT_RANGE) > 0 else None
+        min_crop_overlap = (
+            cfg.DATALOADER.DA_MIN_CROP_OVERLAP
+            if len(cfg.DATALOADER.DA_MIN_CROP_OVERLAP) > 0
+            else None
+        )
+        gt_range = (
+            cfg.DATALOADER.DA_WANT_GT_RANGE
+            if len(cfg.DATALOADER.DA_WANT_GT_RANGE) > 0
+            else None
+        )
         transform = T.Compose(
             [
                 # MT.RandomExpand(max_ratio=1.25, fill=cfg.INPUT.PIXEL_MEAN, keep_ratio=False, transform_prob=0.5),
                 MT.ImageToImageTargetTransform(
-                    TT.ColorJitter(brightness=32 / 255, contrast=0.5, saturation=0.5, hue=0.1),
-                    transform_prob=0.5),
+                    TT.ColorJitter(
+                        brightness=32 / 255, contrast=0.5, saturation=0.5, hue=0.1
+                    ),
+                    transform_prob=0.5,
+                ),
                 # MT.RandomCropResizeForBBox2((3.5, 30), (min_size, max_size), fill=cfg.INPUT.PIXEL_MEAN,
                 #                             scale_range=(1./4, 4.), min_crop_size_ratio=0.5/8, constraint_auto=True,
                 #                             transform_prob=0.5),
-                MT.RandomCropResizeForBBox3(gt_range, cfg.DATALOADER.DA_CROP_SIZE,
-                                            fill=cfg.INPUT.PIXEL_MEAN, scale_range=cfg.DATALOADER.DA_GT_SCALE_RANGE,
-                                            min_crop_size_ratio=cfg.DATALOADER.DA_MIN_CROP_SIZE_RATIO,
-                                            min_crop_overlap=min_crop_overlap,
-                                            constraint_auto=True, transform_prob=cfg.DATALOADER.DA_CROP_RESIZE_PROB),
+                MT.RandomCropResizeForBBox3(
+                    gt_range,
+                    cfg.DATALOADER.DA_CROP_SIZE,
+                    fill=cfg.INPUT.PIXEL_MEAN,
+                    scale_range=cfg.DATALOADER.DA_GT_SCALE_RANGE,
+                    min_crop_size_ratio=cfg.DATALOADER.DA_MIN_CROP_SIZE_RATIO,
+                    min_crop_overlap=min_crop_overlap,
+                    constraint_auto=True,
+                    transform_prob=cfg.DATALOADER.DA_CROP_RESIZE_PROB,
+                ),
                 # T.Resize(min_size, max_size),
                 resize,
                 T.RandomHorizontalFlip(0.5),
@@ -88,16 +123,27 @@ def build_transforms(cfg, is_train=True):
 
         # color aug
         if cfg.DATALOADER.DA4_COLOR_AUG:
-            transform.append(MT.ImageToImageTargetTransform(
-                TT.ColorJitter(brightness=32 / 255, contrast=0.5, saturation=0.5, hue=0.1), transform_prob=0.5))
+            transform.append(
+                MT.ImageToImageTargetTransform(
+                    TT.ColorJitter(
+                        brightness=32 / 255, contrast=0.5, saturation=0.5, hue=0.1
+                    ),
+                    transform_prob=0.5,
+                )
+            )
 
         # scale aug
         scale_range = cfg.DATALOADER.DA4_SCALE_RANGE
         scales = cfg.DATALOADER.DA4_SCALES
         if len(scale_range) > 0:
-            assert len(scale_range) == 2 and len(scales) == 0, \
-                'DA4_SCALE_RANGE and DA4_SCALES can only specified one of them.'
-            transform.append(MT.RandomScaleResize(scale_range[0], scale_range[1], cfg.INPUT.SCALE_MODE))
+            assert (
+                len(scale_range) == 2 and len(scales) == 0
+            ), "DA4_SCALE_RANGE and DA4_SCALES can only specified one of them."
+            transform.append(
+                MT.RandomScaleResize(
+                    scale_range[0], scale_range[1], cfg.INPUT.SCALE_MODE
+                )
+            )
         else:
             assert len(scales) > 0
             transform.append(MT.ScaleResize(scales, cfg.INPUT.SCALE_MODE))
@@ -111,8 +157,13 @@ def build_transforms(cfg, is_train=True):
             # transforms.append(MT.Translate(offset_x_range, offset_y_range))
             l, r, t, b = -xmin, xmax, -ymin, ymax
             blue, green, red = cfg.INPUT.PIXEL_MEAN
-            transform.append(MT.RandomCrop(size=None, padding=(l, t, r, b),
-                                           fill=np.array([red, green, blue]).astype(np.int64)))
+            transform.append(
+                MT.RandomCrop(
+                    size=None,
+                    padding=(l, t, r, b),
+                    fill=np.array([red, green, blue]).astype(np.int64),
+                )
+            )
 
         if cfg.DATALOADER.USE_SCALE_MATCH:
             resize = MT.ScaleMatchFactory.create(cfg.DATALOADER.SCALE_MATCH)

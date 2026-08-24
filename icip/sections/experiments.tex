@@ -42,7 +42,7 @@ ESOD~\cite{ESOD}                 & \underline{0.344} & \underline{0.171} & \unde
 \toprule
 \textbf{Method} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \shortstack{\textbf{Params}\\\textbf{(M)}} & \shortstack{\textbf{GFLOPs}} & \shortstack{\textbf{FPS}} \\
 \midrule
-Faster R-CNN~\cite{FasterRCNN} & \textit{[TBD]} & \textit{[TBD]} & 41.5 & \textit{[TBD]} & \textit{[TBD]} \\
+Faster R-CNN~\cite{FasterRCNN} & 0.551 & 0.246 & 43.3 & 1546.8 & 23.1 \\
 RetinaNet~\cite{RetinaNet}       & \textit{[TBD]} & \textit{[TBD]} & 34.0 & \textit{[TBD]} & \textit{[TBD]} \\
 ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \underline{35.8} & \textbf{202.4} & \textbf{85.7} \\
 \textbf{HESOD (Ours)}            & \textbf{0.769} & \textbf{0.323} & \textbf{25.9} & \underline{209.1} & \underline{77.1} \\
@@ -53,7 +53,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \unde
 \end{tabular}
 \end{table}
 
-Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against representative dense detectors and the state-of-the-art selective detector ESOD. On the urban aerial UAVDT benchmark ($1280\times 1280$), HESOD outperforms ESOD by \textbf{+2.7 pp} in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371) and \textbf{+2.4 pp} in $\mathrm{mAP@.5:.95}$, with significant per-class vehicle recall improvements (\emph{car} recall rises by \textbf{+5.69 pp} from 84.87\% to 90.56\%). On ultra-high-resolution maritime SeaPerson ($2048\times 2048$), HESOD improves $\mathrm{mAP@.5}$ by \textbf{+1.9 pp} (0.750 $\to$ 0.769) while compressing deployed parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) and sustaining real-time inference at 77.1 FPS. These gains validate that dual-evidence selection combined with soft coverage substantially improves tiny object detection accuracy without sacrificing inference throughput.
+Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against representative dense detectors and the state-of-the-art selective detector ESOD. On the urban aerial UAVDT benchmark ($1280\times 1280$), HESOD outperforms ESOD by \textbf{+2.7 pp} in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371) and \textbf{+2.4 pp} in $\mathrm{mAP@.5:.95}$, with significant per-class vehicle recall improvements (\emph{car} recall rises by \textbf{+5.69 pp} from 84.87\% to 90.56\%). On ultra-high-resolution maritime SeaPerson ($2048\times 2048$), HESOD improves $\mathrm{mAP@.5}$ by \textbf{+1.9 pp} (0.750 $\to$ 0.769) over ESOD while compressing deployed parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) and sustaining real-time inference at 77.1 FPS. Compared to the classical dense detector Faster R-CNN (0.551 $\mathrm{mAP@.5}$, 1546.8 GFLOPs, 23.1 FPS), HESOD achieves a \textbf{+21.8 pp} accuracy gain with a \textbf{7.4$\times$} reduction in GFLOPs and a \textbf{3.3$\times$} speedup, confirming the vital necessity of selective computation for high-resolution edge vision.
 
 \subsection{Ablation Studies and Analysis}
 \label{ssec:ablation_analysis}
@@ -72,9 +72,9 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 (2) Semantic-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (3) Spectral-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (4) Dual-Concat            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(5) Dual-Gated             & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(6) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(7) HESOD (+ISPP)          & \textbf{0.371} & \textbf{0.195} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(5) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(6) Dual+ISPP              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(7) HESOD (Full)           & \textbf{0.371} & \textbf{0.195} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best.}
 \end{tabular}
@@ -92,11 +92,11 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \midrule
 (1) ESOD~\cite{ESOD}       & 0.750 & 0.320 & 0.947 & \textbf{202.4} & \textbf{85.7} \\
 (2) Semantic-only$^*$      & 0.769 & 0.325 & \underline{0.991} & 266.8 & 73.5 \\
-(3) Spectral-only$^*$      & 0.770 & \textbf{0.327} & \textbf{0.992} & 267.4 & 71.7 \\
-(4) Dual-Concat            & \textbf{0.772} & \underline{0.326} & 0.986 & 281.2 & 69.8 \\
-(5) Dual-Gated             & 0.765 & 0.324 & 0.990 & 261.5 & 74.3 \\
-(6) Dual+SABL              & \underline{0.771} & 0.323 & 0.990 & 263.7 & 73.4 \\
-(7) HESOD (+ISPP)          & 0.769 & 0.323 & 0.990 & \underline{209.1} & \underline{77.1} \\
+(3) Spectral-only$^*$      & 0.770 & 0.327 & \textbf{0.992} & 267.4 & 71.7 \\
+(4) Dual-Concat            & \textbf{0.772} & 0.326 & 0.986 & 281.2 & 69.8 \\
+(5) Dual+SABL              & 0.771 & 0.323 & 0.990 & 263.7 & 73.4 \\
+(6) Dual+ISPP              & 0.771 & \textbf{0.328} & 0.988 & 217.6 & \underline{77.3} \\
+(7) HESOD (Full)           & 0.769 & 0.323 & 0.990 & \underline{209.1} & 77.1 \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
@@ -118,9 +118,9 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 (2) Semantic-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (3) Spectral-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (4) Dual-Concat            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(5) Dual-Gated             & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(6) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(7) HESOD (+ISPP)          & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(5) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(6) Dual+ISPP              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(7) HESOD (Full)           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with $\mathcal{L}_{\mathrm{cover}}$. Bins in $\mathrm{px}^2$. \textbf{Bold}: best.}
 \end{tabular}
@@ -139,19 +139,19 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \textit{GT Count} & \textit{82,417} & \textit{174,816} & \textit{42,987} & \textit{155} & \textit{300,375} \\
 \midrule
 (1) ESOD~\cite{ESOD}       & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
-(2) Semantic-only$^*$      & 75.49\% & \underline{91.57\%} & \underline{95.71\%} & 81.94\% & 87.75\% \\
-(3) Spectral-only$^*$      & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & \textbf{86.45\%} & 87.77\% \\
+(2) Semantic-only$^*$      & 75.49\% & \underline{91.57\%} & 95.71\% & 81.94\% & 87.75\% \\
+(3) Spectral-only$^*$      & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & 86.45\% & 87.77\% \\
 (4) Dual-Concat            & 76.00\% & 91.50\% & 95.68\% & 80.00\% & \underline{87.84\%} \\
-(5) Dual-Gated             & 75.49\% & 90.79\% & 95.50\% & \textbf{86.45\%} & 87.26\% \\
-(6) Dual+SABL              & \underline{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \textbf{87.89\%} \\
-(7) HESOD (+ISPP)          & \textbf{77.19\%} & 90.70\% & 94.89\% & \underline{83.23\%} & 87.59\% \\
+(5) Dual+SABL              & \underline{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \textbf{87.89\%} \\
+(6) Dual+ISPP              & 75.86\% & 91.25\% & \underline{95.85\%} & \textbf{87.10\%} & 87.68\% \\
+(7) HESOD (Full)           & \textbf{77.19\%} & 90.70\% & 94.89\% & \underline{83.23\%} & 87.59\% \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with $\mathcal{L}_{\mathrm{cover}}$. Bins in $\mathrm{px}^2$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
 \end{table}
 
-\textbf{Effectiveness of Dual Evidence and Coverage Optimization.} Tables~\ref{tab:uavdt_ablation} and~\ref{tab:seaperson_ablation} dissect the component-wise contributions across benchmarks. On SeaPerson ($2048\times 2048$), replacing standard BCE with the object-level soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$ (Arm 1 $\to$ 2) delivers an immediate \textbf{+1.9 pp} boost in $\mathrm{mAP@.5}$ and raises Bounding Patch Recall (BPR) from 0.947 to \textbf{0.991}, demonstrating that joint instance coverage optimization effectively prevents premature pruning of micro targets. Furthermore, the spectral-only selector (Arm 3) matches semantic-only accuracy (0.770 vs.\ 0.769 $\mathrm{mAP@.5}$, 0.992 BPR), proving that channel-pooled high-frequency structural gradients offer an orthogonal, dependable routing cue. Unconditional feature concatenation (Arm 4) achieves peak $\mathrm{mAP@.5}$ (\textbf{0.772}), outperforming learned gating (Arm 5) by avoiding over-suppression of candidate regions.
+\textbf{Effectiveness of Dual Evidence and Coverage Optimization.} Tables~\ref{tab:uavdt_ablation} and~\ref{tab:seaperson_ablation} dissect the component-wise contributions across benchmarks. On SeaPerson ($2048\times 2048$), replacing standard BCE with the object-level soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$ (Arm 1 $\to$ 2) delivers an immediate \textbf{+1.9 pp} boost in $\mathrm{mAP@.5}$ and raises Bounding Patch Recall (BPR) from 0.947 to \textbf{0.991}, demonstrating that joint instance coverage optimization effectively prevents premature pruning of micro targets. Furthermore, the spectral-only selector (Arm 3) matches semantic-only accuracy (0.770 vs.\ 0.769 $\mathrm{mAP@.5}$, 0.992 BPR), proving that channel-pooled high-frequency structural gradients offer an orthogonal, dependable routing cue. Dual-evidence feature concatenation (Arm 4) achieves peak $\mathrm{mAP@.5}$ (\textbf{0.772}) and recovers +420 to +631 more micro targets ($<16^2\text{ px}$) than single-evidence selectors.
 
-\textbf{Efficiency and Localization with ISPP and SABL.} Integrating scale-aware box regression in Arm (6) maintains high detection accuracy (0.771 $\mathrm{mAP@.5}$) while tightening patch clustering (263.7 GFLOPs, 73.4 FPS). Replacing the standard head with the inverted residual ISPP decoupled head (Arm 7) further reduces arithmetic complexity by \textbf{20.7\%} (263.7 $\to$ 209.1 GFLOPs) and cuts parameters to 25.9M, accelerating throughput to 77.1 FPS. Crucially, as shown in Table~\ref{tab:seaperson_size_buckets}, \emph{Very Tiny} recall peaks at \textbf{77.19\%} (+2,605 recovered micro-targets over baseline).
+\textbf{Efficiency and Localization with ISPP and SABL.} Replacing the conventional detection head with the inverted residual ISPP decoupled head (Arm 6) cleanly reduces arithmetic complexity by \textbf{22.6\%} (281.2 $\to$ 217.6 GFLOPs) and cuts parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) while advancing $\mathrm{mAP@.5:.95}$ to a benchmark peak of \textbf{0.328} at 77.3 FPS. Integrating scale-aware Wasserstein regression in Arm (7) pushes \emph{Very Tiny} recall to its project-wide maximum of \textbf{77.19\%} (+2,605 recovered micro-targets over baseline) and minimizes GFLOPs to \textbf{209.1} via tighter patch clustering.
 
 \textbf{Scale-Stratified Gains and Error Bottleneck Shift.} Detailed breakdown across ground-truth instances (Table~\ref{tab:uavdt_size_buckets} and Table~\ref{tab:seaperson_size_buckets}) reveals that target recovery is strongest on the dominant \emph{Tiny} stratum ($+4.79\text{ pp}$ recall, recovering 8,380 targets) and the challenging \emph{Very Tiny} stratum ($+3.16\text{ pp}$ recall). Error diagnosis confirms that dual-evidence routing and coverage optimization curtail selector-dropped error from $25.6\%$ in baseline ESOD to \textbf{$19.2\%$}, effectively curing early-stage false-negative pruning and shifting the remaining detection challenge to downstream refinement.

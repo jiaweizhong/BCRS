@@ -11,7 +11,9 @@ from utils.general import bbox_iou, box_iou, wh_iou, xywh2xyxy
 from utils.torch_utils import is_parallel, time_synchronized
 
 
-def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
+def smooth_BCE(
+    eps=0.1,
+):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
     # return positive, negative label smoothing BCE targets
     return 1.0 - 0.5 * eps, 0.5 * eps
 
@@ -26,9 +28,9 @@ def sabl_loss(pbox, tbox, stride, scale=32.0, beta=6.0, normalizer=12.0, eps=1e-
     per matched box.
     """
     if scale <= 0 or beta <= 0 or normalizer <= 0:
-        raise ValueError('SABL scale, beta, and normalizer must all be positive')
+        raise ValueError("SABL scale, beta, and normalizer must all be positive")
     if pbox.ndim != 2 or pbox.shape[-1] != 4 or pbox.shape != tbox.shape:
-        raise ValueError('SABL expects pbox and tbox with matching shape (N, 4)')
+        raise ValueError("SABL expects pbox and tbox with matching shape (N, 4)")
 
     # The IoU, normalized center-distance, and aspect-ratio terms reproduce
     # this vendor's bbox_iou(..., CIoU=True) decomposition. Keeping them in
@@ -49,9 +51,10 @@ def sabl_loss(pbox, tbox, stride, scale=32.0, beta=6.0, normalizer=12.0, eps=1e-
     center_distance_sq = (pxy - txy).square().sum(1)
     euclidean_penalty = center_distance_sq / enclosing_diag_sq
 
-    v = (4 / math.pi ** 2) * torch.pow(
+    v = (4 / math.pi**2) * torch.pow(
         torch.atan(twh[:, 0] / (twh[:, 1] + eps))
-        - torch.atan(pwh[:, 0] / (pwh[:, 1] + eps)), 2
+        - torch.atan(pwh[:, 0] / (pwh[:, 1] + eps)),
+        2,
     )
     with torch.no_grad():
         alpha = v / (v - iou + (1 + eps))
@@ -87,10 +90,11 @@ class FixedTextureFilter(nn.Module):
     dataset pass, so the quantile threshold is computed fresh per batch, not
     reused as a fixed constant).
     """
+
     def __init__(self):
         super().__init__()
-        sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]])
-        sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]])
+        sobel_x = torch.tensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]])
+        sobel_y = torch.tensor([[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]])
         weight = torch.stack([sobel_x, sobel_y], dim=0).unsqueeze(1)  # (2,1,3,3)
         self.conv = nn.Conv2d(1, 2, kernel_size=3, padding=1, bias=False)
         self.conv.weight = nn.Parameter(weight, requires_grad=False)
@@ -105,7 +109,9 @@ class BCEBlurWithLogitsLoss(nn.Module):
     # BCEwithLogitLoss() with reduced missing label effects.
     def __init__(self, alpha=0.05):
         super(BCEBlurWithLogitsLoss, self).__init__()
-        self.loss_fcn = nn.BCEWithLogitsLoss(reduction='none')  # must be nn.BCEWithLogitsLoss()
+        self.loss_fcn = nn.BCEWithLogitsLoss(
+            reduction="none"
+        )  # must be nn.BCEWithLogitsLoss()
         self.alpha = alpha
 
     def forward(self, pred, true):
@@ -126,7 +132,7 @@ class FocalLoss(nn.Module):
         self.gamma = gamma
         self.alpha = alpha
         self.reduction = loss_fcn.reduction
-        self.loss_fcn.reduction = 'none'  # required to apply FL to each element
+        self.loss_fcn.reduction = "none"  # required to apply FL to each element
 
     def forward(self, pred, true):
         loss = self.loss_fcn(pred, true)
@@ -140,9 +146,9 @@ class FocalLoss(nn.Module):
         modulating_factor = (1.0 - p_t) ** self.gamma
         loss *= alpha_factor * modulating_factor
 
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
         else:  # 'none'
             return loss
@@ -156,7 +162,7 @@ class QFocalLoss(nn.Module):
         self.gamma = gamma
         self.alpha = alpha
         self.reduction = loss_fcn.reduction
-        self.loss_fcn.reduction = 'none'  # required to apply FL to each element
+        self.loss_fcn.reduction = "none"  # required to apply FL to each element
 
     def forward(self, pred, true):
         loss = self.loss_fcn(pred, true)
@@ -166,9 +172,9 @@ class QFocalLoss(nn.Module):
         modulating_factor = torch.abs(true - pred_prob) ** self.gamma
         loss *= alpha_factor * modulating_factor
 
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             return loss.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             return loss.sum()
         else:  # 'none'
             return loss
@@ -176,10 +182,23 @@ class QFocalLoss(nn.Module):
 
 class ComputeLoss:
     # Compute losses
-    def __init__(self, model, autobalance=False, selector_loss='upstream', lambda_cov=0.5, pos_weight=2.0,
-                 box_loss='upstream', box_weight_ref_area=4.0, box_weight_max=5.0,
-                 lambda_rescue=0.0, lambda_cond=0.0, tau_low=0.3, tau_high=None,
-                 rescue_margin=1.0, btex_quantile=0.75):
+    def __init__(
+        self,
+        model,
+        autobalance=False,
+        selector_loss="upstream",
+        lambda_cov=0.5,
+        pos_weight=2.0,
+        box_loss="upstream",
+        box_weight_ref_area=4.0,
+        box_weight_max=5.0,
+        lambda_rescue=0.0,
+        lambda_cond=0.0,
+        tau_low=0.3,
+        tau_high=None,
+        rescue_margin=1.0,
+        btex_quantile=0.75,
+    ):
         super(ComputeLoss, self).__init__()
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
@@ -191,20 +210,20 @@ class ComputeLoss:
         # The paper-text variant is explicit because the released ESOD code
         # leaves its focal/dice lines commented out; these are two distinct
         # reproduction targets rather than interchangeable baselines.
-        if selector_loss not in ('upstream', 'paper', 'coverage'):
+        if selector_loss not in ("upstream", "paper", "coverage"):
             raise ValueError(
                 f"selector_loss must be 'upstream', 'paper', or 'coverage', got {selector_loss!r}"
             )
         self.selector_loss = selector_loss
-        self.lambda_cov = lambda_cov if selector_loss == 'coverage' else 0.0
-        self.mask_pos_weight = pos_weight if selector_loss == 'coverage' else None
+        self.lambda_cov = lambda_cov if selector_loss == "coverage" else 0.0
+        self.mask_pos_weight = pos_weight if selector_loss == "coverage" else None
 
         # HESOD box-regression ablation switch (HESOD-Experiment-Plan.md SS3.2).
         # 'upstream' preserves the released per-anchor (1-CIoU).mean().
         # 'size_weighted' is the older inverse-area weighting arm. 'sabl' is
         # SSABNet's exact internal CIoU rectification with fixed paper constants
         # kappa=32 px, beta=6, C=12; it changes lbox only.
-        if box_loss not in ('upstream', 'size_weighted', 'sabl'):
+        if box_loss not in ("upstream", "size_weighted", "sabl"):
             raise ValueError(
                 f"box_loss must be 'upstream', 'size_weighted', or 'sabl', got {box_loss!r}"
             )
@@ -213,25 +232,41 @@ class ComputeLoss:
         self.box_weight_max = box_weight_max
 
         # Define criteria
-        BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
-        BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
+        BCEcls = nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor([h["cls_pw"]], device=device)
+        )
+        BCEobj = nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor([h["obj_pw"]], device=device)
+        )
 
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
-        self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))  # positive, negative BCE targets
+        self.cp, self.cn = smooth_BCE(
+            eps=h.get("label_smoothing", 0.0)
+        )  # positive, negative BCE targets
 
         # Focal loss
-        g = h['fl_gamma']  # focal loss gamma
+        g = h["fl_gamma"]  # focal loss gamma
         if g > 0:
             BCEcls = FocalLoss(BCEcls, g)
             # BCEobj = FocalLoss(BCEobj, g)
         # else:
         #     BCEobj = QFocalLoss(BCEobj, gamma=1.5, alpha=0.5)
 
-        det = model.module.model[-1] if is_parallel(model) else model.model[-1]  # Detect() module
-        self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.25, 0.06, .02])  # P3-P7
+        det = (
+            model.module.model[-1] if is_parallel(model) else model.model[-1]
+        )  # Detect() module
+        self.balance = {3: [4.0, 1.0, 0.4]}.get(
+            det.nl, [4.0, 1.0, 0.25, 0.06, 0.02]
+        )  # P3-P7
         self.ssi = list(det.stride).index(16) if autobalance else 0  # stride 16 index
-        self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, model.gr, h, autobalance
-        for k in 'na', 'nc', 'nl', 'anchors', 'anchor_grid', 'stride':
+        self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = (
+            BCEcls,
+            BCEobj,
+            model.gr,
+            h,
+            autobalance,
+        )
+        for k in "na", "nc", "nl", "anchors", "anchor_grid", "stride":
             setattr(self, k, getattr(det, k))
         self.neg_anchor_iou_thres = 0.7
         self.pos_anchor_iou_thres = 0.15
@@ -244,9 +279,11 @@ class ComputeLoss:
         # in the forward call is gated on these two being nonzero (train.py),
         # so this whole code path never executes unless explicitly enabled.
         if lambda_rescue < 0 or lambda_cond < 0:
-            raise ValueError(f'lambda_rescue and lambda_cond must be >= 0, got {lambda_rescue!r}, {lambda_cond!r}')
+            raise ValueError(
+                f"lambda_rescue and lambda_cond must be >= 0, got {lambda_rescue!r}, {lambda_cond!r}"
+            )
         if not (0.0 < tau_low < 1.0):
-            raise ValueError(f'tau_low must be in (0,1), got {tau_low!r}')
+            raise ValueError(f"tau_low must be in (0,1), got {tau_low!r}")
         self.lambda_rescue, self.lambda_cond = lambda_rescue, lambda_cond
         self.tau_low = tau_low
         # tau_high gates C_sem = "already confidently correct" positives (SS4.2.2);
@@ -254,18 +291,20 @@ class ComputeLoss:
         # since the design doc only pre-registers tau_low, not a separate tau_high.
         self.tau_high = tau_high if tau_high is not None else (1.0 - tau_low)
         if not (0.0 < self.tau_high < 1.0):
-            raise ValueError(f'tau_high must be in (0,1), got {self.tau_high!r}')
+            raise ValueError(f"tau_high must be in (0,1), got {self.tau_high!r}")
         if rescue_margin < 0:
-            raise ValueError(f'rescue_margin must be >= 0, got {rescue_margin!r}')
+            raise ValueError(f"rescue_margin must be >= 0, got {rescue_margin!r}")
         if not (0.0 < btex_quantile < 1.0):
-            raise ValueError(f'btex_quantile must be in (0,1), got {btex_quantile!r}')
+            raise ValueError(f"btex_quantile must be in (0,1), got {btex_quantile!r}")
         self.rescue_margin, self.btex_quantile = rescue_margin, btex_quantile
         self._rescue_max_pairs, self._btex_min_bg_cells = 2048, 16
         self.texture_filter = FixedTextureFilter().to(device)
         self.last_lrescue = self.last_lcond = torch.zeros(1, device=device)
         self.last_b_tex_frac = self.last_c_sem_frac = torch.zeros(1, device=device)
 
-    def __call__(self, p, targets, imgsz=None, masks=None, m_weights=None, imgs=None):  # predictions, targets, model
+    def __call__(
+        self, p, targets, imgsz=None, masks=None, m_weights=None, imgs=None
+    ):  # predictions, targets, model
         if len(p) == 3:
             p_det, p_seg, gate_extras = p
         else:
@@ -273,15 +312,27 @@ class ComputeLoss:
             gate_extras = None
         offsets = []
         device = targets.device
-        lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
-        lpixl, larea, ldist = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
+        lcls, lbox, lobj = (
+            torch.zeros(1, device=device),
+            torch.zeros(1, device=device),
+            torch.zeros(1, device=device),
+        )
+        lpixl, larea, ldist = (
+            torch.zeros(1, device=device),
+            torch.zeros(1, device=device),
+            torch.zeros(1, device=device),
+        )
         lrescue, lcond = torch.zeros(1, device=device), torch.zeros(1, device=device)
-        
-        if p_det is not None and p_det[0] is not None and p_det[1] is not None:  # stupid
+
+        if (
+            p_det is not None and p_det[0] is not None and p_det[1] is not None
+        ):  # stupid
             # ta = time_synchronized()
             if isinstance(p_det, tuple):
                 p, offsets = p_det
-                tcls, tbox, indices, anchors = self.build_patch_targets(offsets, targets, imgsz)  # targets
+                tcls, tbox, indices, anchors = self.build_patch_targets(
+                    offsets, targets, imgsz
+                )  # targets
             else:
                 p = p_det
                 tcls, tbox, indices, anchors = self.build_targets(p, targets)
@@ -291,57 +342,77 @@ class ComputeLoss:
             for i, pi in enumerate(p):  # layer index, layer predictions
                 b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
                 tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
-    
+
                 n = b.shape[0]  # number of targets
                 if n:
                     ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
-    
+
                     # Regression
-                    pxy = ps[:, :2].sigmoid() * 2. - 0.5
+                    pxy = ps[:, :2].sigmoid() * 2.0 - 0.5
                     pwh = (ps[:, 2:4].sigmoid() * 2) ** 2 * anchors[i]
                     pbox = torch.cat((pxy, pwh), 1)  # predicted box
-                    iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # CIoU for objectness quality
-                    if self.box_loss == 'size_weighted':
+                    iou = bbox_iou(
+                        pbox.T, tbox[i], x1y1x2y2=False, CIoU=True
+                    )  # CIoU for objectness quality
+                    if self.box_loss == "size_weighted":
                         area_cells = (tbox[i][:, 2] * tbox[i][:, 3]).clamp(min=1e-3)
-                        box_weight = (self.box_weight_ref_area / area_cells).clamp(1.0, self.box_weight_max)
-                        lbox += ((1.0 - iou) * box_weight).mean()  # size-weighted iou loss
-                    elif self.box_loss == 'sabl':
+                        box_weight = (self.box_weight_ref_area / area_cells).clamp(
+                            1.0, self.box_weight_max
+                        )
+                        lbox += (
+                            (1.0 - iou) * box_weight
+                        ).mean()  # size-weighted iou loss
+                    elif self.box_loss == "sabl":
                         lbox += sabl_loss(pbox, tbox[i], self.stride[i]).mean()
                     else:
                         lbox += (1.0 - iou).mean()  # iou loss
-    
+
                     # Objectness
-                    tobj[b, a, gj, gi] = (1.0 - self.gr) + self.gr * iou.detach().clamp(0).type(tobj.dtype)  # iou ratio
-    
+                    tobj[b, a, gj, gi] = (1.0 - self.gr) + self.gr * iou.detach().clamp(
+                        0
+                    ).type(
+                        tobj.dtype
+                    )  # iou ratio
+
                     # Classification
                     if self.nc > 1:  # cls loss (only if multiple classes)
-                        t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
+                        t = torch.full_like(
+                            ps[:, 5:], self.cn, device=device
+                        )  # targets
                         t[range(n), tcls[i]] = self.cp
                         lcls += self.BCEcls(ps[:, 5:], t)  # BCE
-    
+
                     # Append targets to text file
                     # with open('targets.txt', 'a') as file:
                     #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
-    
+
                 obji = self.BCEobj(pi[..., 4].clamp_(-9.21, 9.21), tobj)
                 lobj += obji * self.balance[i]  # obj loss
                 if self.autobalance:
-                    self.balance[i] = self.balance[i] * 0.9999 + 0.0001 / obji.detach().item()
-        
+                    self.balance[i] = (
+                        self.balance[i] * 0.9999 + 0.0001 / obji.detach().item()
+                    )
+
         # bs = tobj.shape[0]  # batch size
         bs = p_seg[0].shape[0] if p_seg is not None else tobj.shape[0]
         if self.autobalance:
             self.balance = [x / self.balance[self.ssi] for x in self.balance]
-            
-        lbox *= self.hyp['box']
-        lobj *= self.hyp['obj'] * 0.5 #(0.5 if (len(offsets) and len(offsets[0]) > bs) else 1.)   # adaoff: 0.178
-        lcls *= self.hyp['cls']
-        
+
+        lbox *= self.hyp["box"]
+        lobj *= (
+            self.hyp["obj"] * 0.5
+        )  # (0.5 if (len(offsets) and len(offsets[0]) > bs) else 1.)   # adaoff: 0.178
+        lcls *= self.hyp["cls"]
+
         if masks is not None and p_seg is not None:
             assert len(p_seg) == 1
-            lpixl, larea, ldist = self.compute_loss_seg(p_seg[0], masks, targets, weight=m_weights)
+            lpixl, larea, ldist = self.compute_loss_seg(
+                p_seg[0], masks, targets, weight=m_weights
+            )
 
-            if (self.lambda_rescue > 0 or self.lambda_cond > 0) and gate_extras is not None:
+            if (
+                self.lambda_rescue > 0 or self.lambda_cond > 0
+            ) and gate_extras is not None:
                 # gate_extras is None whenever this call didn't request it --
                 # notably train.py's own per-epoch validation pass (test.test()
                 # -> test.py's model(...) call, which never sets
@@ -355,14 +426,20 @@ class ComputeLoss:
                 # method -- += against the pre-initialized shape-(1,) zeros
                 # broadcasts correctly; a direct reassignment would leave
                 # lrescue/lcond 0-dim and break the final torch.cat below.
-                lr, lc = self.compute_gate_losses(p_seg[0], gate_extras[0], targets, imgs)
+                lr, lc = self.compute_gate_losses(
+                    p_seg[0], gate_extras[0], targets, imgs
+                )
                 lrescue += lr
                 lcond += lc
 
         # lrescue/lcond already ARE the intended weights (lambda_rescue/lambda_cond),
         # applied here directly -- NOT folded into the *0.2 selector-loss group above.
-        loss = (lbox + lobj + lcls) * 1.0 + (lpixl + larea + ldist) * 0.2 \
-            + lrescue * self.lambda_rescue + lcond * self.lambda_cond
+        loss = (
+            (lbox + lobj + lcls) * 1.0
+            + (lpixl + larea + ldist) * 0.2
+            + lrescue * self.lambda_rescue
+            + lcond * self.lambda_cond
+        )
         loss_items = torch.cat((lbox, lobj, lcls, lpixl, larea, ldist, loss)).detach()
         return loss * bs, loss_items
 
@@ -371,14 +448,28 @@ class ComputeLoss:
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         tcls, tbox, indices, anch = [], [], [], []
         gain = torch.ones(7, device=targets.device)  # normalized to gridspace gain
-        ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
-        targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # append anchor indices, shape(na,nt,7)
+        ai = (
+            torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)
+        )  # same as .repeat_interleave(nt)
+        targets = torch.cat(
+            (targets.repeat(na, 1, 1), ai[:, :, None]), 2
+        )  # append anchor indices, shape(na,nt,7)
 
         g = 0.5  # bias
-        off = torch.tensor([[0, 0],
-                            [1, 0], [0, 1], [-1, 0], [0, -1],  # j,k,l,m
-                            # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
-                            ], device=targets.device).float() * g  # offsets
+        off = (
+            torch.tensor(
+                [
+                    [0, 0],
+                    [1, 0],
+                    [0, 1],
+                    [-1, 0],
+                    [0, -1],  # j,k,l,m
+                    # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
+                ],
+                device=targets.device,
+            ).float()
+            * g
+        )  # offsets
 
         for i in range(self.nl):
             anchors = self.anchors[i]
@@ -389,15 +480,15 @@ class ComputeLoss:
             if nt:
                 # Matches
                 r = t[:, :, 4:6] / anchors[:, None]  # wh ratio
-                j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
+                j = torch.max(r, 1.0 / r).max(2)[0] < self.hyp["anchor_t"]  # compare
                 # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
                 t = t[j]  # filter shape(nt_,7), [bi, ci, xc, yc, w, h, ai]
 
                 # Offsets
                 gxy = t[:, 2:4]  # grid xy
                 gxi = gain[[2, 3]] - gxy  # inverse
-                j, k = ((gxy % 1. < g) & (gxy > 1.)).T
-                l, m = ((gxi % 1. < g) & (gxi > 1.)).T
+                j, k = ((gxy % 1.0 < g) & (gxy > 1.0)).T
+                l, m = ((gxi % 1.0 < g) & (gxi > 1.0)).T
                 j = torch.stack((torch.ones_like(j), j, k, l, m))
                 t = t.repeat((5, 1, 1))[j]
                 offsets = (torch.zeros_like(gxy)[None] + off[:, None])[j]
@@ -423,36 +514,56 @@ class ComputeLoss:
             # build_patch_targets, not build_targets, for its sparse/patched
             # detection head), so the dtype mismatch was previously latent,
             # not something this session's changes introduced.
-            indices.append((b, a, gj.clamp_(0, int(gain[3]) - 1), gi.clamp_(0, int(gain[2]) - 1)))  # image, anchor, grid indices
+            indices.append(
+                (b, a, gj.clamp_(0, int(gain[3]) - 1), gi.clamp_(0, int(gain[2]) - 1))
+            )  # image, anchor, grid indices
             tbox.append(torch.cat((gxy - gij, gwh), 1))  # box
             anch.append(anchors[a])  # anchors
             tcls.append(c)  # class
 
         return tcls, tbox, indices, anch
-  
-    def build_patch_targets(self, patch_offsets, targets, imgsz):  # for fast-mode, fixed patch division
+
+    def build_patch_targets(
+        self, patch_offsets, targets, imgsz
+    ):  # for fast-mode, fixed patch division
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         dtype, device = targets.dtype, targets.device
         tcls, tbox, indices, anch = [], [], [], []
         bs, _, height, width = imgsz
-        
+
         gain = torch.ones(7, device=device)  # normalized to gridspace gain
-        ai = torch.arange(na, device=device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
-        targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # append anchor indices, shape(na,nt,7)
+        ai = (
+            torch.arange(na, device=device).float().view(na, 1).repeat(1, nt)
+        )  # same as .repeat_interleave(nt)
+        targets = torch.cat(
+            (targets.repeat(na, 1, 1), ai[:, :, None]), 2
+        )  # append anchor indices, shape(na,nt,7)
         bi_ = torch.arange(patch_offsets[0].shape[0], device=device)
 
         g = 0.5  # bias
-        off = torch.tensor([[0, 0],
-                            [1, 0], [0, 1], [-1, 0], [0, -1],  # j,k,l,m
-                            # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
-                            ], device=device).float() * g  # offsets
+        off = (
+            torch.tensor(
+                [
+                    [0, 0],
+                    [1, 0],
+                    [0, 1],
+                    [-1, 0],
+                    [0, -1],  # j,k,l,m
+                    # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
+                ],
+                device=device,
+            ).float()
+            * g
+        )  # offsets
 
         for i in range(self.nl):
             patch_off = patch_offsets[i]
             anchors = self.anchors[i]
-            r = (2 ** (i - 1)) if self.nl == 4 else 2 ** i
-            gain[2:6] = torch.tensor([width, height, width, height], dtype=dtype) / (8 * r)  # TODO: from 4 to 32
+            r = (2 ** (i - 1)) if self.nl == 4 else 2**i
+            gain[2:6] = torch.tensor([width, height, width, height], dtype=dtype) / (
+                8 * r
+            )  # TODO: from 4 to 32
             # grid_w, grid_h = patch_off[0, [3, 4]] - patch_off[0, [1, 2]]
             grid_wh = patch_off[:1, [3, 4]] - patch_off[:1, [1, 2]]
 
@@ -461,25 +572,33 @@ class ComputeLoss:
             if nt:
                 # Matches
                 r = t[:, :, 4:6] / anchors[:, None]  # wh ratio
-                j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
+                j = torch.max(r, 1.0 / r).max(2)[0] < self.hyp["anchor_t"]  # compare
                 # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
                 t = t[j]  # filter, shape(nt_, 7)
 
                 tb, txc, tyc = t[:, [0, 2, 3]].chunk(3, dim=1)  # shape(n,1)
                 pb, px1, py1, px2, py2 = (patch_off.T).chunk(5, dim=0)  # shape(1,m)
-                contained = (tb == pb) & (txc > px1 - g) & (txc < px2 - g) & (tyc > py1 - g) & (tyc < py2 - g)  # shape(n,m)
-                ti, pj = torch.nonzero(contained).T  # i-th target is contained within j-th patch
+                contained = (
+                    (tb == pb)
+                    & (txc > px1 - g)
+                    & (txc < px2 - g)
+                    & (tyc > py1 - g)
+                    & (tyc < py2 - g)
+                )  # shape(n,m)
+                ti, pj = torch.nonzero(
+                    contained
+                ).T  # i-th target is contained within j-th patch
                 t = t[ti]  # shape(n,7)
-                
+
                 # Offsets
                 gxy = t[:, 2:4]  # grid xy
                 gxi = grid_wh - gxy  # inverse
-                j, k = ((gxy - gxy.floor() < g) & (gxy > 0.-g)).T
-                l, m = ((gxi - gxi.floor() < g) & (gxi > 1.-g)).T
+                j, k = ((gxy - gxy.floor() < g) & (gxy > 0.0 - g)).T
+                l, m = ((gxi - gxi.floor() < g) & (gxi > 1.0 - g)).T
                 # j, k = ((gxy % 1. < g) & (gxy > 1.)).T
                 # l, m = ((gxi % 1. < g) & (gxi > 1.)).T
                 j = torch.stack((torch.ones_like(j), j, k, l, m))
-                
+
                 t[:, 0] = bi_[pj]  # converted batch-indices
                 t[:, 2:4] -= patch_off[pj, 1:3]  # converted xc, yc (minus px1, py1)
 
@@ -512,22 +631,29 @@ class ComputeLoss:
         dtype, device = targets.dtype, targets.device
         bs, nc, ny, nx = masks.shape
         assert nc == 1
-        lpixl, larea, ldist = torch.zeros(1, device=device), torch.zeros(1, device=device), \
-                              torch.zeros(1, device=device)
+        lpixl, larea, ldist = (
+            torch.zeros(1, device=device),
+            torch.zeros(1, device=device),
+            torch.zeros(1, device=device),
+        )
 
-        if self.selector_loss == 'paper':
+        if self.selector_loss == "paper":
             # ESOD paper: focal loss and dice loss with a 20:1 ratio. This is
             # deliberately separate from the released-code weighted BCE path.
             ldist += self.sigmoid_focal_loss(p, masks) * 20.0
             larea += self.dice_loss(p, masks)
         else:
             pos_weight = None
-            if self.selector_loss == 'coverage' and self.mask_pos_weight is not None:
-                pos_weight = torch.as_tensor(self.mask_pos_weight, device=device, dtype=p.dtype)
-            lpixl += F.binary_cross_entropy_with_logits(p, masks, weight=weight, pos_weight=pos_weight)
+            if self.selector_loss == "coverage" and self.mask_pos_weight is not None:
+                pos_weight = torch.as_tensor(
+                    self.mask_pos_weight, device=device, dtype=p.dtype
+                )
+            lpixl += F.binary_cross_entropy_with_logits(
+                p, masks, weight=weight, pos_weight=pos_weight
+            )
 
         nt = targets.shape[0]
-        if self.selector_loss == 'coverage' and nt:
+        if self.selector_loss == "coverage" and nt:
             larea += self.compute_coverage_loss(p, targets, ny, nx) * self.lambda_cov
 
         return lpixl, larea, ldist
@@ -576,7 +702,7 @@ class ComputeLoss:
             weight = (ref_area_cells / area_cells).clamp(1.0, max_weight)
 
             for j in range(obj.shape[0]):
-                region = s[bi, y1[j]:y2[j], x1[j]:x2[j]]
+                region = s[bi, y1[j] : y2[j], x1[j] : x2[j]]
                 p_cover = 1.0 - torch.prod(1.0 - region)
                 losses.append(-weight[j] * torch.log(p_cover.clamp(min=eps)))
 
@@ -604,7 +730,7 @@ class ComputeLoss:
             x2 = torch.maximum((xc + w / 2).ceil().clamp(0, nx).long(), x1 + 1)
             y2 = torch.maximum((yc + h / 2).ceil().clamp(0, ny).long(), y1 + 1)
             for j in range(obj.shape[0]):
-                y[bi, y1[j]:y2[j], x1[j]:x2[j]] = True
+                y[bi, y1[j] : y2[j], x1[j] : x2[j]] = True
         return y
 
     def _texture_hard_negative_mask(self, imgs, bg_mask, ny, nx):
@@ -618,7 +744,9 @@ class ComputeLoss:
             gray = imgs.float().mean(dim=1, keepdim=True)
             stride = imgs.shape[-1] // nx
             texture = self.texture_filter(gray)
-            texture_score = F.avg_pool2d(texture, kernel_size=stride, stride=stride)[:, 0]
+            texture_score = F.avg_pool2d(texture, kernel_size=stride, stride=stride)[
+                :, 0
+            ]
             # avg_pool2d's output grid can be off by a cell from (ny,nx) if
             # H/W isn't an exact multiple of stride; crop defensively rather
             # than assume exact divisibility.
@@ -653,7 +781,9 @@ class ComputeLoss:
             ii = i_idx.repeat_interleave(n_j, dim=0)
             jj = j_idx.repeat(n_i, 1)
             if ii.shape[0] > self._rescue_max_pairs:
-                sel = torch.randperm(ii.shape[0], device=device)[:self._rescue_max_pairs]
+                sel = torch.randperm(ii.shape[0], device=device)[
+                    : self._rescue_max_pairs
+                ]
                 ii, jj = ii[sel], jj[sel]
             u_i = u[bi][ii[:, 0], ii[:, 1]]
             u_j = u[bi][jj[:, 0], jj[:, 1]]
@@ -684,18 +814,26 @@ class ComputeLoss:
         __call__) -- matching every other loss term in this class.
         """
         if imgs is None:
-            raise RuntimeError('compute_gate_losses requires imgs (raw model input) to build B_tex')
+            raise RuntimeError(
+                "compute_gate_losses requires imgs (raw model input) to build B_tex"
+            )
         bs, _, ny, nx = p_fused.shape
-        u, q, a = p_fused[:, 0], extras['q'][:, 0], extras['a'][:, 0]
+        u, q, a = p_fused[:, 0], extras["q"][:, 0], extras["a"][:, 0]
 
         y_mask = self._positive_cell_mask(targets, bs, ny, nx)
         b_tex = self._texture_hard_negative_mask(imgs, ~y_mask, ny, nx)
         c_sem = y_mask & (q > self.tau_high)
 
-        lrescue = self.compute_rescue_loss(u, q, y_mask, b_tex) if self.lambda_rescue > 0 \
+        lrescue = (
+            self.compute_rescue_loss(u, q, y_mask, b_tex)
+            if self.lambda_rescue > 0
             else torch.zeros(1, device=u.device)
-        lcond = self.compute_cond_loss(a, c_sem, b_tex) if self.lambda_cond > 0 \
+        )
+        lcond = (
+            self.compute_cond_loss(a, c_sem, b_tex)
+            if self.lambda_cond > 0
             else torch.zeros(1, device=u.device)
+        )
 
         self.last_lrescue, self.last_lcond = lrescue.detach(), lcond.detach()
         self.last_b_tex_frac = b_tex.float().mean().detach()
@@ -772,7 +910,9 @@ class ComputeLoss:
         return loss.mean()
 
     @staticmethod
-    def sigmoid_quality_focal_loss(inputs, targets, weight=None, alpha: float = 0.25, gamma: float = 2):
+    def sigmoid_quality_focal_loss(
+        inputs, targets, weight=None, alpha: float = 0.25, gamma: float = 2
+    ):
         """
         Loss used in RetinaNet for dense detection: https://arxiv.org/abs/1708.02002.
         Args:
@@ -789,7 +929,9 @@ class ComputeLoss:
             Loss tensor
         """
         prob = inputs.sigmoid()
-        ce_loss = F.binary_cross_entropy_with_logits(inputs, targets, weight=weight, reduction="none")
+        ce_loss = F.binary_cross_entropy_with_logits(
+            inputs, targets, weight=weight, reduction="none"
+        )
         loss = ce_loss * ((prob - targets).abs() ** gamma)
 
         if alpha >= 0:

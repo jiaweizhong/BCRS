@@ -19,7 +19,6 @@ from maskrcnn_benchmark.layers import (
 )
 from maskrcnn_benchmark.layers.misc import _NewEmptyTensorOp
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -252,7 +251,7 @@ class Shift(nn.Module):
         self.dilation = 1
 
         hks = kernel_size // 2
-        ksq = kernel_size ** 2
+        ksq = kernel_size**2
 
         for i in range(kernel_size):
             for j in range(kernel_size):
@@ -420,8 +419,7 @@ class Upsample(nn.Module):
 
     def forward(self, x):
         return interpolate(
-            x, scale_factor=self.scale, mode=self.mode,
-            align_corners=self.align_corners
+            x, scale_factor=self.scale, mode=self.mode, align_corners=self.align_corners
         )
 
 
@@ -572,7 +570,7 @@ def _expand_block_cfg(block_cfg):
 
 
 def expand_stage_cfg(stage_cfg):
-    """ For a single stage """
+    """For a single stage"""
     assert isinstance(stage_cfg, list)
     ret = []
     for x in stage_cfg:
@@ -581,7 +579,7 @@ def expand_stage_cfg(stage_cfg):
 
 
 def expand_stages_cfg(stage_cfgs):
-    """ For a list of stages """
+    """For a list of stages"""
     assert isinstance(stage_cfgs, list)
     ret = []
     for x in stage_cfgs:
@@ -601,26 +599,26 @@ def _block_cfgs_to_list(block_cfgs):
 
 
 def _add_to_arch(arch, info, name):
-    """ arch = [{block_0}, {block_1}, ...]
-        info = [
-            # stage 0
-            [
-                block0_info,
-                block1_info,
-                ...
-            ], ...
-        ]
-        convert to:
-        arch = [
-            {
-                block_0,
-                name: block0_info,
-            },
-            {
-                block_1,
-                name: block1_info,
-            }, ...
-        ]
+    """arch = [{block_0}, {block_1}, ...]
+    info = [
+        # stage 0
+        [
+            block0_info,
+            block1_info,
+            ...
+        ], ...
+    ]
+    convert to:
+    arch = [
+        {
+            block_0,
+            name: block0_info,
+        },
+        {
+            block_1,
+            name: block1_info,
+        }, ...
+    ]
     """
     assert isinstance(arch, list) and all(isinstance(x, dict) for x in arch)
     assert isinstance(info, list) and all(isinstance(x, list) for x in info)
@@ -639,18 +637,18 @@ def _add_to_arch(arch, info, name):
 
 
 def unify_arch_def(arch_def):
-    """ unify the arch_def to:
-        {
-            ...,
-            "arch": [
-                {
-                    "stage_idx": idx,
-                    "block_idx": idx,
-                    ...
-                },
-                {}, ...
-            ]
-        }
+    """unify the arch_def to:
+    {
+        ...,
+        "arch": [
+            {
+                "stage_idx": idx,
+                "block_idx": idx,
+                ...
+            },
+            {}, ...
+        ]
+    }
     """
     ret = copy.deepcopy(arch_def)
 
@@ -730,8 +728,7 @@ class FBNetBuilder(object):
         return out
 
     def add_blocks(self, blocks):
-        """ blocks: [{}, {}, ...]
-        """
+        """blocks: [{}, {}, ...]"""
         assert isinstance(blocks, list) and all(
             isinstance(x, dict) for x in blocks
         ), blocks
@@ -752,8 +749,8 @@ class FBNetBuilder(object):
         return ret
 
     def add_last(self, stage_info):
-        """ skip last layer if channel_scale == 0
-            use the same output channel if channel_scale < 0
+        """skip last layer if channel_scale == 0
+        use the same output channel if channel_scale < 0
         """
         assert len(stage_info) == 2
         channels = stage_info[0]
