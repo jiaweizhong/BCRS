@@ -68,7 +68,7 @@ ESOD~\cite{ESOD}                 & \underline{0.344} & \underline{0.171} & \unde
 \textbf{Method} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \shortstack{\textbf{Params}\\\textbf{(M)}} & \shortstack{\textbf{GFLOPs}} & \shortstack{\textbf{FPS}} \\
 \midrule
 Faster R-CNN~\cite{FasterRCNN} & 0.551 & 0.246 & 43.3 & 1546.8 & 23.1 \\
-RetinaNet~\cite{RetinaNet}       & \textit{[TBD]} & \textit{[TBD]} & 34.0 & \textit{[TBD]} & \textit{[TBD]} \\
+RetinaNet~\cite{RetinaNet}       & 0.473 & 0.201 & 36.4 & 942.7 & 28.0 \\
 ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \underline{35.8} & \textbf{202.4} & \textbf{85.7} \\
 \textbf{HESOD (Ours)}            & \textbf{0.769} & \textbf{0.323} & \textbf{25.9} & \underline{209.1} & \underline{77.1} \\
 \midrule
@@ -78,7 +78,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \unde
 \end{tabular}
 \end{table}
 
-Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against representative dense detectors and the state-of-the-art selective detector ESOD. On the urban aerial UAVDT benchmark ($1280\times 1280$), HESOD outperforms ESOD by \textbf{+2.7 pp} in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371) and \textbf{+2.4 pp} in $\mathrm{mAP@.5:.95}$, with significant per-class vehicle recall improvements (\emph{car} recall rises by \textbf{+5.69 pp} from 84.87\% to 90.56\%). On ultra-high-resolution maritime SeaPerson ($2048\times 2048$), HESOD improves $\mathrm{mAP@.5}$ by \textbf{+1.9 pp} (0.750 $\to$ 0.769) over ESOD while compressing deployed parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) and sustaining real-time inference at 77.1 FPS. Compared to the classical dense detector Faster R-CNN (0.551 $\mathrm{mAP@.5}$, 1546.8 GFLOPs, 23.1 FPS), HESOD achieves a \textbf{+21.8 pp} accuracy gain with a \textbf{7.4$\times$} reduction in GFLOPs and a \textbf{3.3$\times$} speedup, confirming the vital necessity of selective computation for high-resolution edge vision.
+Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against representative dense detectors and the state-of-the-art selective detector ESOD. On the urban aerial UAVDT benchmark ($1280\times 1280$), HESOD outperforms ESOD by \textbf{+2.7 pp} in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371) and \textbf{+2.4 pp} in $\mathrm{mAP@.5:.95}$, with significant per-class vehicle recall improvements (\emph{car} recall rises by \textbf{+5.69 pp} from 84.87\% to 90.56\%). On ultra-high-resolution maritime SeaPerson ($2048\times 2048$), HESOD improves $\mathrm{mAP@.5}$ by \textbf{+1.9 pp} (0.750 $\to$ 0.769) over ESOD while compressing deployed parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) and sustaining real-time inference at 77.1 FPS. Compared to classical dense detectors, HESOD achieves a \textbf{+21.8 pp} accuracy gain over two-stage Faster R-CNN (0.551 $\mathrm{mAP@.5}$, 1546.8 GFLOPs, 23.1 FPS) and a \textbf{+29.6 pp} gain over dense one-stage RetinaNet (0.473 $\mathrm{mAP@.5}$, 942.7 GFLOPs, 28.0 FPS) while reducing GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} and accelerating inference by \textbf{3.3$\times$} and \textbf{2.8$\times$}, respectively, confirming the vital necessity of selective computation for high-resolution edge vision.
 
 \subsection{Ablation Studies and Analysis}
 \label{ssec:ablation_analysis}
