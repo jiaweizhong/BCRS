@@ -93,14 +93,14 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} \\
 \midrule
-(1) ESOD~\cite{ESOD}       & 0.344 & 0.171 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(2) Semantic-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(3) Spectral-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(4) Spectral-Pooled$^*$    & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(5) Dual-Concat            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(6) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(7) Dual+ISPP              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(8) HESOD (Full)           & \textbf{0.371} & \textbf{0.195} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(1) Baseline (BCE)              & 0.344 & 0.171 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(2) Semantic-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(3) Spectral-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(4) Spectral-Pooled$^*$         & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(5) Dual-Concat                 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(6) Dual+SABL                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(7) Dual+ISPP                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(8) HESOD (Full)                & \textbf{0.371} & \textbf{0.195} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best.}
 \end{tabular}
@@ -116,7 +116,7 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} \\
 \midrule
-(1) ESOD~\cite{ESOD}            & 0.750 & 0.320 & 0.947 & \textbf{202.4} & \textbf{85.7} \\
+(1) Baseline (BCE)              & 0.750 & 0.320 & 0.947 & \textbf{202.4} & \textbf{85.7} \\
 (2) Semantic-only$^*$           & 0.769 & 0.325 & \underline{0.991} & 266.8 & 73.5 \\
 (3) Spectral-only$^*$           & 0.770 & 0.327 & \textbf{0.992} & 267.4 & 71.7 \\
 (4) Spectral-Pooled$^*$         & 0.767 & 0.324 & 0.988 & 263.4 & 72.7 \\
@@ -141,7 +141,7 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \midrule
 \textit{GT Count} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \midrule
-(1) ESOD~\cite{ESOD}            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(1) Baseline (BCE)              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (2) Semantic-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (3) Spectral-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (4) Spectral-Pooled$^*$         & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
@@ -166,7 +166,7 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \midrule
 \textit{GT Count} & \textit{82,417} & \textit{174,816} & \textit{42,987} & \textit{155} & \textit{300,375} \\
 \midrule
-(1) ESOD~\cite{ESOD}            & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
+(1) Baseline (BCE)              & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
 (2) Semantic-only$^*$           & 75.49\% & \underline{91.57\%} & 95.71\% & 81.94\% & 87.75\% \\
 (3) Spectral-only$^*$           & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & 86.45\% & 87.77\% \\
 (4) Spectral-Pooled$^*$         & 76.13\% & 91.36\% & 95.50\% & \textbf{87.10\%} & 87.77\% \\

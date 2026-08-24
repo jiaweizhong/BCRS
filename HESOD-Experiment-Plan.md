@@ -97,7 +97,7 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 
 | Arm | Module Configuration | Selector Loss | Box Loss | Head | mAP@.5 | mAP@.5:.95 | BPR | GFLOPs | FPS |
 |---|---|---|---|---|:---:|:---:|:---:|:---:|:---:|
-| **(1)** | **ESOD Baseline (R0)** | Upstream BCE | CIoU | Coupled | 0.750 | 0.320 | 0.947 | **202.4** | **85.7** |
+| **(1)** | **Baseline (BCE)** | Upstream BCE | CIoU | Coupled | 0.750 | 0.320 | 0.947 | **202.4** | **85.7** |
 | **(2)** | **Semantic-only$^*$** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.769 | 0.325 | \underline{0.991} | 266.8 | 73.5 |
 | **(3)** | **Spectral-only$^*$** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.770 | 0.327 | **0.992** | 267.4 | 71.7 |
 | **(4)** | **Spectral-only (Pooled)** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.767 | 0.324 | 0.988 | 263.4 | 72.7 |
@@ -114,7 +114,7 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 
 | Arm | Very Tiny ($<16^2$ px)<br>*(82,417 GT)* | Tiny ($16^2\text{--}32^2$ px)<br>*(174,816 GT)* | Small ($32^2\text{--}96^2$ px)<br>*(42,987 GT)* | Med/Large ($>96^2$ px)<br>*(155 GT)* | Total Recall<br>*(300,375 GT)* |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **(1) ESOD (R0)** | 74.03% (61,014) | 86.78% (151,707) | 94.74% (40,725) | 79.35% (123) | 84.42% (253,569) |
+| **(1) Baseline (BCE)** | 74.03% (61,014) | 86.78% (151,707) | 94.74% (40,725) | 79.35% (123) | 84.42% (253,569) |
 | **(2) Semantic-only$^*$** | 75.49% (62,217) | 91.57% (160,087) | 95.71% (41,141) | 81.94% (127) | 87.75% (263,572) |
 | **(3) Spectral-only$^*$** | 75.23% (62,006) | **91.69% (160,286)** | **95.89% (41,220)** | 86.45% (134) | 87.77% (263,646) |
 | **(4) Spectral-only (Pooled)** | 76.13% (62,748) | 91.36% (159,705) | 95.50% (41,051) | **87.10% (135)** | 87.77% (263,639) |
