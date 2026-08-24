@@ -37,12 +37,12 @@
 \newlabel{ssec:evidence}{{3.1}{2}{}{subsection.3.1}{}}
 \newlabel{eq:channel_pool}{{1}{2}{}{equation.1}{}}
 \newlabel{eq:fusion}{{2}{2}{}{equation.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2} Object-Level Soft-Coverage Loss}{2}{}\protected@file@percent }
-\newlabel{ssec:coverage}{{3.2}{2}{}{subsection.3.2}{}}
 \citation{ESODYOLO}
 \citation{SSABNet}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Overview of HESOD: (a) End-to-end selective detection pipeline comprising the Stem, Dual-Evidence Priority Head (with $\mathcal  {L}_{\mathrm  {cover}}$), AdaSlicer router, Neck, and ISPP Head; (b) Inner structure of the Dual-Evidence Priority Head.}}{3}{}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Overview of HESOD: (a) End-to-end selective detection pipeline comprising the Stem, Dual-Evidence Priority Head (with $\mathcal  {L}_{\mathrm  {cover}}$), AdaSlicer router, Neck, and ISPP Head; (b) Inner structure of the Dual-Evidence Priority Head. Red dashed boxes highlight our proposed architectural components and loss enhancements over baseline ESOD.}}{3}{}\protected@file@percent }
 \newlabel{fig:overview}{{1}{3}{}{figure.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2} Object-Level Soft-Coverage Loss}{3}{}\protected@file@percent }
+\newlabel{ssec:coverage}{{3.2}{3}{}{subsection.3.2}{}}
 \newlabel{eq:cover_prob}{{3}{3}{}{equation.3}{}}
 \newlabel{eq:cover_loss}{{4}{3}{}{equation.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3} Efficient Decoupled Head and Scale-Aware Loss}{3}{}\protected@file@percent }
@@ -51,7 +51,6 @@
 \newlabel{fig:ispphead}{{2}{3}{}{figure.2}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Scale-Aware Balancing Loss (SABL) workflow.}}{3}{}\protected@file@percent }
 \newlabel{fig:sabl}{{3}{3}{}{figure.3}{}}
-\newlabel{eq:sabl_loss}{{5}{3}{}{equation.5}{}}
 \citation{UAVDT}
 \citation{TinyPerson,SeaDronesSee}
 \citation{ESOD}
@@ -67,34 +66,34 @@
 \citation{ESOD}
 \@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Detection results on UAVDT ($1280\times 1280$).}}{4}{}\protected@file@percent }
 \newlabel{tab:uavdt}{{1}{4}{}{table.1}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Detection results on SeaPerson ($2048\times 2048$).}}{4}{}\protected@file@percent }
-\newlabel{tab:seaperson_main}{{2}{4}{}{table.2}{}}
+\newlabel{eq:sabl_loss}{{5}{4}{}{equation.5}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {4} Experiments}{4}{}\protected@file@percent }
 \newlabel{sec:experiments}{{4}{4}{}{section.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.1} Experiment Settings}{4}{}\protected@file@percent }
 \newlabel{ssec:settings}{{4.1}{4}{}{subsection.4.1}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.2} Main Benchmark Comparisons}{4}{}\protected@file@percent }
 \newlabel{ssec:main_results}{{4.2}{4}{}{subsection.4.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Detection results on SeaPerson ($2048\times 2048$).}}{4}{}\protected@file@percent }
+\newlabel{tab:seaperson_main}{{2}{4}{}{table.2}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Module ablation on UAVDT ($1280\times 1280$).}}{4}{}\protected@file@percent }
 \newlabel{tab:uavdt_ablation}{{3}{4}{}{table.3}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Module ablation on SeaPerson ($2048\times 2048$).}}{4}{}\protected@file@percent }
-\newlabel{tab:seaperson_ablation}{{4}{4}{}{table.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3} Ablation Studies and Analysis}{4}{}\protected@file@percent }
 \newlabel{ssec:ablation_analysis}{{4.3}{4}{}{subsection.4.3}{}}
 \bibstyle{IEEEbib}
 \bibdata{strings,refs}
 \bibcite{VisDrone}{1}
-\bibcite{UAVDT}{2}
-\bibcite{ESOD}{3}
 \@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Qualitative comparison on SeaPerson (\texttt  {rgb\_x0080/google\_P000\_115344}, \emph  {Surfing}): ESOD misses weak micro targets from feature degradation, while HESOD reliably recalls them with accurate localization.}}{5}{}\protected@file@percent }
 \newlabel{fig:qualitative}{{4}{5}{}{figure.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Module ablation on SeaPerson ($2048\times 2048$).}}{5}{}\protected@file@percent }
+\newlabel{tab:seaperson_ablation}{{4}{5}{}{table.4}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Size-bucket recall on UAVDT ($1280\times 1280$).}}{5}{}\protected@file@percent }
 \newlabel{tab:uavdt_size_buckets}{{5}{5}{}{table.5}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Size-bucket recall on SeaPerson ($2048\times 2048$).}}{5}{}\protected@file@percent }
 \newlabel{tab:seaperson_size_buckets}{{6}{5}{}{table.6}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5} Conclusion}{5}{}\protected@file@percent }
 \newlabel{sec:conclusion}{{5}{5}{}{section.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6} References}{5}{}\protected@file@percent }
+\bibcite{UAVDT}{2}
+\bibcite{ESOD}{3}
 \bibcite{TinyPerson}{4}
 \bibcite{AutoFocus}{5}
 \bibcite{QueryDet}{6}
@@ -110,4 +109,5 @@
 \bibcite{ESODYOLO}{16}
 \bibcite{FasterRCNN}{17}
 \bibcite{RetinaNet}{18}
+\@writefile{toc}{\contentsline {section}{\numberline {6} References}{6}{}\protected@file@percent }
 \gdef \@abspage@last{6}

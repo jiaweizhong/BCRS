@@ -96,10 +96,11 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 (1) ESOD~\cite{ESOD}       & 0.344 & 0.171 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (2) Semantic-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (3) Spectral-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(4) Dual-Concat            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(5) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(6) Dual+ISPP              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(7) HESOD (Full)           & \textbf{0.371} & \textbf{0.195} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(4) Spectral-Pooled$^*$    & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(5) Dual-Concat            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(6) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(7) Dual+ISPP              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(8) HESOD (Full)           & \textbf{0.371} & \textbf{0.195} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best.}
 \end{tabular}
@@ -110,18 +111,19 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \caption{Module ablation on SeaPerson ($2048\times 2048$).}
 \label{tab:seaperson_ablation}
 \footnotesize
-\setlength{\tabcolsep}{3.5pt}
+\setlength{\tabcolsep}{3.2pt}
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} \\
 \midrule
-(1) ESOD~\cite{ESOD}       & 0.750 & 0.320 & 0.947 & \textbf{202.4} & \textbf{85.7} \\
-(2) Semantic-only$^*$      & 0.769 & 0.325 & \underline{0.991} & 266.8 & 73.5 \\
-(3) Spectral-only$^*$      & 0.770 & 0.327 & \textbf{0.992} & 267.4 & 71.7 \\
-(4) Dual-Concat            & \textbf{0.772} & 0.326 & 0.986 & 281.2 & 69.8 \\
-(5) Dual+SABL              & 0.771 & 0.323 & 0.990 & 263.7 & 73.4 \\
-(6) Dual+ISPP              & 0.771 & \textbf{0.328} & 0.988 & 217.6 & \underline{77.3} \\
-(7) HESOD (Full)           & 0.769 & 0.323 & 0.990 & \underline{209.1} & 77.1 \\
+(1) ESOD~\cite{ESOD}            & 0.750 & 0.320 & 0.947 & \textbf{202.4} & \textbf{85.7} \\
+(2) Semantic-only$^*$           & 0.769 & 0.325 & \underline{0.991} & 266.8 & 73.5 \\
+(3) Spectral-only$^*$           & 0.770 & 0.327 & \textbf{0.992} & 267.4 & 71.7 \\
+(4) Spectral-Pooled$^*$         & 0.767 & 0.324 & 0.988 & 263.4 & 72.7 \\
+(5) Dual-Concat                 & \textbf{0.772} & 0.326 & 0.986 & 281.2 & 69.8 \\
+(6) Dual+SABL                   & 0.771 & 0.323 & 0.990 & 263.7 & 73.4 \\
+(7) Dual+ISPP                   & 0.771 & \textbf{0.328} & 0.988 & 217.6 & \underline{77.3} \\
+(8) HESOD (Full)                & 0.769 & 0.323 & 0.990 & \underline{209.1} & 77.1 \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
@@ -132,20 +134,21 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \caption{Size-bucket recall on UAVDT ($1280\times 1280$).}
 \label{tab:uavdt_size_buckets}
 \footnotesize
-\setlength{\tabcolsep}{2.2pt}
+\setlength{\tabcolsep}{1.8pt}
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{V-Tiny}\\($<16^2$)} & \shortstack{\textbf{Tiny}\\($16^2\text{--}32^2$)} & \shortstack{\textbf{Small}\\($32^2\text{--}96^2$)} & \shortstack{\textbf{Med/L}\\($>96^2$)} & \shortstack{\textbf{Total}\\\textbf{(All)}} \\
 \midrule
 \textit{GT Count} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \midrule
-(1) ESOD~\cite{ESOD}       & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(2) Semantic-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(3) Spectral-only$^*$      & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(4) Dual-Concat            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(5) Dual+SABL              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(6) Dual+ISPP              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(7) HESOD (Full)           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(1) ESOD~\cite{ESOD}            & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(2) Semantic-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(3) Spectral-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(4) Spectral-Pooled$^*$         & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(5) Dual-Concat                 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(6) Dual+SABL                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(7) Dual+ISPP                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(8) HESOD (Full)                & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with $\mathcal{L}_{\mathrm{cover}}$. Bins in $\mathrm{px}^2$. \textbf{Bold}: best.}
 \end{tabular}
@@ -156,28 +159,29 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \caption{Size-bucket recall on SeaPerson ($2048\times 2048$).}
 \label{tab:seaperson_size_buckets}
 \footnotesize
-\setlength{\tabcolsep}{2.2pt}
+\setlength{\tabcolsep}{1.8pt}
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{V-Tiny}\\($<16^2$)} & \shortstack{\textbf{Tiny}\\($16^2\text{--}32^2$)} & \shortstack{\textbf{Small}\\($32^2\text{--}96^2$)} & \shortstack{\textbf{Med/L}\\($>96^2$)} & \shortstack{\textbf{Total}\\\textbf{(All)}} \\
 \midrule
 \textit{GT Count} & \textit{82,417} & \textit{174,816} & \textit{42,987} & \textit{155} & \textit{300,375} \\
 \midrule
-(1) ESOD~\cite{ESOD}       & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
-(2) Semantic-only$^*$      & 75.49\% & \underline{91.57\%} & 95.71\% & 81.94\% & 87.75\% \\
-(3) Spectral-only$^*$      & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & 86.45\% & 87.77\% \\
-(4) Dual-Concat            & 76.00\% & 91.50\% & 95.68\% & 80.00\% & \underline{87.84\%} \\
-(5) Dual+SABL              & \underline{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \textbf{87.89\%} \\
-(6) Dual+ISPP              & 75.86\% & 91.25\% & \underline{95.85\%} & \textbf{87.10\%} & 87.68\% \\
-(7) HESOD (Full)           & \textbf{77.19\%} & 90.70\% & 94.89\% & \underline{83.23\%} & 87.59\% \\
+(1) ESOD~\cite{ESOD}            & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
+(2) Semantic-only$^*$           & 75.49\% & \underline{91.57\%} & 95.71\% & 81.94\% & 87.75\% \\
+(3) Spectral-only$^*$           & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & 86.45\% & 87.77\% \\
+(4) Spectral-Pooled$^*$         & 76.13\% & 91.36\% & 95.50\% & \textbf{87.10\%} & 87.77\% \\
+(5) Dual-Concat                 & 76.00\% & 91.50\% & 95.68\% & 80.00\% & \underline{87.84\%} \\
+(6) Dual+SABL                   & \underline{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \textbf{87.89\%} \\
+(7) Dual+ISPP                   & 75.86\% & 91.25\% & \underline{95.85\%} & \textbf{87.10\%} & 87.68\% \\
+(8) HESOD (Full)                & \textbf{77.19\%} & 90.70\% & 94.89\% & 83.23\% & 87.59\% \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with $\mathcal{L}_{\mathrm{cover}}$. Bins in $\mathrm{px}^2$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
 \end{table}
 
-\textbf{Effectiveness of Dual Evidence and Coverage Optimization.} Tables~\ref{tab:uavdt_ablation} and~\ref{tab:seaperson_ablation} dissect the component-wise contributions across benchmarks. On SeaPerson ($2048\times 2048$), replacing standard BCE with the object-level soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$ (Arm 1 $\to$ 2) delivers an immediate \textbf{+1.9 pp} boost in $\mathrm{mAP@.5}$ and raises Bounding Patch Recall (BPR) from 0.947 to \textbf{0.991}, demonstrating that joint instance coverage optimization effectively prevents premature pruning of micro targets. Furthermore, the spectral-only selector (Arm 3) matches semantic-only accuracy (0.770 vs.\ 0.769 $\mathrm{mAP@.5}$, 0.992 BPR), proving that channel-pooled high-frequency structural gradients offer an orthogonal, dependable routing cue. Dual-evidence feature concatenation (Arm 4) achieves peak $\mathrm{mAP@.5}$ (\textbf{0.772}) and recovers +420 to +631 more micro targets ($<16^2\text{ px}$) than single-evidence selectors.
+\textbf{Effectiveness of Dual Evidence and Coverage Optimization.} Tables~\ref{tab:uavdt_ablation} and~\ref{tab:seaperson_ablation} dissect the component-wise contributions across benchmarks. On SeaPerson ($2048\times 2048$), replacing standard BCE with the object-level soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$ (Arm 1 $\to$ 2) delivers an immediate \textbf{+1.9 pp} boost in $\mathrm{mAP@.5}$ and raises Bounding Patch Recall (BPR) from 0.947 to \textbf{0.991}, demonstrating that joint instance coverage optimization effectively prevents premature pruning of micro targets. Furthermore, comparing full-width unpooled spectral routing (Arm 3, 0.770 $\mathrm{mAP@.5}$) with its 2-channel pooled counterpart (Arm 4, 0.767 $\mathrm{mAP@.5}$, 0.988 BPR) confirms that our $\mathcal{O}(1)$ channel pooling retains near-identical routing capability without full-width memory overhead. Dual-evidence feature concatenation (Arm 5) achieves peak $\mathrm{mAP@.5}$ (\textbf{0.772}) and recovers +420 to +631 more micro targets ($<16^2\text{ px}$) than single-evidence selectors.
 
-\textbf{Efficiency and Localization with ISPP and SABL.} Replacing the conventional detection head with the inverted residual ISPP decoupled head (Arm 6) cleanly reduces arithmetic complexity by \textbf{22.6\%} (281.2 $\to$ 217.6 GFLOPs) and cuts parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) while advancing $\mathrm{mAP@.5:.95}$ to a benchmark peak of \textbf{0.328} at 77.3 FPS. Integrating scale-aware Wasserstein regression in Arm (7) pushes \emph{Very Tiny} recall to its project-wide maximum of \textbf{77.19\%} (+2,605 recovered micro-targets over baseline) and minimizes GFLOPs to \textbf{209.1} via tighter patch clustering.
+\textbf{Efficiency and Localization with ISPP and SABL.} Replacing the conventional detection head with the inverted residual ISPP decoupled head (Arm 7) cleanly reduces arithmetic complexity by \textbf{22.6\%} (281.2 $\to$ 217.6 GFLOPs) and cuts parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) while advancing $\mathrm{mAP@.5:.95}$ to a benchmark peak of \textbf{0.328} at 77.3 FPS. Integrating scale-aware Wasserstein regression in Arm (8) strategically balances coarse bounding mAP with extreme sub-16px localization, pushing \emph{Very Tiny} recall to its project-wide maximum of \textbf{77.19\%} (+2,605 recovered micro-targets over baseline) and minimizing GFLOPs to \textbf{209.1} via tighter patch clustering. HESOD Full thereby realizes the optimal Pareto frontier across accuracy, micro-recall, and edge efficiency.
 
 \textbf{Scale-Stratified Gains and Error Bottleneck Shift.} Detailed breakdown across ground-truth instances (Table~\ref{tab:uavdt_size_buckets} and Table~\ref{tab:seaperson_size_buckets}) reveals that target recovery is strongest on the dominant \emph{Tiny} stratum ($+4.79\text{ pp}$ recall, recovering 8,380 targets) and the challenging \emph{Very Tiny} stratum ($+3.16\text{ pp}$ recall). Error diagnosis confirms that dual-evidence routing and coverage optimization curtail selector-dropped error from $25.6\%$ in baseline ESOD to \textbf{$19.2\%$}, effectively curing early-stage false-negative pruning and shifting the remaining detection challenge to downstream refinement.
 

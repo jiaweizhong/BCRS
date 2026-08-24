@@ -11,7 +11,7 @@ To overcome these limitations, we observe that tiny targets preserve distinctive
 
 Our key contributions are summarized as follows:
 \begin{enumerate}
-    \item We identify the semantic collapse failure mode under asymmetric selection costs and design a dual-evidence priority head fusing semantic and spectral saliency at negligible overhead.
-    \item We formulate a differentiable object-level soft-coverage loss that optimizes joint instance coverage, fundamentally preventing premature false negatives on micro targets.
-    \item We incorporate an inverted residual ISPP decoupled head with scale-aware Wasserstein regression, achieving state-of-the-art recall, accuracy, and throughput on UAVDT and SeaPerson.
+    \item We formulate an object-level soft-coverage loss ($\mathcal{L}_{\mathrm{cover}}$) that directly maximizes joint instance coverage probability, fundamentally preventing premature false negatives in selective computation.
+    \item We design a dual-evidence priority head combining high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ complexity relative to channel width, rescuing targets with collapsed semantic activations.
+    \item We develop a lightweight deployment engine integrating an inverted residual decoupled head (ISPP) and scale-aware Wasserstein regression, achieving superior recall--accuracy--efficiency trade-offs with 27.6\% fewer parameters.
 \end{enumerate}
