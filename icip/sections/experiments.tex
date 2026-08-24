@@ -1,6 +1,31 @@
 \section{Experiments}
 \label{sec:experiments}
 
+\begin{figure*}[t]
+\centering
+\begin{minipage}{0.33\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-label.jpg}
+  \vspace{0.5mm}
+  \centerline{\normalsize\textbf{(a) Ground Truth (GT)}}
+\end{minipage}\hfill
+\begin{minipage}{0.33\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-esod.jpg}
+  \vspace{0.5mm}
+  \centerline{\normalsize\textbf{(b) ESOD (Baseline)}}
+\end{minipage}\hfill
+\begin{minipage}{0.33\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-hesod.jpg}
+  \vspace{0.5mm}
+  \centerline{\normalsize\textbf{(c) HESOD (Ours)}}
+\end{minipage}
+\vspace{-2mm}
+\caption{Qualitative comparison on SeaPerson (\texttt{rgb\_x0080/google\_P000\_115344}, \emph{Surfing}): ESOD misses weak micro targets from feature degradation, while HESOD reliably recalls them with accurate localization.}
+\label{fig:qualitative}
+\end{figure*}
+
 \subsection{Experiment Settings}
 \label{ssec:settings}
 
@@ -155,3 +180,5 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \textbf{Efficiency and Localization with ISPP and SABL.} Replacing the conventional detection head with the inverted residual ISPP decoupled head (Arm 6) cleanly reduces arithmetic complexity by \textbf{22.6\%} (281.2 $\to$ 217.6 GFLOPs) and cuts parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) while advancing $\mathrm{mAP@.5:.95}$ to a benchmark peak of \textbf{0.328} at 77.3 FPS. Integrating scale-aware Wasserstein regression in Arm (7) pushes \emph{Very Tiny} recall to its project-wide maximum of \textbf{77.19\%} (+2,605 recovered micro-targets over baseline) and minimizes GFLOPs to \textbf{209.1} via tighter patch clustering.
 
 \textbf{Scale-Stratified Gains and Error Bottleneck Shift.} Detailed breakdown across ground-truth instances (Table~\ref{tab:uavdt_size_buckets} and Table~\ref{tab:seaperson_size_buckets}) reveals that target recovery is strongest on the dominant \emph{Tiny} stratum ($+4.79\text{ pp}$ recall, recovering 8,380 targets) and the challenging \emph{Very Tiny} stratum ($+3.16\text{ pp}$ recall). Error diagnosis confirms that dual-evidence routing and coverage optimization curtail selector-dropped error from $25.6\%$ in baseline ESOD to \textbf{$19.2\%$}, effectively curing early-stage false-negative pruning and shifting the remaining detection challenge to downstream refinement.
+
+\textbf{Qualitative Comparison.} As illustrated in Fig.~\ref{fig:qualitative}, baseline ESOD suffers from false-negative drops on weak-contrast micro persons, whereas HESOD's dual-evidence spatial routing and scale-aware regression accurately localize all tiny instances without extraneous false alarms.
