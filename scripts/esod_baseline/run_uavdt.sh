@@ -107,9 +107,11 @@ run_arm() {
   local last_ckpt="$train_dir/weights/last.pt"
   local done_epochs
   done_epochs="$(completed_epochs "$train_dir")"
+  local training_was_already_done=0
 
   if [ "$done_epochs" -ge "$EPOCHS" ] && [ -f "$ckpt" ]; then
     log "===== $run_name already completed $done_epochs/$EPOCHS epochs, skipping training ====="
+    training_was_already_done=1
   elif [ -f "$last_ckpt" ]; then
     log "===== Resuming $run_name from $last_ckpt ($done_epochs/$EPOCHS epochs completed) ====="
     python train.py --resume "$last_ckpt" \
@@ -141,19 +143,25 @@ run_arm() {
     exit 1
   fi
 
-  log "Evaluating $run_name"
-  python test.py \
-    --data "$DATA_YAML" --weights "$ckpt" --task val \
-    --batch-size "$BATCH" --img-size "$IMG_SIZE" --device "$GPU" --save-json --save-regions \
-    --project "$RUN_ROOT/test" --name "$run_name" --exist-ok \
-    2>&1 | tee "$results_dir/${run_name}_test.log"
+  if [ "$training_was_already_done" = "1" ] \
+    && [ -f "$results_dir/best_predictions.json" ] \
+    && [ -f "$RUN_ROOT/measure/$run_name/buckets.json" ]; then
+    log "===== $run_name eval + measure already complete, skipping ====="
+  else
+    log "Evaluating $run_name"
+    python test.py \
+      --data "$DATA_YAML" --weights "$ckpt" --task val \
+      --batch-size "$BATCH" --img-size "$IMG_SIZE" --device "$GPU" --save-json --save-regions \
+      --project "$RUN_ROOT/test" --name "$run_name" --exist-ok \
+      2>&1 | tee "$results_dir/${run_name}_test.log"
 
-  log "Measuring $run_name (GFLOPs/FPS, batch=1)"
-  python test.py \
-    --data "$DATA_YAML" --weights "$ckpt" \
-    --batch-size 1 --img-size "$IMG_SIZE" --device "$GPU" --task measure \
-    --project "$RUN_ROOT/measure" --name "$run_name" --exist-ok \
-    2>&1 | tee "$results_dir/${run_name}_measure.log"
+    log "Measuring $run_name (GFLOPs/FPS, batch=1)"
+    python test.py \
+      --data "$DATA_YAML" --weights "$ckpt" \
+      --batch-size 1 --img-size "$IMG_SIZE" --device "$GPU" --task measure \
+      --project "$RUN_ROOT/measure" --name "$run_name" --exist-ok \
+      2>&1 | tee "$results_dir/${run_name}_measure.log"
+  fi
 
   if [ ! -f "$results_dir/best_predictions.json" ]; then
     log "WARNING: $run_name produced no predictions (expected at 1 epoch under SMOKE) -- skipping audit/vt_diagnose"
