@@ -42,8 +42,13 @@ RUN_ROOT="${RUN_ROOT:-$HOME/esod_baseline_runs}"
 BATCH="${BATCH:-8}"
 IMG_SIZE="${IMG_SIZE:-1280}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
-DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/UAVDT_v3}"
-DATA_YAML="${DATA_YAML:-/root/autodl-tmp/UAVDT_v3.yaml}"
+# UAVDT_v3 does not exist on the remote box (confirmed 2026-08-23: `ls
+# /root/autodl-tmp/UAVDT_v3/labels/` -> No such file or directory) --
+# UAVDT_fresh is the only prepared copy and what every actual run this
+# session (including the R0 rerun) has used, via explicit env var override.
+# Defaulting to it here so that override stops being required every time.
+DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/UAVDT_fresh}"
+DATA_YAML="${DATA_YAML:-/root/autodl-tmp/UAVDT_fresh.yaml}"
 HYP="data/hyps/hyp.uavdt.yaml"
 CLASSES="car,truck,bus"
 VAL_SPLIT="test"
@@ -170,10 +175,35 @@ run_arm() {
   log "TFR skipped for UAVDT -- not attempted here"
 }
 
-# R0: semantic-only selector, CIoU box loss (baseline) -- re-establish on the
-# active tree before deciding on concat/SABL/ISPPHead arms
+# --- 8-arm roster (2026-08-25), matching run_seaperson.sh's arm set/order
+# exactly so UAVDT and SeaPerson are directly comparable arm-for-arm. Same
+# val=test protocol as the just-completed R0 rerun (kept deliberately --
+# see HESOD-Experiment-Plan.md's UAVDT open-item note; not changed here). ---
+
+# R0: Segmenter, upstream loss, CIoU box (original baseline)
 run_arm "uavdt_yolov5m_baseline${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m.yaml"
+
+# semantic-only: SAME architecture as R0, coverage loss instead -- isolates
+# the loss-function effect from the selector-architecture effect. No new
+# cfg needed, reuses uavdt_yolov5m.yaml.
+run_arm "uavdt_yolov5m_semantic_coverage${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0
+
+# spectral-only: SpectralOnlySegmenter, coverage loss -- no semantic head
+# contributes to the routing logit. --batch-size 2 here overrides the
+# shared $BATCH for TRAINING only (argparse takes the last --batch-size
+# occurrence; this one lands after "--batch-size $BATCH" in run_arm()'s own
+# invocation) -- ported precaution from SeaPerson's spectral-only OOM
+# (full-width unpooled branch, HESOD-Experiment-Plan.md SS8); UAVDT's
+# img-size 1280 has ~0.39x SeaPerson's 2048 pixel count so this is likely
+# unnecessary here, but untested, and an OOM would abort the whole roster
+# under `set -euo pipefail`. Eval/measure stay at the shared batch --
+# inference-only memory pressure is much lower than training's.
+run_arm "uavdt_yolov5m_spectral_only${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_spectral_only.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --batch-size 2
 
 # concat-only: channel-pooled concat evidence, CIoU box (no SABL, no
 # ISPPHead) -- the missing isolation control HESOD-Experiment-Plan.md SS9.2
@@ -183,6 +213,12 @@ run_arm "uavdt_yolov5m_baseline${SUFFIX}" \
 # also holds on UAVDT.
 run_arm "uavdt_yolov5m_channel_pooled_concat${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream
+
+# gated-fusion: same evidence branches as concat-only, learned input-
+# dependent gate instead of a fixed concat -- isolates the fusion mechanism.
+run_arm "uavdt_yolov5m_channel_pooled_dual_evidence${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_dual_evidence.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream
 
 # concat+SABL: same concat architecture, SABL box regression, no ISPPHead --
@@ -199,10 +235,21 @@ run_arm "uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
 
+# concat+ISPPHead (no SABL): same cfg as concat+SABL+ISPPHead, upstream/CIoU
+# box loss -- isolates ISPPHead's saving from SABL's mixed/inconclusive
+# accuracy effect, same comparison structure as SeaPerson's own pair.
+run_arm "uavdt_yolov5m_channel_pooled_concat_isphead${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
+log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"
+log "  Spectral-only:         $RUN_ROOT/test/uavdt_yolov5m_spectral_only${SUFFIX}/"
 log "  Concat-only:           $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat${SUFFIX}/"
+log "  Gated-fusion:          $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_dual_evidence${SUFFIX}/"
 log "  Concat+SABL:           $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
 log "  Concat+SABL+ISPPHead:  $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}/"
-log "  Compare R0's AP/AP50 against the existing accepted-evidence value (20.1/37.0 audited, HESOD-Experiment-Plan.md SS2) --"
-log "  a meaningfully different number here would indicate that value's provenance (frozen-tree run_baseline.sh, possibly pre-re-provisioning) matters."
+log "  Concat+ISPPHead:       $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat_isphead${SUFFIX}/"
+log "  Compare R0's AP/AP50 against the just-completed R0 rerun (0.385/0.215) and the paper (0.407/0.225) --"
+log "  this run reuses uavdt_yolov5m_baseline's existing checkpoint (already >= EPOCHS), so R0 itself will be skipped, not retrained."
