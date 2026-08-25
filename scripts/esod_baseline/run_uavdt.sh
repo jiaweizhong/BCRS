@@ -143,10 +143,18 @@ run_arm() {
     exit 1
   fi
 
-  if [ "$training_was_already_done" = "1" ] \
-    && [ -f "$results_dir/best_predictions.json" ] \
-    && [ -f "$RUN_ROOT/measure/$run_name/buckets.json" ]; then
-    log "===== $run_name eval + measure already complete, skipping ====="
+  # Eval and measure are gated independently (2026-08-25, split from one
+  # combined check) -- eval (--task val, a few minutes) recomputes BPR/mAP/
+  # recall from a live forward pass (BPR specifically comes from
+  # cluster_recall() on the selector's chosen regions, not from saved
+  # predictions -- it cannot be backfilled from an existing
+  # best_predictions.json). Measure (--task measure, batch=1 over the full
+  # ~16.6k-image test set) is the expensive ~50min GFLOPs/FPS profiling step
+  # and rarely needs redoing once captured. Deleting only
+  # best_predictions.json (leaving buckets.json alone) now reruns eval alone
+  # without also burning ~50min re-measuring GFLOPs/FPS that hasn't changed.
+  if [ "$training_was_already_done" = "1" ] && [ -f "$results_dir/best_predictions.json" ]; then
+    log "===== $run_name eval already complete, skipping ====="
   else
     log "Evaluating $run_name"
     python test.py \
@@ -154,7 +162,11 @@ run_arm() {
       --batch-size "$BATCH" --img-size "$IMG_SIZE" --device "$GPU" --save-json --save-regions \
       --project "$RUN_ROOT/test" --name "$run_name" --exist-ok \
       2>&1 | tee "$results_dir/${run_name}_test.log"
+  fi
 
+  if [ "$training_was_already_done" = "1" ] && [ -f "$RUN_ROOT/measure/$run_name/buckets.json" ]; then
+    log "===== $run_name measure already complete, skipping ====="
+  else
     log "Measuring $run_name (GFLOPs/FPS, batch=1)"
     python test.py \
       --data "$DATA_YAML" --weights "$ckpt" \

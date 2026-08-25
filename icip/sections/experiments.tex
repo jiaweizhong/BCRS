@@ -48,10 +48,10 @@ All models are implemented in PyTorch using YOLOv5m as the base detector for fai
 \midrule
 Faster R-CNN~\cite{FasterRCNN} & \textit{[TBD]} & \textit{[TBD]} & 41.5 & \textit{[TBD]} & \textit{[TBD]} \\
 RetinaNet~\cite{RetinaNet}       & \textit{[TBD]} & \textit{[TBD]} & 34.0 & \textit{[TBD]} & \textit{[TBD]} \\
-ESOD~\cite{ESOD}                 & \underline{0.344} & \underline{0.171} & \underline{35.8} & \textit{[TBD]} & \textit{[TBD]} \\
-\textbf{HESOD (Ours)}            & \textbf{0.371} & \textbf{0.195} & \textbf{25.9} & \textit{[TBD]} & \textit{[TBD]} \\
+ESOD~\cite{ESOD}                 & \underline{0.385} & \underline{0.214} & \underline{35.9} & 68.2 & 117.8 \\
+\textbf{HESOD (Ours)}            & \textit{[TBD]} & \textit{[TBD]} & \textbf{25.9} & \textit{[TBD]} & \textit{[TBD]} \\
 \midrule
-\textit{Delta ($\Delta$)}        & \textbf{+2.7\,pp} & \textbf{+2.4\,pp} & \textbf{-27.6\%} & \textit{[TBD]} & \textit{[TBD]} \\
+\textit{Delta ($\Delta$)}        & \textit{[TBD]} & \textit{[TBD]} & \textbf{-27.6\%} & \textit{[TBD]} & \textit{[TBD]} \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
@@ -83,7 +83,9 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \subsection{Ablation Studies and Analysis}
 \label{ssec:ablation_analysis}
 
-\begin{table}[t]
+\begin{table*}[t]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
 \centering
 \caption{Module ablation on UAVDT ($1280\times 1280$).}
 \label{tab:uavdt_ablation}
@@ -93,20 +95,19 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} \\
 \midrule
-(1) Baseline (BCE)              & 0.344 & 0.171 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(1) Baseline (BCE)              & 0.385 & 0.214 & \textit{[TBD]} & 68.2 & 117.8 \\
 (2) Semantic-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (3) Spectral-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (4) Spectral-Pooled$^*$         & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (5) Dual-Concat                 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (6) Dual+SABL                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (7) Dual+ISPP                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(8) HESOD (Full)                & \textbf{0.371} & \textbf{0.195} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(8) HESOD (Full)                & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best.}
 \end{tabular}
-\end{table}
-
-\begin{table}[t]
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
 \centering
 \caption{Module ablation on SeaPerson ($2048\times 2048$).}
 \label{tab:seaperson_ablation}
@@ -127,7 +128,8 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \bottomrule
 \multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
-\end{table}
+\end{minipage}
+\end{table*}
 
 \begin{table}[t]
 \centering
@@ -139,9 +141,9 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{V-Tiny}\\($<16^2$)} & \shortstack{\textbf{Tiny}\\($16^2\text{--}32^2$)} & \shortstack{\textbf{Small}\\($32^2\text{--}96^2$)} & \shortstack{\textbf{Med/L}\\($>96^2$)} & \shortstack{\textbf{Total}\\\textbf{(All)}} \\
 \midrule
-\textit{GT Count} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+\textit{GT Count} & \textit{74,375} & \textit{206,015} & \textit{86,282} & \textit{7,325} & \textit{373,997} \\
 \midrule
-(1) Baseline (BCE)              & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(1) Baseline (BCE)              & 79.43\% & 84.21\% & 94.54\% & 59.78\% & 85.17\% \\
 (2) Semantic-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (3) Spectral-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
 (4) Spectral-Pooled$^*$         & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
