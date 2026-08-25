@@ -83,13 +83,13 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | Method | Type | mAP@.5 | mAP@.5:.95 | Params (M) | GFLOPs | FPS |
 |---|---|:---:|:---:|:---:|:---:|:---:|
 | **Faster R-CNN** (ResNet-50-FPN) | Dense Two-Stage | 0.551 | 0.246 | 43.26 | 1546.8 | 23.1 |
-| **RetinaNet** (ResNet-50-FPN) | Dense One-Stage | *[Queued]* | *[Queued]* | 36.35 | *[Queued]* | *[Queued]* |
+| **RetinaNet** (ResNet-50-FPN) | Dense One-Stage | 0.473 | 0.201 | 36.35 | 942.7 | 28.0 |
 | **ESOD Baseline (R0)** | Selective Single-Evidence | 0.750 | 0.320 | 35.78 | **202.4** | **85.7** |
 | **HESOD (Ours, Dual+ISPP)** | Selective Dual-Evidence | **0.771** | **0.328** | **25.92** | 217.6 | 77.3 |
-| **HESOD (Ours, Full +SABL)** | Selective Dual-Evidence | 0.769 | 0.323 | **25.92** | 209.1 | 77.1 |
+| **HESOD (Ours, Full +SABL)** | Selective Dual-Evidence | **0.774** | 0.326 | **25.92** | 209.0 | **80.7** |
 
-- **Versus Dense Detectors**: HESOD achieves **+21.8 pp higher mAP@.5** than Faster R-CNN while reducing GFLOPs by **7.4$\times$** and accelerating inference by **3.3$\times$**.
-- **Versus ESOD Baseline**: HESOD boosts mAP@.5 by **+1.9~2.1 pp** and mAP@.5:.95 to **0.328**, while cutting parameters by **27.6%**.
+- **Versus Dense Detectors**: HESOD achieves **+22.3 pp higher mAP@.5** than Faster R-CNN while reducing GFLOPs by **7.4$\times$** and accelerating inference by **3.5$\times$**; versus RetinaNet, **+30.1 pp higher mAP@.5** while reducing GFLOPs by **4.5$\times$** and accelerating inference by **2.9$\times$**. RetinaNet's own Very Tiny recall (50.05%) is notably higher than Faster R-CNN's (46.07%) despite lower overall mAP -- its dense, single-stage prediction handles SeaPerson's extreme per-image object density better than Faster R-CNN's two-stage RPN funnel (`no_nearby_prediction` miss share 28.9% vs 49.5%).
+- **Versus ESOD Baseline**: HESOD boosts mAP@.5 by **+2.1~2.4 pp** and mAP@.5:.95 to **0.328**, while cutting parameters by **27.6%**.
 
 ---
 
@@ -101,10 +101,10 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | **(2)** | **Semantic-only$^*$** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.769 | 0.325 | \underline{0.991} | 266.8 | 73.5 |
 | **(3)** | **Spectral-only$^*$** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.770 | 0.327 | **0.992** | 267.4 | 71.7 |
 | **(4)** | **Spectral-only (Pooled)** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.767 | 0.324 | 0.988 | 263.4 | 72.7 |
-| **(5)** | **Dual-Concat** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | **0.772** | 0.326 | 0.986 | 281.2 | 69.8 |
+| **(5)** | **Dual-Concat** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.772 | 0.326 | 0.986 | 281.2 | 69.8 |
 | **(6)** | **Dual+SABL** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | Coupled | 0.771 | 0.323 | 0.990 | 263.7 | 73.4 |
 | **(7)** | **Dual+ISPP** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | ISPPHead | 0.771 | **0.328** | 0.988 | 217.6 | \underline{77.3} |
-| **(8)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.769 | 0.323 | 0.990 | \underline{209.1} | 77.1 |
+| **(8)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | **0.774** | 0.326 | 0.991 | \underline{209.0} | **80.7** |
 
 - **(4)** channel-pools the spectral branch the same way arms (5)-(8) do, isolating whether (3)'s strong result came from spectral evidence itself or from its extra (unpooled) capacity -- trains at the shared batch=8, unlike (3)'s forced batch=2 for the full-width branch. Params 35.79M vs (3)'s 35.94M.
 
@@ -119,9 +119,9 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | **(3) Spectral-only$^*$** | 75.23% (62,006) | **91.69% (160,286)** | **95.89% (41,220)** | 86.45% (134) | 87.77% (263,646) |
 | **(4) Spectral-only (Pooled)** | 76.13% (62,748) | 91.36% (159,705) | 95.50% (41,051) | **87.10% (135)** | 87.77% (263,639) |
 | **(5) Dual-Concat** | 76.00% (62,637) | 91.50% (159,962) | 95.68% (41,131) | 80.00% (124) | 87.84% (263,854) |
-| **(6) Dual+SABL** | \underline{76.67\%} (63,193) | 91.49% (159,935) | 94.77% (40,740) | 80.65% (125) | **87.89% (263,993)** |
+| **(6) Dual+SABL** | 76.67% (63,193) | 91.49% (159,935) | 94.77% (40,740) | 80.65% (125) | 87.89% (263,993) |
 | **(7) Dual+ISPP** | 75.86% (62,521) | 91.25% (159,516) | \underline{95.85\%} (41,204) | **87.10% (135)** | 87.68% (263,376) |
-| **(8) HESOD (Full)** | **77.19% (63,619)** | 90.70% (158,562) | 94.89% (40,792) | 83.23% (129) | 87.59% (263,102) |
+| **(8) HESOD (Full)** | **77.14% (63,574)** | 91.59% (160,110) | 95.01% (40,842) | 84.52% (131) | **88.11% (264,657)** |
 
 ---
 
@@ -130,7 +130,7 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 1. **Coverage Supervision Drives the Primary Recall Jump**: Replacing cell-wise independent BCE with object-level soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$ (Arm 1 $\to$ 2) delivers an immediate **+1.9 pp mAP@.5** and raises BPR from 0.947 to 0.991. Error diagnosis (`vt_diagnose.py`) confirms selector-dropped error drops from **25.6% to 19.2%**, proving that joint coverage optimization successfully halts premature micro-target pruning.
 2. **Spectral Saliency Acts as an Orthogonal Cue**: Spectral-only routing (Arm 3) reaches 0.770 mAP@.5 and 0.992 BPR, demonstrating that channel-pooled structural gradients provide a dependable spatial routing signal independent of semantic activations. Unconditional concatenation (Arm 4) achieves peak 0.772 mAP@.5 and recovers +420 to +631 more Very Tiny instances than single-evidence selectors.
 3. **ISPPHead Delivers True Pareto Compression**: Swapping the coupled head for the inverted residual ISPP decoupled head (Arm 6) slashes parameters by **27.6%** (35.79M $\to$ 25.92M) and GFLOPs by **22.6%** (281.2 $\to$ 217.6), while establishing the highest high-IoU precision ($\mathrm{mAP@.5:.95} = \mathbf{0.328}$) at 77.3 FPS.
-4. **SABL Maximizes Micro-Target Recall**: While aggregate mAP averages across all scales, SABL's Wasserstein distance regression specializes in sub-16px instances, pushing **Very Tiny recall to 77.19%** (recovering +2,605 targets over baseline) and lowering GFLOPs to **209.1** via tighter patch localization.
+4. **SABL Maximizes Micro-Target Recall**: While aggregate mAP averages across all scales, SABL's Wasserstein distance regression specializes in sub-16px instances, pushing **Very Tiny recall to 77.14%** (recovering +2,560 targets over baseline) and lowering GFLOPs to **209.0** via tighter patch localization.
 
 ---
 

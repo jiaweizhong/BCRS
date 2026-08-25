@@ -1828,7 +1828,7 @@ def create_ispphead_diagram(save_path):
     ax.text(
         54.0,
         1.65,
-        "Whole-Model Impact (SeaPerson): -27.6% Params (35.78M -> 25.92M)  |  -20.7% GFLOPs (263.7 -> 209.1)  |  77.1 FPS Real-Time  |  77.19% Very Tiny Recall",
+        "Whole-Model Impact (SeaPerson): -27.6% Params (35.78M -> 25.92M)  |  -20.7% GFLOPs (263.7 -> 209.0)  |  80.7 FPS Real-Time  |  77.14% Very Tiny Recall",
         ha="center",
         va="center",
         fontsize=6.8,
