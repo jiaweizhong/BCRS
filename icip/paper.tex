@@ -4,7 +4,7 @@
 \def\x{{\mathbf x}}
 \def\L{{\cal L}}
 
-\title{HESOD: Dual-Evidence Selection and Coverage Optimization for High-Resolution Efficient Small Object Detection}
+\title{HESOD: High-Resolution Efficient Small Object Detection via Semantic-Spectral Dual-Evidence Fusion}
 
 \name{Anonymous Authors\thanks{Submitted to IEEE ICIP 2026 for blind review.}}
 \setlength{\floatsep}{5pt plus 1pt minus 1pt}
@@ -19,7 +19,7 @@
 \maketitle
 
 \begin{abstract}
-High-resolution aerial and maritime imagery presents severe computational challenges for small object detection due to pervasive background redundancy. While selective-computation detectors dynamically route processing to candidate regions, existing selectors rely strictly on a single semantic objectness score. When tiny targets undergo feature downsampling, their semantic activations frequently collapse, causing irreversible early pruning under an asymmetric selection cost. In this paper, we propose HESOD, an efficient dual-evidence selection framework tailored for recall-safe small object detection. HESOD introduces a dual-evidence priority head that fuses semantic objectness with channel-pooled spectral saliency at negligible $\mathcal{O}(1)$ compute overhead, recovering weak semantic targets. Furthermore, we formulate an object-level soft-coverage loss that directly maximizes joint instance coverage probability, fundamentally preventing premature false negatives. Paired with a lightweight inverted residual decoupled head and scale-aware Wasserstein regression, HESOD achieves +2.7\,pp mAP and +5.5\,pp total recall gains on UAVDT, and improves mAP by +2.4\,pp on SeaPerson with 27.6\% fewer parameters while sustaining real-time throughput at 80.7 FPS.
+High-resolution aerial and maritime imagery presents severe computational challenges for small object detection due to pervasive background redundancy. While spatial selective-computation detectors dynamically route processing to candidate regions, existing selectors rely strictly on a single semantic objectness score. When micro targets undergo downsampling, their semantic activations frequently collapse, causing irrecoverable early pruning under asymmetric selection costs. In this paper, we propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a framework based on semantic-spectral dual-evidence fusion and coverage-constrained spatial routing. HESOD introduces an ultra-lightweight priority head that fuses semantic objectness with channel-pooled spectral saliency at strictly $\mathcal{O}(1)$ complexity relative to channel width, effectively rescuing weak semantic targets. Furthermore, we formulate an object-level soft-coverage loss that directly maximizes joint instance coverage probability, fundamentally preventing premature false-negative drops. Paired with an inverted residual partial-convolution head and scale-aware Wasserstein regression, HESOD improves $\mathrm{mAP@.5}$ by +2.4\,pp on SeaPerson with 27.6\% fewer parameters while sustaining real-time throughput at 80.7 FPS.
 \end{abstract}
 
 \begin{keywords}
