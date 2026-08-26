@@ -2,19 +2,18 @@ This is BibTeX, Version 0.99d (TeX Live 2025)
 Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: paper.aux
 The style file: IEEEbib.bst
-Database file #1: strings.bib
-Database file #2: refs.bib
+Database file #1: refs.bib
 You've used 18 entries,
             1838 wiz_defined-function locations,
-            575 strings with 7203 characters,
-and the built_in function-call counts, 6743 in all, are:
+            574 strings with 6022 characters,
+and the built_in function-call counts, 6395 in all, are:
 = -- 603
-> -- 321
+> -- 243
 < -- 12
-+ -- 113
-- -- 95
-* -- 513
-:= -- 943
++ -- 87
+- -- 69
+* -- 451
+:= -- 865
 add.period$ -- 18
 call.type$ -- 18
 change.case$ -- 18
@@ -22,8 +21,8 @@ chr.to.int$ -- 0
 cite$ -- 18
 duplicate$ -- 316
 empty$ -- 614
-format.name$ -- 95
-if$ -- 1571
+format.name$ -- 69
+if$ -- 1519
 int.to.chr$ -- 0
 int.to.str$ -- 18
 missing$ -- 18

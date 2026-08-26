@@ -231,22 +231,39 @@ run_arm "uavdt_yolov5m_spectral_only${SUFFIX}" \
 # before). Added 2026-08-24 alongside concat+SABL below specifically to
 # test whether SeaPerson's own SABL finding (no clean accuracy win, SS8.1)
 # also holds on UAVDT.
+#
+# --workers 2 (2026-08-26): first fresh (non-resumed) launch of this arm
+# showed TWO generations of DataLoader worker processes alive simultaneously
+# by epoch 8 (16 processes instead of the expected 8, ~840MB-1.5GB RSS each,
+# via `ps aux --sort=-%mem`) -- val's testloader iterator's workers from the
+# previous epoch were not being torn down before the next epoch's iterator
+# spawned a fresh set, growing host memory roughly per-epoch until the
+# platform's memory quota (not visible via `free`/`dmesg` inside this
+# container -- see the platform dashboard) was hit and the process was
+# killed. R0/semantic-only (plain Segmenter, same --workers 8) completed all
+# 50 epochs without this; concat-only's ChannelPooledConcatEvidenceSegmenter
+# (and by extension gated-fusion/concat+SABL/concat+ISPPHead below, same
+# family) reproduces it much faster -- root cause not isolated further, this
+# is a mitigation (fewer workers per leaked generation), not a fix.
 run_arm "uavdt_yolov5m_channel_pooled_concat${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
 # gated-fusion: same evidence branches as concat-only, learned input-
 # dependent gate instead of a fixed concat -- isolates the fusion mechanism.
+# --workers 2: same precaution as concat-only above (same worker-leak
+# pattern observed there, same evidence-branch family).
 run_arm "uavdt_yolov5m_channel_pooled_dual_evidence${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_dual_evidence.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
 # concat+SABL: same concat architecture, SABL box regression, no ISPPHead --
 # paired with concat-only above to isolate SABL's contribution cleanly,
 # same comparison structure as SeaPerson's concat-only/concat+SABL pair.
+# --workers 2: same precaution as concat-only above.
 run_arm "uavdt_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
 # Concat+SABL+ISPPHead: the project's best-known lightweight recipe, first
 # time run on UAVDT. Preserves UAVDT's own SPP layer + threshold=0.3
@@ -258,9 +275,10 @@ run_arm "uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
 # concat+ISPPHead (no SABL): same cfg as concat+SABL+ISPPHead, upstream/CIoU
 # box loss -- isolates ISPPHead's saving from SABL's mixed/inconclusive
 # accuracy effect, same comparison structure as SeaPerson's own pair.
+# --workers 2: same worker-leak precaution as concat-only above.
 run_arm "uavdt_yolov5m_channel_pooled_concat_isphead${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"

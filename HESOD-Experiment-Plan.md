@@ -83,7 +83,7 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 |---|---|---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | **(1)** | **Baseline (BCE)** | Upstream BCE | CIoU | Coupled | 0.385 | 0.214 | pending$^\dagger$ | 68.2 | 35.85 | 117.8 |
 | **(2)** | **Semantic-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.384 | 0.217 | 0.906 | 75.0 | 35.85 | 113.8 |
-| **(3)** | **Spectral-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
+| **(3)** | **Spectral-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.419 | 0.232 | 0.941 | 101.3 | 36.01 | 97.0 |
 | **(4)** | **Concat-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
 | **(5)** | **Gated-fusion** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
 | **(6)** | **Concat+SABL** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | Coupled | pending | pending | pending | pending | pending | pending |
@@ -100,7 +100,7 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **(1) Baseline (BCE)** | 79.43% (59,076) | 84.21% (173,493) | 94.54% (81,575) | 59.78% (4,379) | 85.17% (318,523) | 85.61% | 81.05% | 67.67% |
 | **(2) Semantic-only** | 79.13% | 83.91% | 94.00% | 59.95% | 84.82% | 85.20% | 77.74% | 73.27% |
-| **(3) Spectral-only** | pending | pending | pending | pending | pending | pending | pending | pending |
+| **(3) Spectral-only** | 85.70% | 89.99% | 97.65% | 63.21% | 90.38% | 90.66% | 85.57% | 81.67% |
 | **(4) Concat-only** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(5) Gated-fusion** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(6) Concat+SABL** | pending | pending | pending | pending | pending | pending | pending | pending |
@@ -108,6 +108,7 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 | **(8) Concat+ISPPHead** | pending | pending | pending | pending | pending | pending | pending | pending |
 
 - **Semantic-only vs. R0, domain contrast with SeaPerson**: On SeaPerson, coverage loss (arm 2) raises Total Recall well above R0 (+3.33pp, §4.4 point 1) at a real GFLOPs cost. On UAVDT, arm (2) shows the *same* direction and rough magnitude of GFLOPs increase (68.2$\to$75.0, +10%, consistent with more candidate patches being selected) but Total Recall is essentially flat (85.17%$\to$84.82%, -0.35pp) -- given UAVDT's own demonstrated ~4pp run-to-run noise on mAP, this small delta is not distinguishable from noise and should not be read as "coverage loss doesn't help on UAVDT," only as "not confirmed to help here the way it clearly does on SeaPerson."
+- **Spectral-only is a strong signal on UAVDT too**: Arm (3) reaches **90.38% Total Recall**, +5.21pp over R0 and +5.56pp over semantic-only -- larger than the equivalent SeaPerson gap (spectral-only vs. R0: +3.35pp there). Directionally consistent with SeaPerson's own finding that spectral/gradient evidence alone is a strong routing signal, but this delta (while bigger than UAVDT's ~4pp noise floor) still rests on a single run for this arm -- not independently rechecked the way R0 was. `vt_diagnose.py`'s Very Tiny miss-reason mix also shifts: lowest class-confusion share of the three arms so far (15.9% vs R0's 17.3%, semantic-only's 21.5%) but the highest localization-failure share (44.2%) -- the spectral selector rarely drops or misclassifies a region outright, but its CIoU-only box regression (no SABL yet) is comparatively imprecise.
 
 ---
 
