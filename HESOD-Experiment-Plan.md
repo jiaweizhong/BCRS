@@ -82,7 +82,7 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 | Arm | Module Configuration | Selector Loss | Box Loss | Head | mAP@.5 | mAP@.5:.95 | BPR | GFLOPs | Params (M) | FPS |
 |---|---|---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | **(1)** | **Baseline (BCE)** | Upstream BCE | CIoU | Coupled | 0.385 | 0.214 | pending$^\dagger$ | 68.2 | 35.85 | 117.8 |
-| **(2)** | **Semantic-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
+| **(2)** | **Semantic-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.384 | 0.217 | 0.906 | 75.0 | 35.85 | 113.8 |
 | **(3)** | **Spectral-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
 | **(4)** | **Concat-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
 | **(5)** | **Gated-fusion** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
@@ -99,13 +99,15 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 | Arm | Very Tiny ($<16^2$ px)<br>*(74,375 GT)* | Tiny ($16^2\text{--}32^2$ px)<br>*(206,015 GT)* | Small ($32^2\text{--}96^2$ px)<br>*(86,282 GT)* | Med/Large ($>96^2$ px)<br>*(7,325 GT)* | Total Recall | Car | Truck | Bus |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **(1) Baseline (BCE)** | 79.43% (59,076) | 84.21% (173,493) | 94.54% (81,575) | 59.78% (4,379) | 85.17% (318,523) | 85.61% | 81.05% | 67.67% |
-| **(2) Semantic-only** | pending | pending | pending | pending | pending | pending | pending | pending |
+| **(2) Semantic-only** | 79.13% | 83.91% | 94.00% | 59.95% | 84.82% | 85.20% | 77.74% | 73.27% |
 | **(3) Spectral-only** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(4) Concat-only** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(5) Gated-fusion** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(6) Concat+SABL** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(7) HESOD (Full)** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(8) Concat+ISPPHead** | pending | pending | pending | pending | pending | pending | pending | pending |
+
+- **Semantic-only vs. R0, domain contrast with SeaPerson**: On SeaPerson, coverage loss (arm 2) raises Total Recall well above R0 (+3.33pp, §4.4 point 1) at a real GFLOPs cost. On UAVDT, arm (2) shows the *same* direction and rough magnitude of GFLOPs increase (68.2$\to$75.0, +10%, consistent with more candidate patches being selected) but Total Recall is essentially flat (85.17%$\to$84.82%, -0.35pp) -- given UAVDT's own demonstrated ~4pp run-to-run noise on mAP, this small delta is not distinguishable from noise and should not be read as "coverage loss doesn't help on UAVDT," only as "not confirmed to help here the way it clearly does on SeaPerson."
 
 ---
 
