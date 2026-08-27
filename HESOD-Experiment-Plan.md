@@ -77,7 +77,7 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 
 ### 3.2 Module Ablation Matrix on UAVDT ($1280\times 1280$)
 
-8-arm roster, mirroring `run_seaperson.sh`'s arm set/order exactly (`scripts/esod_baseline/run_uavdt.sh`). All results pending the current queued run.
+8-arm roster (`scripts/esod_baseline/run_uavdt.sh`). Arm (5) swapped 2026-08-27 from gated-fusion (SeaPerson's own roster arm, already has a clear negative result there -- §5) to a channel-pooled-spectral-only confound-check on arm (3)'s strong result (see the §3.3 note below arm (3)'s row).
 
 | Arm | Module Configuration | Selector Loss | Box Loss | Head | mAP@.5 | mAP@.5:.95 | BPR | GFLOPs | Params (M) | FPS |
 |---|---|---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -85,7 +85,7 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 | **(2)** | **Semantic-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.384 | 0.217 | 0.906 | 75.0 | 35.85 | 113.8 |
 | **(3)** | **Spectral-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | 0.419 | 0.232 | 0.941 | 101.3 | 36.01 | 97.0 |
 | **(4)** | **Concat-only** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
-| **(5)** | **Gated-fusion** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
+| **(5)** | **Spectral-only (Pooled)** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | pending | pending | pending | pending | pending | pending |
 | **(6)** | **Concat+SABL** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | Coupled | pending | pending | pending | pending | pending | pending |
 | **(7)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | pending | pending | pending | pending | pending | pending |
 | **(8)** | **Concat+ISPPHead** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | ISPPHead | pending | pending | pending | pending | pending | pending |
@@ -102,7 +102,7 @@ UAVDT evaluates high-resolution urban aerial vehicle surveillance across 3 class
 | **(2) Semantic-only** | 79.13% | 83.91% | 94.00% | 59.95% | 84.82% | 85.20% | 77.74% | 73.27% |
 | **(3) Spectral-only** | 85.70% | 89.99% | 97.65% | 63.21% | 90.38% | 90.66% | 85.57% | 81.67% |
 | **(4) Concat-only** | pending | pending | pending | pending | pending | pending | pending | pending |
-| **(5) Gated-fusion** | pending | pending | pending | pending | pending | pending | pending | pending |
+| **(5) Spectral-only (Pooled)** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(6) Concat+SABL** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(7) HESOD (Full)** | pending | pending | pending | pending | pending | pending | pending | pending |
 | **(8) Concat+ISPPHead** | pending | pending | pending | pending | pending | pending | pending | pending |

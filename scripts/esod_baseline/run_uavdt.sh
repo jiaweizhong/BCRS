@@ -195,10 +195,12 @@ run_arm() {
   log "TFR skipped for UAVDT -- not attempted here"
 }
 
-# --- 8-arm roster (2026-08-25), matching run_seaperson.sh's arm set/order
-# exactly so UAVDT and SeaPerson are directly comparable arm-for-arm. Same
-# val=test protocol as the just-completed R0 rerun (kept deliberately --
-# see HESOD-Experiment-Plan.md's UAVDT open-item note; not changed here). ---
+# --- 8-arm roster (2026-08-25), originally matching run_seaperson.sh's arm
+# set/order exactly for direct arm-for-arm comparability. Arm (5) swapped
+# 2026-08-27: gated-fusion -> channel-pooled-spectral-only (see that arm's
+# own run_arm() call below for why). Same val=test protocol as the
+# just-completed R0 rerun (kept deliberately -- see HESOD-Experiment-Plan.md's
+# UAVDT open-item note; not changed here). ---
 
 # R0: Segmenter, upstream loss, CIoU box (original baseline)
 run_arm "uavdt_yolov5m_baseline${SUFFIX}" \
@@ -249,12 +251,23 @@ run_arm "uavdt_yolov5m_channel_pooled_concat${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
-# gated-fusion: same evidence branches as concat-only, learned input-
-# dependent gate instead of a fixed concat -- isolates the fusion mechanism.
-# --workers 2: same precaution as concat-only above (same worker-leak
-# pattern observed there, same evidence-branch family).
-run_arm "uavdt_yolov5m_channel_pooled_dual_evidence${SUFFIX}" \
-  "models/cfg/esod/uavdt_yolov5m_channel_pooled_dual_evidence.yaml" \
+# channel-pooled-spectral-only (2026-08-27, replaces gated-fusion): isolates
+# the confound in spectral-only's own strong result (90.38% Total Recall,
+# +5.21pp over R0) -- spectral-only is simultaneously the only "spectral
+# evidence alone" arm AND the only unpooled/full-capacity arm, so its
+# accuracy could come from either the evidence itself or the extra channel
+# capacity. This arm pools the same spectral evidence the same way
+# concat-only does, isolating that variable directly (mirrors
+# seaperson_yolov5m_channel_pooled_spectral_only.yaml's own confound-check,
+# which resolved in favor of "evidence itself is sufficient" on SeaPerson).
+# gated-fusion dropped from this roster: already has a clear negative result
+# on SeaPerson (HESOD-Experiment-Plan.md SS5, worst of all coverage-loss
+# arms there) -- not worth re-confirming on UAVDT, this confound-check is
+# higher value for the same GPU budget. --workers 2: same worker-leak
+# precaution as concat-only above (same evidence-branch family); pooling
+# should also let it train stably, unlike spectral-only's forced batch=2.
+run_arm "uavdt_yolov5m_channel_pooled_spectral_only${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_spectral_only.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
 # concat+SABL: same concat architecture, SABL box regression, no ISPPHead --
@@ -285,7 +298,7 @@ log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"
 log "  Spectral-only:         $RUN_ROOT/test/uavdt_yolov5m_spectral_only${SUFFIX}/"
 log "  Concat-only:           $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat${SUFFIX}/"
-log "  Gated-fusion:          $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_dual_evidence${SUFFIX}/"
+log "  Channel-Pooled Spectral-only: $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_spectral_only${SUFFIX}/"
 log "  Concat+SABL:           $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat_sabl${SUFFIX}/"
 log "  Concat+SABL+ISPPHead:  $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}/"
 log "  Concat+ISPPHead:       $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_concat_isphead${SUFFIX}/"
