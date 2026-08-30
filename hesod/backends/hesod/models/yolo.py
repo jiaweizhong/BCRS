@@ -41,6 +41,7 @@ from models.segmenter import (
     ChannelPooledSpectralOnlySegmenter,
     ChannelPooledDualEvidenceSegmenter,
     ChannelPooledConcatEvidenceSegmenter,
+    ChannelPooledMaxEvidenceSegmenter,
     ReliabilityGateEvidenceSegmenter,
 )
 from models.experimental import *
@@ -592,6 +593,7 @@ class Model(nn.Module):
                     ChannelPooledSpectralOnlySegmenter,
                     ChannelPooledDualEvidenceSegmenter,
                     ChannelPooledConcatEvidenceSegmenter,
+                    ChannelPooledMaxEvidenceSegmenter,
                     ReliabilityGateEvidenceSegmenter,
                 ),
             ):
@@ -686,8 +688,19 @@ class Model(nn.Module):
             if isinstance(m_, Segmenter):
                 bias_convs = list(m_.m)
             elif isinstance(
-                m_, (DualEvidenceSegmenter, ChannelPooledDualEvidenceSegmenter)
+                m_,
+                (
+                    DualEvidenceSegmenter,
+                    ChannelPooledDualEvidenceSegmenter,
+                    ChannelPooledMaxEvidenceSegmenter,
+                ),
             ):
+                # ChannelPooledMaxEvidenceSegmenter (torch.max(p_semantic,
+                # p_spectral), no combining conv) shares DualEvidenceSegmenter's
+                # property here: both self.m and the spectral head's conv
+                # directly determine the fused logit's value, unlike the
+                # Concat family below (which routes everything through a
+                # separate concat_convs layer instead).
                 bias_convs = list(m_.m) + [
                     branch.head for branch in m_.spectral_branches
                 ]
@@ -859,6 +872,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             ChannelPooledSpectralOnlySegmenter,
             ChannelPooledDualEvidenceSegmenter,
             ChannelPooledConcatEvidenceSegmenter,
+            ChannelPooledMaxEvidenceSegmenter,
             ReliabilityGateEvidenceSegmenter,
         ]:  # Detect2 deprecated
             args.append([ch[x] for x in f])
