@@ -197,6 +197,55 @@ class ChannelPooledMaxEvidenceSegmenter(nn.Module):
         return res
 
 
+class ChannelPooledSoftOrEvidenceSegmenter(nn.Module):
+    """Noisy-OR (probabilistic union) fusion of semantic + channel-pooled
+    spectral evidence, in logit space via the exact identity
+    logit(1-(1-sigmoid(a))(1-sigmoid(b))) == logsumexp([a, b, a+b]).
+
+    A smoother alternative to ChannelPooledMaxEvidenceSegmenter, motivated
+    by the same evidence-preservation property (fused score >= either
+    branch alone, HESOD-Experiment-Plan.md SS3.4 point 4) but without hard
+    max's winner-take-all gradient: d(max(a,b))/da is exactly 0 for
+    whichever branch didn't win at a given location, so that branch gets no
+    training signal there and risks being permanently out-competed. Here
+    both branches get a nonzero gradient everywhere (d(fused p)/dp_s =
+    (1-p_f), nonzero unless the other branch is already fully saturated at
+    p=1). Also unifies with the object-level soft-coverage loss's own
+    formula (SS2.2, p_cover = 1 - prod(1-s_i) over candidate cells) --
+    evidence-level union feeding spatial-level union, the same noisy-OR
+    algebra at both stages of the selector.
+
+    Trade-off vs. max: strictly more permissive (p_fuse >= max(p_s, p_f)
+    always, with equality only when one branch is exactly 0) -- when both
+    branches are moderately confident, soft-OR pushes the fused score
+    noticeably higher than either alone (e.g. p_s=0.7, p_f=0.6 -> 0.88 vs.
+    max's 0.7), which can route more candidate regions downstream than max
+    does. That's a genuine cost/recall trade-off to watch via predictions
+    count, BPR, GFLOPs, and FPS once this arm actually runs -- not
+    something to assume is free just because the fusion op itself is cheap
+    (a few elementwise exp/log ops, negligible next to the ~80 GFLOPs whole
+    pipeline).
+    """
+
+    def __init__(self, nc=10, ch=()):
+        super().__init__()
+        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
+        self.spectral_branches = nn.ModuleList(
+            ChannelPooledSpectralBranch(x, nc) for x in ch
+        )
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_semantic = self.m[i](x[i])
+            p_spectral, _ = self.spectral_branches[i](x[i])
+            stacked = torch.stack(
+                [p_semantic, p_spectral, p_semantic + p_spectral], dim=0
+            )
+            res.append(torch.logsumexp(stacked, dim=0))
+        return res
+
+
 class ReliabilityGateEvidenceSegmenter(nn.Module):
     """F5: reliability-aware residual gate (BCRS-Budget-Constrained-Recall-Safe-
     Selector-Proposal.md SS5.3C; HESOD-Agri-Proposal.md SS4.2;

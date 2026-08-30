@@ -42,6 +42,7 @@ from models.segmenter import (
     ChannelPooledDualEvidenceSegmenter,
     ChannelPooledConcatEvidenceSegmenter,
     ChannelPooledMaxEvidenceSegmenter,
+    ChannelPooledSoftOrEvidenceSegmenter,
     ReliabilityGateEvidenceSegmenter,
 )
 from models.experimental import *
@@ -594,6 +595,7 @@ class Model(nn.Module):
                     ChannelPooledDualEvidenceSegmenter,
                     ChannelPooledConcatEvidenceSegmenter,
                     ChannelPooledMaxEvidenceSegmenter,
+                    ChannelPooledSoftOrEvidenceSegmenter,
                     ReliabilityGateEvidenceSegmenter,
                 ),
             ):
@@ -693,14 +695,16 @@ class Model(nn.Module):
                     DualEvidenceSegmenter,
                     ChannelPooledDualEvidenceSegmenter,
                     ChannelPooledMaxEvidenceSegmenter,
+                    ChannelPooledSoftOrEvidenceSegmenter,
                 ),
             ):
-                # ChannelPooledMaxEvidenceSegmenter (torch.max(p_semantic,
-                # p_spectral), no combining conv) shares DualEvidenceSegmenter's
-                # property here: both self.m and the spectral head's conv
-                # directly determine the fused logit's value, unlike the
-                # Concat family below (which routes everything through a
-                # separate concat_convs layer instead).
+                # ChannelPooledMaxEvidenceSegmenter (torch.max) and
+                # ChannelPooledSoftOrEvidenceSegmenter (logsumexp noisy-OR)
+                # share DualEvidenceSegmenter's property here: neither has a
+                # combining conv, so both self.m and the spectral head's own
+                # conv directly determine the fused logit's value, unlike
+                # the Concat family below (which routes everything through
+                # a separate concat_convs layer instead).
                 bias_convs = list(m_.m) + [
                     branch.head for branch in m_.spectral_branches
                 ]
@@ -873,6 +877,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             ChannelPooledDualEvidenceSegmenter,
             ChannelPooledConcatEvidenceSegmenter,
             ChannelPooledMaxEvidenceSegmenter,
+            ChannelPooledSoftOrEvidenceSegmenter,
             ReliabilityGateEvidenceSegmenter,
         ]:  # Detect2 deprecated
             args.append([ch[x] for x in f])

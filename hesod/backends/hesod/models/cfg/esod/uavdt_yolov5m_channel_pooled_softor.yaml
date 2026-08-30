@@ -1,0 +1,76 @@
+# parameters
+# UAVDT soft-OR fusion arm (2026-08-31): channel-pooled semantic + spectral
+# evidence combined by ChannelPooledSoftOrEvidenceSegmenter (noisy-OR,
+# logit(1-(1-sigmoid(a))(1-sigmoid(b))), computed exactly via
+# logsumexp([a,b,a+b]) -- no sigmoid/logit round-trip). A smoother sibling
+# of uavdt_yolov5m_channel_pooled_max.yaml's hard-max fusion: both
+# guarantee fused >= max(semantic, spectral) at every location (the
+# "evidence preservation" property motivating both, HESOD-Experiment-Plan.md
+# SS3.4 point 4), but soft-OR gives both branches a nonzero gradient
+# everywhere (hard max gives the losing branch exactly zero gradient at
+# each location, a winner-take-all risk) and unifies algebraically with the
+# object-level soft-coverage loss's own noisy-OR formula (SS2.2) -- the
+# same union operation at the evidence level and the spatial-cell level.
+# Trade-off: soft-OR is strictly more permissive than max (p_fuse >=
+# max(p_s,p_f) always, often noticeably higher when both branches are
+# moderately confident, e.g. 0.7/0.6 -> 0.88 vs. max's 0.7), which can
+# route more candidate regions downstream than max -- watch predictions
+# count / BPR / GFLOPs / FPS once this runs, not just mAP/recall. Run only
+# after the hard-max arm (uavdt_yolov5m_channel_pooled_max) confirms the
+# evidence-preservation hypothesis actually recovers UAVDT's recall;
+# identical to that config except the Segmenter swap, same UAVDT SPP +
+# threshold=0.3 architecture deltas preserved, same
+# --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss
+# upstream --workers 2 flags as arm (5) Concat-only.
+nc: 3  # number of classes
+depth_multiple: 0.67  # model depth multiple
+width_multiple: 0.75  # layer channel multiple
+
+# anchors  1024
+anchors:
+ - [14,16,  22,26,  40,21]  # P3/8
+ - [37,30,  24,46,  56,26]  # P4/16
+ - [40,48,  85,59,  144,114]  # P5/32
+
+# YOLOv5 backbone
+backbone:
+  # [from, number, module, args]
+  [[-1, 1, Focus, [64, 3]],  # 0-P1/2 ~ RF=(2-1)*1+3=4
+   [-1, 1, Conv, [128, 3, 2]],  # 1-P2/4 ~ RF=(4-1)*2+3=9
+   [-1, 3, C3, [128]],  # RF=9+2*(3*0.33)=9+2=11  or  9+6=15
+   [-1, 1, Conv, [256, 3, 2]],  # 3-P3/8 ~ RF=(11-1)*2+3=23  or (15-1)*2+3=31
+   [-1, 9, C3, [256]],  # RF=23+2*(9*0.33)=23+6=29  or 31+18=49
+
+   [-1, 1, SPP, [256, [5, 9, 13]]],
+   [[-1], 1, ChannelPooledSoftOrEvidenceSegmenter, [1]],
+   [[4, -1], 1, HeatMapParser, [256, 8, 0.3]],  # 7, from 4 or 5? : 4.
+
+   [-1, 1, Conv, [512, 3, 2]],  # 8-P4/16
+   [-1, 9, C3, [512]],
+   [-1, 1, Conv, [1024, 3, 2]],  # 10-P5/32
+   [-1, 1, SPP, [1024, [3, 5, 7]]],  # 5,9,13
+   [-1, 3, C3, [1024, False]],  # 12
+  ]
+
+# YOLOv5 head
+head:
+  [[-1, 1, Conv, [512, 1, 1]],
+   [-1, 1, nn.Upsample, [None, 2, 'nearest']],
+   [[-1, 9], 1, Concat, [1]],  # cat backbone P4
+   [-1, 3, C3, [512, False]],  # 16
+
+   [-1, 1, Conv, [256, 1, 1]],
+   [-1, 1, nn.Upsample, [None, 2, 'nearest']],
+   [[-1, 7], 1, Concat, [1]],  # cat backbone P3
+   [-1, 3, C3, [256, False]],  # 20 (P3/8-small)
+
+   [-1, 1, Conv, [256, 3, 2]],
+   [[-1, 17], 1, Concat, [1]],  # cat head P4
+   [-1, 3, C3, [512, False]],  # 23 (P4/16-medium)
+
+   [-1, 1, Conv, [512, 3, 2]],
+   [[-1, 13], 1, Concat, [1]],  # cat head P5
+   [-1, 3, C3, [1024, False]],  # 26 (P5/32-large)
+
+   [[20, 23, 26], 1, Detect, [nc, anchors]],  # Detect(P3, P4, P5)
+  ]

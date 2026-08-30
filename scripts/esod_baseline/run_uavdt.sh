@@ -329,6 +329,18 @@ run_arm "uavdt_yolov5m_channel_pooled_max${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
+# concat-only-softor: same evidence branches as arm (5)/the max-fusion probe
+# above, but ChannelPooledSoftOrEvidenceSegmenter (noisy-OR via logsumexp,
+# see that class's own docstring) replaces torch.max. Only worth launching
+# if the max-fusion arm above actually recovers UAVDT's recall toward
+# arm (4) Spectral-only (Pooled)'s 91.93%/0.963 BPR -- confirming the
+# evidence-preservation hypothesis -- since soft-OR is a smoother variant of
+# the same idea, not an independent hypothesis. NOT launched automatically;
+# run via ARMS=uavdt_yolov5m_channel_pooled_softor once that check passes.
+run_arm "uavdt_yolov5m_channel_pooled_softor${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_softor.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"
