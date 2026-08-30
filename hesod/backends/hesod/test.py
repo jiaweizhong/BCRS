@@ -240,10 +240,18 @@ def test(
     )  # image_id -> [[x1,y1,x2,y2], ...] in P3 (stride-8) feature-pixel space
     sp_r, m_p, m_r, attr = [], [], [], []
     gflops, infer_times = [], []
+    measure_limit = getattr(opt, "measure_limit", None) if opt is not None else None
     for batch_i, (img, targets, masks, m_weights, paths, shapes) in enumerate(
         tqdm(dataloader, desc=s)
     ):
         # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+        if (
+            not training
+            and opt.task == "measure"
+            and measure_limit is not None
+            and batch_i >= measure_limit
+        ):
+            break
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         # img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -757,6 +765,17 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--task", default="val", help="train, val, test, speed or study"
+    )
+    parser.add_argument(
+        "--measure-limit",
+        type=int,
+        default=None,
+        help="--task measure only: stop after this many images instead of the full "
+        "dataset. GFLOPs/FPS are per-image averages -- a few hundred images gives a "
+        "stable estimate without paying the full test set's wall-clock cost (e.g. "
+        "UAVDT's ~50min for 16.6k images at batch=1). Does not affect --task val's "
+        "mAP/recall, which still needs the full set. Unset (default) preserves the "
+        "existing full-dataset behavior.",
     )
     parser.add_argument(
         "--device", default="0", help="cuda device, i.e. 0 or 0,1,2,3 or cpu"
