@@ -318,6 +318,17 @@ run_arm "uavdt_yolov5m_channel_pooled_concat_posw1${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 1.0 --box-loss upstream --workers 2
 
+# concat-only-maxfusion: same evidence branches as arm (5) Concat-only, but
+# ChannelPooledMaxEvidenceSegmenter (torch.max in logit space) replaces the
+# learned 1x1 combiner. Tests the fusion RULE itself as the root cause,
+# independent of the coverage-loss pos_weight probe above -- max fusion
+# structurally cannot produce a combined score below both single-evidence
+# branches, which is concat-only's observed failure mode (SS3.4 point 2).
+# Queued after the pos_weight probe, not run concurrently with it.
+run_arm "uavdt_yolov5m_channel_pooled_max${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"

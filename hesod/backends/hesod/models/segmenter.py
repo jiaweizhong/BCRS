@@ -160,6 +160,43 @@ class ChannelPooledConcatEvidenceSegmenter(nn.Module):
         return res
 
 
+class ChannelPooledMaxEvidenceSegmenter(nn.Module):
+    """Elementwise-max fusion of semantic + channel-pooled spectral evidence.
+
+    Contrasted against ChannelPooledConcatEvidenceSegmenter (arm 5, the
+    UAVDT roster's Concat-only) to isolate the fusion RULE itself. Concat's
+    learned 1x1 combiner has no floor: it can, and on UAVDT apparently does,
+    converge to a decision boundary worse than either evidence branch alone
+    (HESOD-Experiment-Plan.md SS3.4 point 2 -- a --hm-threshold/--top-k
+    inference-time sweep ruled out candidate volume as the cause, and a
+    --pos-weight retrain is testing the coverage-loss asymmetry). This
+    module has no learned combination step at all: `torch.max(p_semantic,
+    p_spectral)` in logit space guarantees the fused score at every location
+    is at least as high as whichever single branch is more confident there
+    -- concat-only's central failure mode (a fused score *below* both
+    inputs) is structurally impossible here. Downside: no way to learn a
+    genuinely synergistic combination beyond "best of either branch" -- if
+    concat's problem turns out to be under-training rather than an
+    unbounded-worse-than-either-input pathology, this won't help and may
+    cap out no better than spectral-only.
+    """
+
+    def __init__(self, nc=10, ch=()):
+        super().__init__()
+        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
+        self.spectral_branches = nn.ModuleList(
+            ChannelPooledSpectralBranch(x, nc) for x in ch
+        )
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_semantic = self.m[i](x[i])
+            p_spectral, _ = self.spectral_branches[i](x[i])
+            res.append(torch.max(p_semantic, p_spectral))
+        return res
+
+
 class ReliabilityGateEvidenceSegmenter(nn.Module):
     """F5: reliability-aware residual gate (BCRS-Budget-Constrained-Recall-Safe-
     Selector-Proposal.md SS5.3C; HESOD-Agri-Proposal.md SS4.2;

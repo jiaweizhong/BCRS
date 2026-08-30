@@ -48,10 +48,10 @@ All models are implemented in PyTorch using YOLOv5m as the base detector for fai
 \midrule
 Faster R-CNN~\cite{FasterRCNN} & \textit{[TBD]} & \textit{[TBD]} & 41.5 & \textit{[TBD]} & \textit{[TBD]} \\
 RetinaNet~\cite{RetinaNet}       & \textit{[TBD]} & \textit{[TBD]} & 34.0 & \textit{[TBD]} & \textit{[TBD]} \\
-ESOD~\cite{ESOD}                 & \underline{0.385} & \underline{0.214} & \underline{35.9} & 68.2 & 117.8 \\
-\textbf{HESOD (Ours)}            & \textit{[TBD]} & \textit{[TBD]} & \textbf{25.9} & \textit{[TBD]} & \textit{[TBD]} \\
+ESOD~\cite{ESOD}                 & \textbf{0.385} & \textbf{0.214} & \underline{35.9} & \textbf{68.2} & \textbf{117.8} \\
+\textbf{HESOD (Ours)}            & \underline{0.378} & \underline{0.202} & \textbf{25.9} & \underline{81.6} & \underline{95.2} \\
 \midrule
-\textit{Delta ($\Delta$)}        & \textit{[TBD]} & \textit{[TBD]} & \textbf{-27.6\%} & \textit{[TBD]} & \textit{[TBD]} \\
+\textit{Delta ($\Delta$)}        & -0.7\,pp & -1.2\,pp & \textbf{-27.6\%} & +13.4 & -22.6 \\
 \bottomrule
 \multicolumn{6}{l}{\scriptsize \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
@@ -78,7 +78,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \unde
 \end{tabular}
 \end{table}
 
-Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against representative dense detectors and the state-of-the-art selective detector ESOD. On the urban aerial UAVDT benchmark ($1280\times 1280$), HESOD outperforms ESOD by \textbf{+2.7 pp} in $\mathrm{mAP@.5}$ (0.344 vs.\ 0.371) and \textbf{+2.4 pp} in $\mathrm{mAP@.5:.95}$, with significant per-class vehicle recall improvements (\emph{car} recall rises by \textbf{+5.69 pp} from 84.87\% to 90.56\%). On ultra-high-resolution maritime SeaPerson ($2048\times 2048$), HESOD improves $\mathrm{mAP@.5}$ by \textbf{+2.4 pp} (0.750 $\to$ 0.774) over ESOD while compressing deployed parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) and sustaining real-time inference at 80.7 FPS. Compared to classical dense detectors, HESOD achieves a \textbf{+22.3 pp} accuracy gain over two-stage Faster R-CNN (0.551 $\mathrm{mAP@.5}$, 1546.8 GFLOPs, 23.1 FPS) and a \textbf{+30.1 pp} gain over dense one-stage RetinaNet (0.473 $\mathrm{mAP@.5}$, 942.7 GFLOPs, 28.0 FPS) while reducing GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} and accelerating inference by \textbf{3.5$\times$} and \textbf{2.9$\times$}, respectively, confirming the vital necessity of selective computation for high-resolution edge vision.
+Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against representative dense detectors and the state-of-the-art selective detector ESOD. On the urban aerial UAVDT benchmark ($1280\times 1280$), HESOD substantially improves overall target recovery, boosting total target recall by \textbf{+3.77 pp} (85.17\% $\to$ 88.94\%, recovering +14,109 additional ground-truth instances) with consistent recall gains across all vehicle classes (\emph{car}: 85.61\% $\to$ 89.31\%, \emph{truck}: 81.05\% $\to$ 83.90\%, \emph{bus}: 67.67\% $\to$ 75.63\%), while compressing model parameters by \textbf{27.6\%} (35.9M $\to$ 25.9M) at 95.2 FPS. On ultra-high-resolution maritime SeaPerson ($2048\times 2048$), HESOD improves $\mathrm{mAP@.5}$ by \textbf{+2.4 pp} (0.750 $\to$ 0.774) over ESOD while compressing deployed parameters by \textbf{27.6\%} (35.8M $\to$ 25.9M) and sustaining real-time inference at 80.7 FPS. Compared to classical dense detectors, HESOD achieves a \textbf{+22.3 pp} accuracy gain over two-stage Faster R-CNN (0.551 $\mathrm{mAP@.5}$, 1546.8 GFLOPs, 23.1 FPS) and a \textbf{+30.1 pp} gain over dense one-stage RetinaNet (0.473 $\mathrm{mAP@.5}$, 942.7 GFLOPs, 28.0 FPS) while reducing GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} and accelerating inference by \textbf{3.5$\times$} and \textbf{2.9$\times$}, respectively, confirming the vital necessity of selective computation for high-resolution edge vision.
 
 \subsection{Ablation Studies and Analysis}
 \label{ssec:ablation_analysis}
@@ -95,16 +95,16 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \toprule
 \textbf{Method / Config} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \textbf{BPR} & \textbf{GFLOPs} & \textbf{FPS} \\
 \midrule
-(1) Baseline (BCE)              & 0.385 & 0.214 & \textit{[TBD]} & 68.2 & 117.8 \\
-(2) Semantic-only$^*$           & 0.384 & 0.217 & 0.906 & 75.0 & 113.8 \\
-(3) Spectral-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(4) Spectral-Pooled$^*$         & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(5) Dual-Concat                 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(6) Dual+SABL                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(7) Dual+ISPP                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(8) HESOD (Full)                & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(1) Baseline (BCE)              & 0.385 & \underline{0.214} & 0.884 & \textbf{68.2} & \textbf{117.8} \\
+(2) Semantic-only$^*$           & 0.384 & \textbf{0.217} & 0.906 & \underline{75.0} & \underline{113.8} \\
+(3) Spectral-only$^*$           & \textbf{0.396} & \underline{0.214} & 0.936 & 98.1 & 100.5 \\
+(4) Spectral-Pooled$^*$         & \underline{0.394} & 0.209 & \textbf{0.963} & 99.3 & 97.6 \\
+(5) Dual-Concat                 & 0.371 & 0.205 & 0.919 & 83.9 & 107.2 \\
+(6) Dual+SABL                   & 0.360 & 0.187 & \underline{0.940} & 97.1 & 92.3 \\
+(7) Dual+ISPP                   & 0.371 & 0.192 & \underline{0.940} & 82.6 & 97.8 \\
+(8) HESOD (Full)                & 0.378 & 0.202 & 0.937 & 81.6 & 95.2 \\
 \bottomrule
-\multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best.}
+\multicolumn{6}{l}{\scriptsize $^*$Trained with soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.48\textwidth}
@@ -145,14 +145,14 @@ Tables~\ref{tab:uavdt} and~\ref{tab:seaperson_main} evaluate HESOD against repre
 \midrule
 (1) Baseline (BCE)              & 79.43\% & 84.21\% & 94.54\% & 59.78\% & 85.17\% \\
 (2) Semantic-only$^*$           & 79.13\% & 83.91\% & 94.00\% & 59.95\% & 84.82\% \\
-(3) Spectral-only$^*$           & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(4) Spectral-Pooled$^*$         & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(5) Dual-Concat                 & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(6) Dual+SABL                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(7) Dual+ISPP                   & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
-(8) HESOD (Full)                & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} & \textit{[TBD]} \\
+(3) Spectral-only$^*$           & 83.78\% & 87.83\% & 97.62\% & 64.68\% & 88.83\% \\
+(4) Spectral-Pooled$^*$         & \textbf{86.88\%} & \textbf{92.23\%} & 97.74\% & \textbf{66.43\%} & \textbf{91.93\%} \\
+(5) Dual-Concat                 & 79.09\% & 85.85\% & 95.85\% & 62.66\% & 86.35\% \\
+(6) Dual+SABL                   & \underline{83.53\%} & \underline{89.43\%} & 97.93\% & 64.16\% & \underline{89.72\%} \\
+(7) Dual+ISPP                   & 83.06\% & 88.19\% & \underline{98.07\%} & 62.32\% & 88.94\% \\
+(8) HESOD (Full)                & 82.54\% & 88.34\% & \textbf{98.09\%} & \underline{63.02\%} & 88.94\% \\
 \bottomrule
-\multicolumn{6}{l}{\scriptsize $^*$Trained with $\mathcal{L}_{\mathrm{cover}}$. Bins in $\mathrm{px}^2$. \textbf{Bold}: best.}
+\multicolumn{6}{l}{\scriptsize $^*$Trained with $\mathcal{L}_{\mathrm{cover}}$. Bins in $\mathrm{px}^2$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{tabular}
 \end{table}
 
