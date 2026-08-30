@@ -278,12 +278,18 @@ run_arm "uavdt_yolov5m_channel_pooled_concat_sabl${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
-# Concat+SABL+ISPPHead: the project's best-known lightweight recipe, first
-# time run on UAVDT. Preserves UAVDT's own SPP layer + threshold=0.3
-# architecture deltas exactly (see the config's own header comment).
+# Concat+SABL+ISPPHead (HESOD Full): the project's best-known lightweight
+# recipe. First time this arm is actually retrained on UAVDT this session --
+# its prior checkpoint (2026-08-21) predates all of it. Preserves UAVDT's
+# own SPP layer + threshold=0.3 architecture deltas exactly (see the
+# config's own header comment). --workers 2: same worker-leak precaution as
+# every other channel-pooled arm (concat-only/gated-fusion-replacement/
+# concat+SABL/concat+ISPPHead all needed it; this one was never run before
+# so it never got the chance to crash, but there's no reason to think it's
+# exempt).
 run_arm "uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
 # concat+ISPPHead (no SABL): same cfg as concat+SABL+ISPPHead, upstream/CIoU
 # box loss -- isolates ISPPHead's saving from SABL's mixed/inconclusive
@@ -292,6 +298,25 @@ run_arm "uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
 run_arm "uavdt_yolov5m_channel_pooled_concat_isphead${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
+
+# --- Exploratory probe (2026-08-30), NOT part of the 8-arm roster ---
+#
+# concat-only-posw1: same architecture/cfg as arm (5) Concat-only, only
+# --pos-weight lowered 2.0 -> 1.0 (mask BCE positive-class weight,
+# selector_loss=coverage only). Motivated by a --hm-threshold/--top-k
+# inference-time sweep on arm (5)'s checkpoint (sweep_uavdt_concat_thresholds.sh)
+# that found mAP@.5 completely flat (0.371 at every threshold from 0.3 to
+# 0.6, recall dropping monotonically instead) -- ruling out "too many raw
+# candidates diluting precision" as the mechanism behind concat-only trailing
+# every single-evidence arm on mAP. pos_weight=2.0 doubles the loss cost of
+# a missed-positive cell relative to a false-positive one, directly biasing
+# the selector toward permissive/imprecise routing -- this experiment tests
+# whether that specific asymmetry (not a fusion-architecture problem) is the
+# root cause by removing it (pos_weight=1.0, no extra positive bias) and
+# retraining from scratch. --workers 2: same precaution as arm (5).
+run_arm "uavdt_yolov5m_channel_pooled_concat_posw1${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 1.0 --box-loss upstream --workers 2
 
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
