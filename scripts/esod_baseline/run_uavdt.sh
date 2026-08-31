@@ -341,6 +341,15 @@ run_arm "uavdt_yolov5m_channel_pooled_softor${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_softor.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
+# HESOD Full v2 (max fusion): max won the fusion-rule probe over both concat
+# (arm 5, SS3.5) and soft-OR (eval: mAP@.5 0.395 vs. 0.387, mAP@.5:.95 0.218
+# vs. 0.215, BPR 0.940 vs. 0.927) -- carrying max into the flagship recipe
+# to test whether the fix also improves arm (8) HESOD (Full)'s own numbers
+# (0.378/0.202/88.94%), not just the isolated fusion-only arm.
+run_arm "uavdt_yolov5m_channel_pooled_max_isphead${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"
