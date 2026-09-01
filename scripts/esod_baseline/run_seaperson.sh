@@ -250,6 +250,23 @@ run_arm "seaperson_yolov5m_channel_pooled_spectral_only${SUFFIX}" \
 run_arm "seaperson_yolov5m_spectral_only_run2${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_spectral_only.yaml" coverage upstream 2
 
+# --- Fusion-rule regression check (2026-09-01), NOT part of the roster
+# proper. On UAVDT, concat's learned 1x1 combiner provably can't represent
+# a max/union rule and measurably underperforms every single-evidence arm
+# (HESOD-Experiment-Plan.md SS3.4-3.5) -- torch.max fusion fixed it there
+# (+2.4pp mAP@.5, +4.01pp Total Recall over concat-only, beating a soft-OR
+# alternative too). SeaPerson's own concat-only is NOT broken (arm 5,
+# Dual-Concat, already the roster's peak mAP@.5, 0.772) -- this arm checks
+# the UAVDT fix doesn't regress what's already working here before treating
+# max as a universal improvement rather than a UAVDT-specific one. Named
+# "..._max_sabl_isphead" (not "..._max_isphead") to match the concat
+# family's own convention (arm 8 = "..._concat_sabl_isphead" = SABL+ISPPHead
+# together; "..._concat_isphead" alone means ISPPHead-only, box-loss
+# upstream) -- reserves "..._max_isphead" for an ISPPHead-only arm if one
+# gets added later. ---
+run_arm "seaperson_yolov5m_channel_pooled_max_sabl_isphead${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" coverage sabl
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/seaperson_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/seaperson_yolov5m_semantic_coverage${SUFFIX}/"

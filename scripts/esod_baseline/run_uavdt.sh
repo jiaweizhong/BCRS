@@ -341,12 +341,33 @@ run_arm "uavdt_yolov5m_channel_pooled_softor${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_softor.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
-# HESOD Full v2 (max fusion): max won the fusion-rule probe over both concat
-# (arm 5, SS3.5) and soft-OR (eval: mAP@.5 0.395 vs. 0.387, mAP@.5:.95 0.218
-# vs. 0.215, BPR 0.940 vs. 0.927) -- carrying max into the flagship recipe
-# to test whether the fix also improves arm (8) HESOD (Full)'s own numbers
-# (0.378/0.202/88.94%), not just the isolated fusion-only arm.
+# max+SABL (no ISPPHead): same cfg as arm (9) Concat-Max, only --box-loss
+# sabl -- isolates SABL's effect against a max-fusion backbone instead of
+# concat's, resolving the confound flagged in SS3.4 point 3 (arm 6's
+# "isolated" SABL effect was measured against arm 5, which is itself
+# unstable/architecturally broken). Same naming convention as SeaPerson's
+# own concat/concat_sabl pair.
+run_arm "uavdt_yolov5m_channel_pooled_max_sabl${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
+
+# max+ISPPHead (no SABL): same cfg as the max+SABL+ISPPHead (Full v2) arm
+# below, upstream/CIoU box loss -- isolates ISPPHead's saving against a
+# max-fusion backbone, same comparison structure as arm (7) concat+ISPPHead.
 run_arm "uavdt_yolov5m_channel_pooled_max_isphead${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
+
+# HESOD Full v2 (max fusion + SABL + ISPPHead): max won the fusion-rule
+# probe over both concat (arm 5, SS3.5) and soft-OR (eval: mAP@.5 0.395 vs.
+# 0.387, mAP@.5:.95 0.218 vs. 0.215, BPR 0.940 vs. 0.927) -- carrying max
+# into the flagship recipe to test whether the fix also improves arm (8)
+# HESOD (Full)'s own numbers (0.378/0.202/88.94%), not just the isolated
+# fusion-only arm. Renamed from the original "..._max_isphead" to
+# "..._max_sabl_isphead" to match the concat family's own naming
+# (arm 8 = "..._concat_sabl_isphead"), since "..._max_isphead" now
+# correctly refers to the ISPPHead-only arm above.
+run_arm "uavdt_yolov5m_channel_pooled_max_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
