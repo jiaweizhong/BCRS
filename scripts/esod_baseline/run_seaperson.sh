@@ -267,6 +267,18 @@ run_arm "seaperson_yolov5m_spectral_only_run2${SUFFIX}" \
 run_arm "seaperson_yolov5m_channel_pooled_max_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" coverage sabl
 
+# max fusion alone (no SABL, no ISPPHead) -- isolates the fusion rule's own
+# effect from the SABL/ISPPHead confound above. The full-recipe swap (arm
+# above, HESOD-Experiment-Plan.md SS4.5) lost on every metric vs. arm (8),
+# but that alone can't separate "max is worse than concat here" from "max
+# interacts badly with SABL/ISPPHead specifically" -- the same confound
+# UAVDT's own arm 9 (fusion-only) resolved before building its Full v2.
+# Compares directly against arm (5) Dual-Concat (0.772 mAP@.5, the
+# roster's own peak) under identical --selector-loss coverage --box-loss
+# upstream flags -- only the fusion rule differs.
+run_arm "seaperson_yolov5m_channel_pooled_max${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max.yaml" coverage upstream
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/seaperson_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/seaperson_yolov5m_semantic_coverage${SUFFIX}/"

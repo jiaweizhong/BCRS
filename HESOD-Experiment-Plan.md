@@ -12,7 +12,7 @@
 |---|---|---:|---|---|---:|---|
 | **VisDrone** | `/root/autodl-tmp/VisDrone_v2.yaml` | 10 | `visdrone_yolov5m.yaml` | `hyp.visdrone.yaml` | 1536 | Val: 548 images, 38,759 GT |
 | **TinyPerson** | `tinyperson.yaml` (audited) | 1 | `tinyperson_yolov5m.yaml` | `hyp.tinyperson.yaml` | 2048 | Official Test: 786 images |
-| **UAVDT** | `/root/autodl-tmp/UAVDT_fresh.yaml` | 3 | `uavdt_yolov5m.yaml` | `hyp.uavdt.yaml` | 1280 | Test: car, truck, bus (373,997 GT) |
+| **UAVDT** | `/root/autodl-tmp/UAVDT_fresh.yaml` | 3 | `uavdt_yolov5m.yaml` | `hyp.uavdt.yaml` | 1280 | Test: car, truck, bus (373,997 GT); no official val split, see §1.1.1 |
 | **SeaPerson (TinyPersonV2)** | `/root/autodl-tmp/seaperson.yaml` (`seaperson_v2/`) | 1 | Arm-specific (see §4) | `hyp.seaperson.yaml` | 2048 | Official Test: 5,752 images (300,375 GT) |
 
 - **Common Training Recipe**: Base detector YOLOv5m, 50 epochs, SGD optimizer, cosine annealing learning rate scheduler, weight decay 0.0005, global batch size 8 (with the single exception of SeaPerson `spectral-only` which runs at batch size 2 due to full-channel memory constraints).
@@ -20,6 +20,17 @@
   - UAVDT multi-video naming disambiguation: `image_id` uses `path.parent.stem + '_' + path.stem` to prevent cross-sequence frame ID collisions in external evaluators.
   - SeaPerson image format robustness: `vt_diagnose.py` iteratively checks `.jpg`, `.jpeg`, `.png`, and `.bmp` (to correctly handle the `rgb1000/` subfolder) before falling back to native dimensions.
   - TinyPerson label masking: Evaluated strictly under the paper-text focal:dice 20:1 protocol with literal RGB-SAM Eq. 4 pseudo-masks.
+
+### 1.1.1 UAVDT Train/Test Protocol (No Official Val Split)
+
+Unlike VisDrone/TinyPerson/SeaPerson, UAVDT ships no official validation split -- only a fixed train/test partition over its video sequences. This project's actual protocol, set by `scripts/data_prepare.py::prepare_uavdt()` + `scripts/esod_baseline/reorganize_uavdt.py`:
+
+- **Train/test are split at the video-sequence level**, using UAVDT's own official partition (`M_attr/{train,test}/*.txt`, one file per sequence, 5-character sequence codes) -- not a random or project-defined split. Every frame of a sequence stays in the same split, so there is no frame-level leakage between train and test.
+- **Training uses a 10x-downsampled frame list** (`split/train_ds.txt`, every 10th frame of `train.txt`) -- consecutive video frames are near-duplicates, so the full frame list is not used for training.
+- **Test uses every frame** of the test-sequence partition, no downsampling: 16,580 images, 373,997 GT boxes across car/truck/bus (the count reported throughout §3).
+- **No genuine held-out validation set is used -- val overlaps test, and this traces back to the original ESOD authors' own repository, not to this project's own reproduction work.** UAVDT's own official release (`M_attr/`) only ships `train`/`test` directories (`data_prepare.py:391-394` globs exactly these two, nothing else) -- there is no official val partition to follow in the first place. `prepare_uavdt()` (verified via `git show fc68e7b:esod/scripts/data_prepare.py`, this project's very first commit, i.e. the pristine upstream ESOD copy, unmodified) *does* carve out a genuine, video-disjoint `"valid"` slice (a random 10% of the train sequences, `data_split["valid"]`, `data_prepare.py:395-401`) -- but the ESOD authors' own data yaml (`esod/data/uavdt.yaml`, same first-commit provenance) never wires it in: `val: ./UAVDT/split/test_ds.txt` points at a *purportedly downsampled subsample of test* (comment says "1.5k images") instead, leaving their own disjoint `"valid"` split completely unused, dead code in their own repo. **Caveat**: `prepare_uavdt()`'s own downsampling step (`data_prepare.py:478-480`, `image_paths[::10]`) only runs `if mode == "train"` -- there is no code anywhere in this repo's history that ever generates `test_ds.txt`, for any mode. So while the naming/directory convention strongly suggests `test_ds.txt` was some kind of subsample of `test.txt` (plausibly a similar every-Nth-frame stride, since 16,580/1.5k $\approx$ 11$\times$, close to train's 10$\times$), this can't be confirmed from tracked code -- it may have been produced by a manual step or an untracked script outside this repo. This project's own `reorganize_uavdt.py` (built when adapting the flat `images/`/`labels/` layout for the active tree) goes one step further: it drops the `"valid"` split from the copy step entirely (only `"train"`/`"test"` are materialized) and `UAVDT_fresh.yaml`'s `val:` key points at the *full* `images/test` directory, not a downsampled subsample -- so the overlap between what training-time validation sees and what the final reported numbers come from went from "partial, via a smaller subsample" (upstream ESOD) to "total, identical directory" (this project's active pipeline). Either way, every checkpoint-selection/monitoring step during training sees images drawn from the same pool the final reported test metrics are computed on.
+- **This is a known, inherited protocol gap (present in ESOD's own repo since before this project started), not fixed here.** The data-prep pipeline *does* generate a genuine, disjoint val split (the 10%-of-train `"valid"` slice) -- it was simply never used, by the original authors or by this project's own adaptation of their code. Retrofitting it now would mean wiring `"valid"` back into `reorganize_uavdt.py`/`UAVDT_fresh.yaml` and retraining the whole §3 roster under a different checkpoint-selection signal; deliberately left as-is this session to keep every UAVDT arm comparable against R0 and against each other, not because a fix wasn't available. Read UAVDT's numbers with this in mind: unlike SeaPerson/VisDrone/TinyPerson's genuinely held-out test sets, there is no separation between "the split used to pick the best epoch" and "the split the reported numbers come from" -- and this specific gap is not unique to this reproduction, it matches the original ESOD codebase's own convention.
+- **Label conversion invariants** (`prepare_uavdt()`): all 3 classes are preserved (car/truck/bus, label id $-1$) -- the released UAVDT-DET converter's default collapses everything to one class, a materially easier and non-comparable task, and is not used here (§1.1 table's "Paper-comparable UAVDT-DET protocol" note). GT boxes whose center falls inside an `*_ignore.txt` region are dropped before being written to the per-frame YOLO label. `reorganize_uavdt.py` prefixes every flattened filename with its source video directory (`<video>_imgXXXXXX.jpg`), since raw per-video frame numbering collides across sequences -- the same reason `image_id` for external evaluators uses `path.parent.stem + '_' + path.stem` (the Data Preparation Invariants bullet above).
 
 ### 1.2 Evaluation Metrics & Parameter Accounting
 
@@ -88,9 +99,11 @@ R0's own reproduction is close to the paper (mAP@.5/.95: 0.385/0.214 vs. paper's
 | **(7)** | **Concat+ISPPHead** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | ISPPHead | 0.371 | 0.192 | 0.940 | 82.6 | 25.98 | 97.8 |
 | **(8)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.378 | 0.202 | 0.937 | 81.6 | 25.98 | 95.2 |
 | **(9)**$^\P$ | **Concat-Max** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | **0.395** | **0.218** | **0.940** | 90.1 | 35.85 | 102.3 |
+| **(10)**$^\S$ | **HESOD (Full) v2** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.382 | 0.212 | 0.920 | **69.0** | 25.98 | **108.1** |
 
 - **(4)** replaces gated-fusion in this roster (SeaPerson's own gated-fusion arm already has a clear negative result, §5 -- not worth re-confirming here). It channel-pools the spectral branch the same way arms (5)-(8) do, isolating whether (3)'s strong result comes from spectral evidence itself or its extra (unpooled) capacity -- same confound-check as SeaPerson's own arm (4), §4.2.
 - $^\P$ **(9)** is outside the 8-arm roster that mirrors SeaPerson's own order (§3 intro) -- same evidence branches and training flags as (5), only the fusion rule changed (`torch.max` instead of the learned 1x1 combiner). Appended rather than inserted after (5) to avoid renumbering arms (6)-(8) and the many "arm N" cross-references to them in §3.4. Full comparison and interpretation in §3.5.
+- $^\S$ **(10)** is (8)'s own recipe (SABL + ISPPHead) with (9)'s fusion rule substituted in for (5)'s -- same config as (8) except `ChannelPooledMaxEvidenceSegmenter` replaces the learned 1x1 combiner. Full comparison and interpretation in §3.6.
 
 ---
 
@@ -107,6 +120,7 @@ R0's own reproduction is close to the paper (mAP@.5/.95: 0.385/0.214 vs. paper's
 | **(7) Concat+ISPPHead** | 83.06% | 88.19% | 98.07% | 62.32% | 88.94% | 89.33% | 84.19% | 74.69% |
 | **(8) HESOD (Full)** | 82.54% | 88.34% | 98.09% | 63.02% | 88.94% | 89.31% | 83.90% | 75.63% |
 | **(9)$^\P$ Concat-Max** | **85.69%** | 89.97% | 97.37% | 65.99% | **90.36%** | 90.67% | 85.14% | 80.09% |
+| **(10)$^\S$ HESOD (Full) v2** | 80.31% | 85.40% | 95.70% | 57.17% | 86.21% | 86.45% | 82.75% | 77.71% |
 
 ---
 
@@ -136,6 +150,22 @@ Same evidence branches (channel-pooled semantic + spectral), same `--selector-lo
 **Max fusion confirms the evidence-preservation hypothesis (§3.4 points 4-5) cleanly, and does better than "cap out at the better single branch" alone.** Every metric improves over concat: +2.4pp mAP@.5, +1.3pp mAP@.5:.95, +4.01pp Total Recall, +0.021 BPR -- for +7.4% GFLOPs (83.9$\to$90.1) and -4.6% FPS, a real but modest cost. More notably, max now matches or beats the best *single-evidence* arms while using *less* compute than either: mAP@.5 (0.395) is within noise of spectral-only's 0.396, Total Recall (90.36%) exceeds spectral-only's 88.83% by +1.53pp, and GFLOPs (90.1) is lower than both spectral-only (98.1) and spectral-only-pooled (99.3). Params stay exactly at concat's 35.85M (expected -- fusion adds no parameters either way, `torch.max` has none, the removed `concat_convs` had few). `vt_diagnose.py`'s miss-reason mix shifts toward concat's own pattern but less extreme (`right_class_low_iou` 48.8% vs. concat's 50.6%, `no_nearby_prediction` 34.7% vs. 32.8%) -- max fusion isn't a clean return to either single-branch's own miss profile, it's a genuinely new operating point. Params note: `ChannelPooledMaxEvidenceSegmenter` has no `concat_convs` at all (removed, not just unused), yet Params is reported identical to concat's 35.85M to 2 decimal places -- the removed 1x1 conv's parameter count (a few thousand, `nc*2*nc` weights) rounds away at this precision, consistent with §3.4 point 5's claim that the fusion op's own cost (compute *or* parameters) was never the story.
 
 **Soft-OR did not beat max -- the opposite of what its own theoretical property (§3.4 point 5) predicted.** Its evidence-preservation bound is strictly tighter than max's ($p_{\mathrm{fuse}}\ge\max(p_s,p_f)$ with equality only when one branch is exactly 0, vs. max's equality whenever either branch wins outright), yet soft-OR trails max on every single metric measured: mAP@.5 (0.387 vs. 0.395, -0.8pp), mAP@.5:.95 (0.215 vs. 0.218, -0.3pp), Total Recall (88.77% vs. 90.36%, -1.59pp), and BPR (0.927 vs. 0.940). This happens despite soft-OR producing *fewer* raw predictions than max (5.20M vs. 5.43M) and near-identical GFLOPs (89.9 vs. 90.1) -- so it isn't a case of soft-OR being more conservative and giving up recall for precision; it's uniformly behind. A plausible read: hard max's winner-take-all gradient (point 5's flagged risk) turned out to be the less costly trade-off here than expected, while soft-OR's extra permissiveness when both branches are moderately confident (its main theoretical advantage) doesn't appear to route toward the *right* extra candidates on this dataset -- consistent with semantic and spectral not being symmetric, easily-confused evidence sources to begin with (point 5's own caveat about why winner-take-all might be milder here than in typical mixture-of-experts settings). **Max is the fusion rule carried forward into the flagship-recipe test** (`uavdt_yolov5m_channel_pooled_max_sabl_isphead`, max fusion + SABL + ISPPHead -- "HESOD Full v2" -- queued to test whether the fix also improves arm (8) HESOD (Full)'s own 0.378/0.202/88.94% numbers, alongside two isolating arms, `uavdt_yolov5m_channel_pooled_max_sabl` and `uavdt_yolov5m_channel_pooled_max_isphead`, that redo the point-3 SABL/ISPPHead comparison against a fusion rule that isn't itself broken) -- soft-OR's elegant unification with the coverage loss's own algebra (point 5) turned out not to translate into a better empirical result on UAVDT, at least not with these training flags.
+
+---
+
+### 3.6 HESOD (Full) v2: Does Max Fusion Also Improve the Flagship Recipe?
+
+Arm (10) (§3.2/§3.3), audited 2026-09-01 via `audit_buckets.py`/`vt_diagnose.py`/the measure log, cross-checked consistently (Very Tiny recall 80.31% audit vs. 80.33% `vt_diagnose.py` -- agree within rounding).
+
+| Recipe | mAP@.5 | mAP@.5:.95 | BPR | Total Recall | GFLOPs | Params (M) | FPS |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| (8) HESOD (Full), concat fusion | 0.378 | 0.202 | 0.937 | 88.94% | 81.6 | 25.98 | 95.2 |
+| (9) Concat-Max, fusion only (no SABL/ISPPHead) | **0.395** | **0.218** | **0.940** | **90.36%** | 90.1 | 35.85 | 102.3 |
+| **(10) HESOD (Full) v2, max fusion + SABL + ISPPHead** | 0.382 | 0.212 | 0.920 | 86.21% | **69.0** | 25.98 | **108.1** |
+
+**Not a clean win -- a genuine mixed result, and not the one either baseline predicted.** Against arm (8) (same SABL+ISPPHead recipe, only the fusion rule swapped), v2 improves mAP@.5 (+0.4pp) and mAP@.5:.95 (+1.0pp) but *loses* BPR (-1.7pp) and Total Recall (-2.73pp, 88.94%$\to$86.21%) -- the opposite trade-off direction from arm (9)'s clean sweep over concat-only (§3.5, where max improved *every* metric). Against arm (9) itself (the isolated fusion fix, no SABL/ISPPHead), v2 is worse on every accuracy/recall metric measured (mAP@.5 -1.3pp, mAP@.5:.95 -0.6pp, BPR -2.0pp, Total Recall -4.15pp) -- adding SABL+ISPPHead on top of the fusion fix gave some of arm (9)'s gain back, not all of it, and Total Recall specifically. **The one unambiguous win is efficiency**: GFLOPs (69.0) is the lowest of any arm in the entire UAVDT roster including R0 (68.2) -- essentially matching R0's compute footprint while carrying the full dual-evidence selector, SABL, and ISPPHead -- and FPS (108.1) is the fastest of arms (1)-(10). Raw prediction count (2.90M, `vt_diagnose.py`) is notably *lower* than arm (9)'s own 5.43M despite sharing the identical fusion rule -- SABL and/or ISPPHead compound with max fusion to cut routing density well beyond what either factor alone would predict, which also mechanically explains the BPR/recall drop (§3.4 point 2's own finding on concat-only: a shrunken candidate pool costs recall directly).
+
+**This is exactly the confound §3.4 point 3 flagged, now with real numbers instead of a caveat.** Whether the recall/BPR cost comes from SABL, from ISPPHead, or from their interaction with max fusion specifically, cannot be read off from v2 alone -- it needs the two isolating arms already queued in `run_uavdt.sh` (`uavdt_yolov5m_channel_pooled_max_sabl`: max fusion + SABL, no ISPPHead; `uavdt_yolov5m_channel_pooled_max_isphead`: max fusion + ISPPHead, no SABL) to separate. Until those land, **no single UAVDT recipe is being promoted to replace arm (8) as "the" HESOD (Full)** in §3.1's headline table -- v2 is a real, audited data point (best-in-roster GFLOPs/FPS, mixed accuracy), not a decided upgrade; §3.1 keeps arm (8)'s numbers unchanged pending the isolating arms.
 
 ---
 
@@ -170,8 +200,10 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | **(6)** | **Dual+SABL** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | Coupled | 0.771 | 0.323 | 0.990 | 263.7 | 73.4 |
 | **(7)** | **Dual+ISPP** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | ISPPHead | 0.771 | **0.328** | 0.988 | 217.6 | \underline{77.3} |
 | **(8)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | **0.774** | 0.326 | 0.991 | \underline{209.0} | **80.7** |
+| **(9)**$^\dagger$ | **HESOD (Full), max fusion** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.763 | 0.320 | 0.988 | 221.9 | 77.1 |
 
 - **(4)** channel-pools the spectral branch the same way arms (5)-(8) do, isolating whether (3)'s strong result came from spectral evidence itself or from its extra (unpooled) capacity -- trains at the shared batch=8, unlike (3)'s forced batch=2 for the full-width branch. Params 35.79M vs (3)'s 35.94M.
+- $^\dagger$ **(9)** is a regression check, not part of the 8-arm roster -- (8)'s own recipe with `ChannelPooledMaxEvidenceSegmenter` substituted for the learned 1x1 combiner, testing whether UAVDT's fusion-rule fix (§3.4-§3.6) transfers here too. Full comparison and interpretation in §4.5.
 
 ---
 
@@ -187,6 +219,7 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 | **(6) Dual+SABL** | 76.67% (63,193) | 91.49% (159,935) | 94.77% (40,740) | 80.65% (125) | 87.89% (263,993) |
 | **(7) Dual+ISPP** | 75.86% (62,521) | 91.25% (159,516) | \underline{95.85\%} (41,204) | **87.10% (135)** | 87.68% (263,376) |
 | **(8) HESOD (Full)** | **77.14% (63,574)** | 91.59% (160,110) | 95.01% (40,842) | 84.52% (131) | **88.11% (264,657)** |
+| **(9)$^\dagger$ HESOD (Full), max fusion** | 76.01% (62,649) | 90.36% (157,958) | 94.78% (40,743) | 83.87% (130) | 87.05% (261,480) |
 
 ---
 
@@ -196,6 +229,18 @@ SeaPerson evaluates ultra-high-resolution maritime search-and-rescue over 5,752 
 2. **Spectral Saliency Acts as an Orthogonal Cue**: Spectral-only routing (Arm 3) reaches 0.770 mAP@.5 and 0.992 BPR, demonstrating that channel-pooled structural gradients provide a dependable spatial routing signal independent of semantic activations. Unconditional concatenation (Arm 4) achieves peak 0.772 mAP@.5 and recovers +420 to +631 more Very Tiny instances than single-evidence selectors.
 3. **ISPPHead Delivers True Pareto Compression**: Swapping the coupled head for the inverted residual ISPP decoupled head (Arm 6) slashes parameters by **27.6%** (35.79M $\to$ 25.92M) and GFLOPs by **22.6%** (281.2 $\to$ 217.6), while establishing the highest high-IoU precision ($\mathrm{mAP@.5:.95} = \mathbf{0.328}$) at 77.3 FPS.
 4. **SABL Maximizes Micro-Target Recall**: While aggregate mAP averages across all scales, SABL's Wasserstein distance regression specializes in sub-16px instances, pushing **Very Tiny recall to 77.14%** (recovering +2,560 targets over baseline) and lowering GFLOPs to **209.0** via tighter patch localization.
+
+---
+
+### 4.5 Fusion-Rule Regression Check: Max Does Not Transfer to SeaPerson
+
+Arm (9) (§4.2/§4.3), audited 2026-09-01 via `audit_buckets.py`/`vt_diagnose.py`/the measure log, cross-checked consistently (Very Tiny recall 76.01% audit vs. 76.04% `vt_diagnose.py` -- agree within rounding).
+
+**Unlike UAVDT, this is a clean loss, not a mixed result.** Substituting max fusion into arm (8)'s exact recipe (same SABL + ISPPHead, only the combiner changed) makes every single metric worse: mAP@.5 -1.1pp (0.774$\to$0.763), mAP@.5:.95 -0.6pp (0.326$\to$0.320), BPR -0.3pp (0.991$\to$0.988), Total Recall -1.06pp (88.11%$\to$87.05%), GFLOPs +6.2% (209.0$\to$221.9, *worse* -- higher, not lower), and FPS -4.5% (80.7$\to$77.1). Every UAVDT arm this session showed max fusion winning or at worst trading modestly (§3.5-§3.6); here it loses outright, including on efficiency, where UAVDT's max arms were unambiguous wins.
+
+**This is the outcome §4.4 point 2 already predicted, now confirmed rather than merely suspected.** SeaPerson's own concat-only (arm 5, Dual-Concat) was never broken -- it already achieved the roster's peak mAP@.5 (0.772) before this check ran, "orthogonal cue" evidence of genuine learned synergy between the two branches (§4.4 point 2), not the pathological score-dilution UAVDT's affine-combiner proof (§3.4 point 4) describes. Max fusion's own ceiling is structural: `torch.max(p_semantic, p_spectral)` can never exceed "the better of the two branches" at any location (§3.4 point 4's own caveat), so wherever concat's affine blend is doing real synergistic combination rather than averaging away a confident signal, replacing it with max can only cap performance at a lower point, never recover the blend's own gain.
+
+**Conclusion for the fusion-rule design question raised earlier this session: the fusion rule is dataset-dependent, not universal.** UAVDT needs max (or another evidence-preserving rule) because its concat combiner is measurably, mechanistically broken there; SeaPerson does not, because its concat combiner is not broken -- it is the better-performing choice. The right framing for the architecture/paper narrative is a generic **fusion module** governed by the evidence-preservation principle (§3.4 point 5) as the design contribution, with the specific instantiation (concat vs. max vs. soft-OR) selected per domain rather than hard-coded -- concretely, by checking whether that domain's own concat-only arm underperforms its single-evidence arms (UAVDT: yes, arm 5 trails arms 3/4; SeaPerson: no, arm 5 leads arms 2/3/4) as a cheap diagnostic for which instantiation to use.
 
 ---
 
