@@ -549,6 +549,25 @@ def train(hyp, opt, device, tb_writer=None):
     ):  # epoch ------------------------------------------------------------------
         use_gt = epoch < epochs * 0.6
         model.train()
+        if opt.freeze:
+            # model.train() above puts every submodule (including frozen
+            # ones) back into train mode -- for BatchNorm this means running
+            # statistics keep updating via each batch's own mean/var even
+            # though requires_grad=False stopped weight/bias gradients, so a
+            # "frozen" trunk's actual forward-pass behavior still drifts
+            # epoch over epoch. Re-freezing BN layers here (every epoch, has
+            # to be after model.train(), not just once before the loop)
+            # keeps the frozen trunk's forward behavior -- not just its
+            # weights -- identical to the checkpoint it was warm-started
+            # from. Discovered 2026-09-03: a --freeze fine-tune produced 2-3x
+            # the raw prediction count of every other max-fusion arm despite
+            # a supposedly-frozen selector -- BN drift, not the selector
+            # itself, was moving.
+            for k, m in model.named_modules():
+                if any(x in k for x in freeze) and isinstance(
+                    m, (nn.BatchNorm2d, nn.LayerNorm)
+                ):
+                    m.eval()
 
         # Update image weights (optional)
         if opt.image_weights:
