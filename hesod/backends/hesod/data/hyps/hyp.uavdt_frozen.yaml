@@ -3,34 +3,34 @@
 # to hyp.uavdt.yaml except lr0 (0.01 -> 0.001, a 10x cut) and warmup_epochs
 # (3.0 -> 1.0).
 #
-# Root cause, revised (2026-09-04): two successive collapses (lr0=0.01/
-# warmup_epochs=3.0 -> collapsed exactly at epoch 3; lr0=0.001/
-# warmup_epochs=1.0 -> collapsed exactly at epoch 1) show the trigger is
-# not the absolute LR magnitude -- it is the warmup-end TRANSITION itself,
-# which is gated by the same `warmup_flag` in train.py (~line 622-654,
-# 687, 779-780) that ALSO controls two other things simultaneously:
-# ground-truth-assisted candidate routing (`use_gt=True` during warmup,
-# masks passed to the loss) and the candidate confidence threshold
-# (`conf_thres=0.1` during warmup, a strict gate on which selector
-# predictions get processed -> `conf_thres=0.001` after, ~100x more
-# permissive). This bootstrap-then-wean schedule is designed for a
-# randomly-initialized selector that needs GT help to start routing
-# sensibly -- irrelevant here, since arm 9's selector is already converged
-# and frozen. Every prior collapse happened right where warmup_flag flips
-# False: GT assistance vanishes and a flood of previously-filtered
-# low-confidence candidates hits a head still adapting to SABL loss,
-# apparently pushing objectness to collapse. Fix: disable warmup entirely
-# (warmup_epochs=0) so `nw=-1` and warmup_flag is False for the whole run
-# -- training starts directly in the "real" (use_gt=False,
-# conf_thres=0.001) regime from epoch 0, no discontinuous transition
-# anywhere. lr0 stays at the reduced 0.001 (vs. hyp.uavdt.yaml's
-# from-scratch 0.01) since fine-tuning a converged checkpoint still
-# warrants a gentler rate even without the warmup-transition issue.
+# Root cause, revised again (2026-09-04): THREE successive collapses now.
+# lr0=0.01/warmup_epochs=3.0 -> collapsed exactly at epoch 3. lr0=0.001/
+# warmup_epochs=1.0 -> collapsed exactly at epoch 1. lr0=0.001/
+# warmup_epochs=0.0 (warmup disabled entirely) -> collapsed at epoch 0,
+# immediately -- WORSE, not better. This rules out "warmup-end transition
+# timing" as the cause: the trigger is being in the post-warmup regime AT
+# ALL, not the moment of transitioning into it. That regime (gated by the
+# same `warmup_flag` in train.py ~line 622-654, 687, 779-780) sets
+# `use_gt=False` (no ground-truth-assisted candidate routing) and
+# `conf_thres=0.001` (vs. 0.1 during warmup, ~100x more permissive) --
+# every collapse happens once the model has to rely on the frozen
+# selector's own predictions at that permissive threshold, training a
+# fresh SABL head. Next test: keep warmup_epochs LARGER than the total
+# epoch budget (25 > 20) so `warmup_flag` never goes False for the entire
+# run -- training stays in the use_gt=True/conf_thres=0.1 regime
+# throughout. Caveat this doesn't fully resolve: test.py's own standalone
+# eval (run after training) always uses conf_thres=0.001 regardless of
+# how the model was trained -- if the collapse is really about that
+# permissive threshold overwhelming a SABL head trained on the frozen
+# trunk's real candidates, staying in warmup throughout TRAINING might
+# just defer, not prevent, the same failure showing up at eval time. Test
+# with a cheap EPOCHS=2 override first (not the full 20) to get this read
+# in ~15-20 min instead of another 2-3 hour commitment.
 lr0: 0.001  # initial learning rate -- 10x lower than scratch training (hyp.uavdt.yaml's 0.01), for fine-tuning a converged checkpoint
 lrf: 0.1  # final OneCycleLR learning rate (lr0 * lrf)
 momentum: 0.937  # SGD momentum/Adam beta1
 weight_decay: 0.0005  # optimizer weight decay 5e-4
-warmup_epochs: 0.0  # disabled -- see header. Fine-tuning a converged, frozen-trunk checkpoint doesn't need GT-assisted bootstrap, and the warmup-end transition is what was collapsing training
+warmup_epochs: 25.0  # larger than any EPOCHS budget used with this hyp file -- keeps warmup_flag True (use_gt=True, conf_thres=0.1) for the entire run, see header
 warmup_momentum: 0.8  # warmup initial momentum
 warmup_bias_lr: 0.1  # warmup initial bias lr
 box: 0.05  # box loss gain
