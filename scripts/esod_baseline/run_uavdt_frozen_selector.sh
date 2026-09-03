@@ -50,7 +50,14 @@ IMG_SIZE="${IMG_SIZE:-1280}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
 DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/UAVDT_fresh}"
 DATA_YAML="${DATA_YAML:-/root/autodl-tmp/UAVDT_fresh.yaml}"
-HYP="data/hyps/hyp.uavdt.yaml"
+# hyp.uavdt.yaml's lr0=0.01/warmup_epochs=3.0 is calibrated for training
+# from scratch (or COCO-pretrained weights) -- far too aggressive for
+# fine-tuning a head warm-started from an already-converged checkpoint with
+# the trunk frozen. First attempt (2026-09-03) collapsed to all-zero P/R/
+# mAP/BPR starting exactly at epoch 3 (when warmup ends and LR jumps to the
+# full 0.01) -- see hyp.uavdt_frozen.yaml's own header for the full
+# diagnosis. Use the 10x-lower-lr0 variant here instead.
+HYP="data/hyps/hyp.uavdt_frozen.yaml"
 CLASSES="car,truck,bus"
 VAL_SPLIT="test"
 EPOCHS="${EPOCHS:-20}"

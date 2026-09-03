@@ -1,0 +1,49 @@
+# Hyperparameters for the frozen-selector fine-tune probe
+# (run_uavdt_frozen_selector.sh, HESOD-Experiment-Plan.md SS3.6). Identical
+# to hyp.uavdt.yaml except lr0 (0.01 -> 0.001, a 10x cut) and warmup_epochs
+# (3.0 -> 1.0).
+#
+# Root cause (2026-09-03): the first corrected (BN-eval-mode-fixed) run of
+# uavdt_yolov5m_channel_pooled_max_sabl_frozen collapsed to all-zero P/R/
+# mAP/BPR starting exactly at epoch 3 (results.txt: epochs 0-2 improved
+# normally, mAP@.5 0.299->0.36; epoch 3 onward flatlined at 0, permanently,
+# while training loss kept decreasing smoothly -- the classic signature of
+# the model collapsing to predicting background everywhere, not a gradient
+# explosion). Epoch 3 is exactly when hyp.uavdt.yaml's warmup_epochs=3.0
+# ends and the LR schedule jumps to the full lr0=0.01 -- a rate calibrated
+# for training YOLOv5m from scratch (or from COCO-pretrained weights), far
+# too aggressive for fine-tuning a head warm-started from an already-
+# converged 50-epoch checkpoint (arm 9) with the trunk frozen. The first
+# (uncorrected, BN-still-drifting) attempt did not show this collapse --
+# plausibly because the drifting BN statistics acted as an unintended
+# stabilizer/shock-absorber that the properly-frozen trunk no longer
+# provides once its own statistics stop adapting.
+lr0: 0.001  # initial learning rate -- 10x lower than scratch training (hyp.uavdt.yaml's 0.01), for fine-tuning a converged checkpoint
+lrf: 0.1  # final OneCycleLR learning rate (lr0 * lrf)
+momentum: 0.937  # SGD momentum/Adam beta1
+weight_decay: 0.0005  # optimizer weight decay 5e-4
+warmup_epochs: 1.0  # shorter warmup -- fine-tuning a converged checkpoint, not training from random init
+warmup_momentum: 0.8  # warmup initial momentum
+warmup_bias_lr: 0.1  # warmup initial bias lr
+box: 0.05  # box loss gain
+cls: 20.0  # cls loss gain
+cls_pw: 1.0  # cls BCELoss positive_weight
+obj: 1.0  # obj loss gain (scale with pixels)
+obj_pw: 1.0  # obj BCELoss positive_weight
+iou_t: 0.20  # IoU training threshold
+anchor_t: 4.0  # anchor-multiple threshold
+# anchors: 3  # anchors per output layer (0 to ignore)
+fl_gamma: 1.5  # focal loss gamma (efficientDet default gamma=1.5)
+hsv_h: 0.2  # image HSV-Hue augmentation (fraction)
+hsv_s: 0.5  # image HSV-Saturation augmentation (fraction)
+hsv_v: 0.4  # image HSV-Value augmentation (fraction)
+degrees: 0.2  # image rotation (+/- deg)
+translate: 0.2  # image translation (+/- fraction)
+scale: 0.5  # image scale (+/- gain)
+shear: 0.02  # image shear (+/- deg)
+perspective: 0.0  # image perspective (+/- fraction), range 0-0.001
+flipud: 0.0  # image flip up-down (probability)
+fliplr: 0.5  # image flip left-right (probability)
+mosaic: 1.0  # image mosaic (probability)
+mixup: 0.2  # image mixup (probability)
+pixl: 0.2  # pixl loss gain
