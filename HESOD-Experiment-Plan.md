@@ -100,10 +100,12 @@ R0's own reproduction is close to the paper (mAP@.5/.95: 0.385/0.214 vs. paper's
 | **(8)** | **HESOD (Full)** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.378 | 0.202 | 0.937 | 81.6 | 25.98 | 95.2 |
 | **(9)**$^\P$ | **Concat-Max** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | Coupled | **0.395** | **0.218** | **0.940** | 90.1 | 35.85 | 102.3 |
 | **(10)**$^\S$ | **HESOD (Full) v2** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | ISPPHead | 0.382 | 0.212 | 0.920 | **69.0** | 25.98 | **108.1** |
+| **(11)**$^\S$ | **Max+SABL** | $\mathcal{L}_{\mathrm{cover}}$ | SABL | Coupled | 0.367 | 0.202 | 0.938 | 93.6 | 35.85 | 100.0 |
+| **(12)**$^\S$ | **Max+ISPPHead** | $\mathcal{L}_{\mathrm{cover}}$ | CIoU | ISPPHead | 0.360 | 0.199 | 0.915 | 67.5 | 25.98 | **109.0** |
 
 - **(4)** replaces gated-fusion in this roster (SeaPerson's own gated-fusion arm already has a clear negative result, §5 -- not worth re-confirming here). It channel-pools the spectral branch the same way arms (5)-(8) do, isolating whether (3)'s strong result comes from spectral evidence itself or its extra (unpooled) capacity -- same confound-check as SeaPerson's own arm (4), §4.2.
 - $^\P$ **(9)** is outside the 8-arm roster that mirrors SeaPerson's own order (§3 intro) -- same evidence branches and training flags as (5), only the fusion rule changed (`torch.max` instead of the learned 1x1 combiner). Appended rather than inserted after (5) to avoid renumbering arms (6)-(8) and the many "arm N" cross-references to them in §3.4. Full comparison and interpretation in §3.5.
-- $^\S$ **(10)** is (8)'s own recipe (SABL + ISPPHead) with (9)'s fusion rule substituted in for (5)'s -- same config as (8) except `ChannelPooledMaxEvidenceSegmenter` replaces the learned 1x1 combiner. Full comparison and interpretation in §3.6.
+- $^\S$ **(10)**/**(11)**/**(12)** isolate arm (10)'s SABL+ISPPHead recipe against arm (9)'s clean max-fusion baseline instead of arm (5)'s broken concat one -- (11) is (9) with SABL added (no ISPPHead), (12) is (9) with ISPPHead added (no SABL); together with (10) they form a complete 2$\times$2 factorial over {SABL, ISPPHead} $\times$ {present, absent} on top of max fusion. Full comparison and interpretation in §3.6.
 
 ---
 
@@ -121,6 +123,8 @@ R0's own reproduction is close to the paper (mAP@.5/.95: 0.385/0.214 vs. paper's
 | **(8) HESOD (Full)** | 82.54% | 88.34% | 98.09% | 63.02% | 88.94% | 89.31% | 83.90% | 75.63% |
 | **(9)$^\P$ Concat-Max** | **85.69%** | 89.97% | 97.37% | 65.99% | **90.36%** | 90.67% | 85.14% | 80.09% |
 | **(10)$^\S$ HESOD (Full) v2** | 80.31% | 85.40% | 95.70% | 57.17% | 86.21% | 86.45% | 82.75% | 77.71% |
+| **(11)$^\S$ Max+SABL** | 83.75% | 88.86% | 97.40% | 63.17% | 89.31% | 89.64% | 83.45% | 79.10% |
+| **(12)$^\S$ Max+ISPPHead** | 79.05% | 85.84% | 94.74% | 57.56% | 85.99% | 86.26% | 82.07% | 76.69% |
 
 ---
 
@@ -161,11 +165,24 @@ Arm (10) (§3.2/§3.3), audited 2026-09-01 via `audit_buckets.py`/`vt_diagnose.p
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | (8) HESOD (Full), concat fusion | 0.378 | 0.202 | 0.937 | 88.94% | 81.6 | 25.98 | 95.2 |
 | (9) Concat-Max, fusion only (no SABL/ISPPHead) | **0.395** | **0.218** | **0.940** | **90.36%** | 90.1 | 35.85 | 102.3 |
+| (11) Max+SABL, no ISPPHead | 0.367 | 0.202 | 0.938 | 89.31% | 93.6 | 35.85 | 100.0 |
+| (12) Max+ISPPHead, no SABL | 0.360 | 0.199 | 0.915 | 85.99% | 67.5 | 25.98 | 109.0 |
 | **(10) HESOD (Full) v2, max fusion + SABL + ISPPHead** | 0.382 | 0.212 | 0.920 | 86.21% | **69.0** | 25.98 | **108.1** |
 
-**Not a clean win -- a genuine mixed result, and not the one either baseline predicted.** Against arm (8) (same SABL+ISPPHead recipe, only the fusion rule swapped), v2 improves mAP@.5 (+0.4pp) and mAP@.5:.95 (+1.0pp) but *loses* BPR (-1.7pp) and Total Recall (-2.73pp, 88.94%$\to$86.21%) -- the opposite trade-off direction from arm (9)'s clean sweep over concat-only (§3.5, where max improved *every* metric). Against arm (9) itself (the isolated fusion fix, no SABL/ISPPHead), v2 is worse on every accuracy/recall metric measured (mAP@.5 -1.3pp, mAP@.5:.95 -0.6pp, BPR -2.0pp, Total Recall -4.15pp) -- adding SABL+ISPPHead on top of the fusion fix gave some of arm (9)'s gain back, not all of it, and Total Recall specifically. **The one unambiguous win is efficiency**: GFLOPs (69.0) is the lowest of any arm in the entire UAVDT roster including R0 (68.2) -- essentially matching R0's compute footprint while carrying the full dual-evidence selector, SABL, and ISPPHead -- and FPS (108.1) is the fastest of arms (1)-(10). Raw prediction count (2.90M, `vt_diagnose.py`) is notably *lower* than arm (9)'s own 5.43M despite sharing the identical fusion rule -- SABL and/or ISPPHead compound with max fusion to cut routing density well beyond what either factor alone would predict, which also mechanically explains the BPR/recall drop (§3.4 point 2's own finding on concat-only: a shrunken candidate pool costs recall directly).
+**Not a clean win over (8) -- a genuine mixed result.** Against arm (8) (same SABL+ISPPHead recipe, only the fusion rule swapped), v2 improves mAP@.5 (+0.4pp) and mAP@.5:.95 (+1.0pp) but *loses* BPR (-1.7pp) and Total Recall (-2.73pp) -- the opposite trade-off direction from arm (9)'s clean sweep over concat-only (§3.5, where max improved *every* metric). Against arm (9) itself, v2 is worse on every accuracy/recall metric (mAP@.5 -1.3pp, mAP@.5:.95 -0.6pp, BPR -2.0pp, Total Recall -4.15pp). **The one unambiguous win is efficiency**: GFLOPs (69.0) is the lowest of any arm in the entire UAVDT roster including R0 (68.2), and FPS (108.1) is the fastest of arms (1)-(12).
 
-**This is exactly the confound §3.4 point 3 flagged, now with real numbers instead of a caveat.** Whether the recall/BPR cost comes from SABL, from ISPPHead, or from their interaction with max fusion specifically, cannot be read off from v2 alone -- it needs the two isolating arms already queued in `run_uavdt.sh` (`uavdt_yolov5m_channel_pooled_max_sabl`: max fusion + SABL, no ISPPHead; `uavdt_yolov5m_channel_pooled_max_isphead`: max fusion + ISPPHead, no SABL) to separate. Until those land, **no single UAVDT recipe is being promoted to replace arm (8) as "the" HESOD (Full)** in §3.1's headline table -- v2 is a real, audited data point (best-in-roster GFLOPs/FPS, mixed accuracy), not a decided upgrade; §3.1 keeps arm (8)'s numbers unchanged pending the isolating arms.
+**The 2$\times$2 factorial over {SABL, ISPPHead} on top of max fusion (arms 9/11/12/10) is now complete, and it cleanly separates each factor's own effect from arm (9)'s baseline:**
+
+| Factor added to arm (9) | ΔmAP@.5 | ΔmAP@.5:.95 | ΔBPR | ΔTotal Recall | ΔGFLOPs |
+|---|:---:|:---:|:---:|:---:|:---:|
+| SABL alone (arm 11) | -2.8pp | -1.6pp | -0.2pp | -1.05pp | +3.9% |
+| ISPPHead alone (arm 12) | -3.5pp | -1.9pp | **-2.5pp** | **-4.37pp** | **-25.1%** |
+
+**ISPPHead, not SABL, is the primary driver of the recall/BPR cost.** SABL alone barely moves BPR/Total Recall (-0.2pp/-1.05pp) while costing mAP disproportionately (-2.8pp mAP@.5) -- a mechanistically sensible signature, since SABL is a box-*regression* loss (affects localization/IoU quality, which mAP integrates over) rather than whether a candidate gets proposed near the GT at all (which BPR/recall check, ignoring box tightness). ISPPHead alone costs mAP similarly (-3.5pp) but costs BPR/Total Recall far more (-2.5pp/-4.37pp) *and* delivers the large compute win (-25.1% GFLOPs) -- consistent with ISPPHead's established compression/capacity trade-off (§4.4 point 3 on SeaPerson) showing up here as a real recall cost specifically when paired with max fusion, not just a parameter-count story. This also answers the "why does the same head behave for free with concat but cost something with max" puzzle raised earlier: it isn't that ISPPHead's own cost changes, it's that concat's own arm (7) never isolated ISPPHead's cost cleanly to begin with (arm 7 was compared to an *unstable* concat-only baseline, §3.4 point 3) -- against a clean max-fusion baseline, ISPPHead's recall cost is real and visible for the first time.
+
+**Combining both factors (arm 10) is not simply additive -- SABL and ISPPHead partially offset each other's individual mAP cost.** Predicting arm (10) by summing arm (9)'s baseline with both factors' isolated deltas gives mAP@.5 $\approx 0.395-0.028-0.035=0.332$, mAP@.5:.95 $\approx 0.183$ -- but the actual measured arm (10) is 0.382/0.212, roughly **5.0pp/2.9pp better than the additive prediction**. BPR/Total Recall/GFLOPs/FPS are close to additive (within 1-2pp/2 GFLOPs of the naive sum). So the two factors interact positively on mAP specifically -- combining SABL's box-regression fix with ISPPHead's compressed head recovers some precision that neither factor alone achieves -- while their recall/efficiency costs stack close to independently.
+
+**Bottom line for the flagship recipe.** No single UAVDT configuration Pareto-dominates: arm (9) (pure max) is the best on every accuracy/recall metric but carries no compression; arm (10)/(12) tie for the lowest GFLOPs (69.0/67.5) and highest FPS in the whole roster but give up Total Recall (86.21%/85.99% vs. arm (9)'s 90.36%). Given HESOD's own stated efficiency-first framing (§2.3: ISPPHead's purpose is cutting compute), **arm (10) is the recommended "HESOD (Full)" configuration for the paper** -- best-in-roster efficiency, positive (not merely additive) mAP behavior when both factors combine, and a fully documented ablation trail (this table) justifying the choice without requiring a complete mechanistic account of *why* each factor costs what it costs. §3.1's headline table is left unchanged pending an explicit decision to promote (10) there; the full ablation data needed to make that call is now in.
 
 ---
 

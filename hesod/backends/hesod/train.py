@@ -273,14 +273,22 @@ def train(hyp, opt, device, tb_writer=None):
     freeze = []  # parameter names to freeze (full or partial)
     unfreeze = []
     if opt.freeze:
-        raise NotImplementedError(
-            "Navigate to here to manually set the layers to freeze and uncomment this error."
-        )
         hyp["weight_decay"] = 0.0
-        # freeze = ['model.{}.'.format(ii) for ii in range(8)]
-        # print('freeze', freeze)
-        unfreeze = ["model.5", "model.6"]  # DWConv and Segmenter
-        print("unfreeze", unfreeze)
+        # Freezes model.0 through model.12: backbone, evidence branches,
+        # fusion Segmenter, and HeatMapParser (selector), plus the P4/P5
+        # backbone continuation feeding the neck -- i.e. everything upstream
+        # of the FPN neck/Detect head (model.13+). For warm-starting from a
+        # fusion-ablation checkpoint (e.g. arm 9's pure-max-fusion weights,
+        # via --weights) to fine-tune only the head/box-loss (SABL/ISPPHead)
+        # without perturbing the selector's already-converged routing
+        # behavior -- isolates whether a joint-training interaction with the
+        # selector (not the head's own capacity) explains the accuracy/
+        # recall cost seen when training SABL/ISPPHead jointly with max
+        # fusion from scratch (HESOD-Experiment-Plan.md SS3.6). Layer count
+        # (13) is specific to the UAVDT max/max_isphead cfgs' own layout
+        # (SPP before the selector) -- re-derive for any other cfg.
+        freeze = ["model.{}.".format(ii) for ii in range(13)]
+        print("freeze", freeze)
     for k, v in model.named_parameters():
         v.requires_grad = True  # train all layers
         if any(x in k for x in freeze) or (
