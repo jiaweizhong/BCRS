@@ -291,6 +291,17 @@ run_arm "uavdt_yolov5m_channel_pooled_concat_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
+# Confirmation rerun (2026-09-04) -- arm (8)'s own end-to-end recipe (concat
+# fusion + SABL + ISPPHead), same config/flags, only the run name differs.
+# Paired with arm (10)'s own "_run2" rerun below to get an independently
+# confirmed noise floor for BOTH end-to-end Full recipes (concat- and
+# max-fusion-based) before trusting the arm8-vs-arm10 comparison (SS3.6) as
+# more than a single-run difference -- neither has had a confirmed rerun
+# yet, unlike R0/arm(3)/arm(5) earlier this session.
+run_arm "uavdt_yolov5m_channel_pooled_concat_sabl_isphead_run2${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_concat_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
+
 # concat+ISPPHead (no SABL): same cfg as concat+SABL+ISPPHead, upstream/CIoU
 # box loss -- isolates ISPPHead's saving from SABL's mixed/inconclusive
 # accuracy effect, same comparison structure as SeaPerson's own pair.
