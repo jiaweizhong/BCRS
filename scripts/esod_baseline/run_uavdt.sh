@@ -371,6 +371,18 @@ run_arm "uavdt_yolov5m_channel_pooled_max_sabl_isphead${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
+# Confirmation rerun (2026-09-04) -- arm (10)'s own -4.15pp Total Recall /
+# -2.0pp BPR shortfall vs. arm (9) (SS3.6) is the whole motivation for the
+# frozen-selector staged-training investigation, but unlike R0/arm(3)/
+# arm(5)/arm(8), none of the max-fusion family (9/10/11/12) has an
+# independent confirmed rerun -- UAVDT has shown real run-to-run variance
+# on every arm checked this session. Same config/flags as arm (10), only
+# the run name differs (matches the "_run2" convention already used for
+# SeaPerson's own confirmation reruns).
+run_arm "uavdt_yolov5m_channel_pooled_max_sabl_isphead_run2${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"

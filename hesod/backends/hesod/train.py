@@ -199,7 +199,7 @@ def train(hyp, opt, device, tb_writer=None):
     # Configure
     plots = not opt.evolve  # create plots
     cuda = device.type != "cpu"
-    init_seeds(2 + rank)
+    init_seeds(opt.seed if opt.seed is not None else 2 + rank)
     with open(opt.data) as f:
         data_dict = yaml.safe_load(f)  # data dict
 
@@ -1037,6 +1037,12 @@ if __name__ == "__main__":
     parser.add_argument("--addition", action="store_true", help="additional training")
     parser.add_argument(
         "--freeze", action="store_true", help="freeze shadow backbone for fine-tuning"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="override init_seeds() (default: 2 + rank, identical on every single-GPU run since rank is always -1) -- lets a rerun sample a different batch order/augmentation sequence instead of deterministically replaying the same one",
     )
     parser.add_argument(
         "--hm-only", action="store_true", help="training on heatmap prediction only"
