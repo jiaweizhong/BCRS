@@ -1,15 +1,12 @@
 \documentclass{article}
-\usepackage{spconf,amsmath,amssymb,amsfonts,graphicx,booktabs,multirow,array,cite,url,dblfloatfix,hyperref}
+\usepackage{spconf,amsmath,amssymb,amsfonts,graphicx,booktabs,multirow,array,cite,url,dblfloatfix}
 
 \def\x{{\mathbf x}}
 \def\L{{\cal L}}
 
 \title{HESOD: High-Resolution Efficient Small Object Detection via Semantic-Spectral Dual Selection}
 
-\name{Anonymous Authors\thanks{Submitted to IEEE ICASSP 2027 for review.}}
-\address{Affiliation(s) omitted for blind review}
-
-% Spacing tweaks for tight 4+1 page layout
+\name{Anonymous Authors\thanks{Submitted to IEEE ICIP 2026 for blind review.}}
 \setlength{\floatsep}{5pt plus 1pt minus 1pt}
 \setlength{\textfloatsep}{6pt plus 1pt minus 1pt}
 \setlength{\dblfloatsep}{5pt plus 1pt minus 1pt}
@@ -17,14 +14,12 @@
 \setlength{\intextsep}{5pt plus 1pt minus 1pt}
 \setlength{\abovecaptionskip}{3pt}
 \setlength{\belowcaptionskip}{2pt}
-\setlength{\skip\footins}{8pt plus 2pt minus 2pt}
 
 \begin{document}
-%\ninept
 \maketitle
 
 \begin{abstract}
-Detecting tiny objects in high-resolution aerial and maritime imagery is severely challenged by massive background redundancy. Spatial selective computation mitigates arithmetic overhead by routing candidate foreground regions; however, existing selectors rely exclusively on deep semantic activations, which frequently collapse for micro targets, leading to irrecoverable early-stage pruning. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a selective framework featuring semantic-spectral dual-evidence routing and coverage-constrained spatial optimization. HESOD couples high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ channel complexity to robustly rescue weak targets. To guarantee recall safety, an object-level soft-coverage loss directly optimizes multi-cell joint coverage probability across all ground-truth instances. Combined with an inverted residual partial-convolution head and scale-aware Wasserstein regression, HESOD improves $\mathrm{mAP@.5}$ by +2.4\,pp on SeaPerson while cutting parameters by 27.6\% at 80.7 FPS.
+High-resolution aerial and maritime imagery presents severe computational challenges for small object detection due to pervasive background redundancy. While spatial selective-computation detectors dynamically route processing to candidate regions, existing selectors rely strictly on a single semantic objectness score. When micro targets undergo downsampling, their semantic activations frequently collapse, causing irrecoverable early pruning under asymmetric selection costs. In this paper, we propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a framework based on semantic-spectral dual-evidence fusion and coverage-constrained spatial routing. HESOD introduces an ultra-lightweight priority head that fuses semantic objectness with channel-pooled spectral saliency at strictly $\mathcal{O}(1)$ complexity relative to channel width, effectively rescuing weak semantic targets. Furthermore, we formulate an object-level soft-coverage loss that directly maximizes joint instance coverage probability, fundamentally preventing premature false-negative drops. Paired with an inverted residual partial-convolution head and scale-aware Wasserstein regression, HESOD improves $\mathrm{mAP@.5}$ by +2.4\,pp on SeaPerson with 27.6\% fewer parameters while sustaining real-time throughput at 80.7 FPS.
 \end{abstract}
 
 \begin{keywords}
@@ -37,7 +32,6 @@ Small object detection, selective computation, spectral saliency, coverage optim
 \input{sections/experiments}
 \input{sections/conclusion}
 
-\clearpage
 \begingroup
 \small
 \setlength{\itemsep}{0pt plus 0.2ex}

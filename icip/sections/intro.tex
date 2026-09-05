@@ -1,20 +1,17 @@
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.92\textwidth]{figures/HESOD.pdf}
-\caption{Overview of HESOD: (a) End-to-end selective pipeline; (b) Dual-evidence priority head. Red dashed boxes indicate our proposed contributions.}
-\label{fig:overview}
-\end{figure*}
-
 \section{Introduction}
 \label{sec:intro}
 
-High-resolution aerial and maritime vision is essential for remote surveillance, environmental monitoring, and search-and-rescue~\cite{VisDrone,UAVDT,TinyPerson}. In these settings, micro targets typically occupy fewer than $16\times 16$ pixels amidst vast background areas ($>70\text{--}80\%$), making dense uniform convolution computationally prohibitive on edge platforms~\cite{ESOD,AutoFocus}.
+High-resolution aerial and maritime vision is essential for remote surveillance, search-and-rescue, and environmental monitoring~\cite{VisDrone,UAVDT}. In these applications, targets of interest typically occupy merely a handful of pixels ($<16\times 16$ px), while uniform background dominates over $70\%$ to $80\%$ of the spatial area~\cite{ESOD,TinyPerson}. Executing dense deep detectors across multi-megapixel grids incurs prohibitive arithmetic and memory overhead on edge platforms.
 
-Spatial selective computation mitigates arithmetic redundancy by routing processing strictly to candidate foreground regions~\cite{QueryDet,CEASC,ESOD}. However, existing selectors exhibit two critical vulnerabilities: (i) \emph{Evidence fragility}: relying solely on deep semantic activations leads to severe feature collapse for micro targets after stem downsampling, causing irrecoverable false-negative pruning under asymmetric selection cost~\cite{SET,ESOD}; and (ii) \emph{Coverage deficit}: standard per-pixel binary cross-entropy optimizes grid cells independently, failing to guarantee joint multi-cell coverage over individual instances.
+To eliminate redundant computations, \emph{spatial selective computation} has emerged as an effective paradigm~\cite{AutoFocus,QueryDet,CEASC,ESOD}. Frameworks such as QueryDet~\cite{QueryDet} and CEASC~\cite{CEASC} sparsify feature pyramids, while ESOD~\cite{ESOD} predicts an early-stage spatial heatmap after the stem to route only candidate foreground patches to downstream stages.
 
-To address these limitations, we present \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), an efficient selective detection framework. Our key contributions are:
-\begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}\setlength{\topsep}{1pt}
-    \item \textbf{Dual-Evidence Spatial Selector}: We couple high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ channel complexity, reliably preserving degraded micro targets.
-    \item \textbf{Object-Level Soft-Coverage Loss ($\mathcal{L}_{\mathrm{cover}}$)}: We formulate a differentiable joint-coverage objective to prevent premature false-negative pruning under asymmetric selection cost.
-    \item \textbf{Edge-Efficient Decoupled Architecture}: By integrating an inverted residual ISPP head with scale-aware SABL regression, HESOD establishes an optimal accuracy-efficiency frontier (-27.6\% params at 80.7 FPS).
+Despite substantial compute savings, existing spatial selectors suffer from a critical vulnerability: they rely exclusively on a single semantic objectness score. When tiny targets undergo feature downsampling, their semantic activations frequently collapse into background noise~\cite{SET}. More crucially, spatial routing decisions exhibit an \emph{asymmetric cost}: retaining an extra background patch only marginally increases latency, whereas discarding a patch with a true tiny target creates an irrecoverable false negative for all subsequent stages~\cite{ESOD}. Furthermore, standard pixel-wise cross-entropy supervision evaluates grid cells independently, providing no guarantee that at least one candidate cell covers a given ground-truth instance.
+
+To overcome these limitations, we observe that tiny targets preserve distinctive high-frequency structural gradients and spectral saliency even when high-level semantic activations fade~\cite{SET}. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a framework integrating multi-evidence routing with coverage-constrained spatial optimization. Specifically, HESOD introduces an ultra-lightweight dual-evidence priority head that fuses semantic objectness with channel-pooled spectral saliency at strictly $\mathcal{O}(1)$ complexity relative to backbone width. To ensure recall safety, we design an object-level soft-coverage loss that directly maximizes the joint coverage probability of ground-truth instances. Finally, an inverted residual partial-convolution (ISPP) decoupled head and scale-aware balancing loss (SABL)~\cite{SSABNet} are integrated to accelerate inference and stabilize micro-scale box regression.
+
+Our key contributions are summarized as follows:
+\begin{enumerate}
+    \item We formulate an object-level soft-coverage loss ($\mathcal{L}_{\mathrm{cover}}$) that directly maximizes joint instance coverage probability, fundamentally preventing premature false negatives in selective computation.
+    \item We design a dual-evidence priority head combining high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ complexity relative to channel width, rescuing targets with collapsed semantic activations.
+    \item We develop a lightweight deployment engine integrating an inverted residual decoupled head (ISPP) and scale-aware Wasserstein regression, achieving superior recall--accuracy--efficiency trade-offs with 27.6\% fewer parameters.
 \end{enumerate}

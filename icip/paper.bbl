@@ -1,98 +1,93 @@
 \begin{thebibliography}{10}
 
 \bibitem{VisDrone}
-P.~Zhu, L.~Wen, D.~Du, X.~Bian, H.~Fan, Q.~Hu, and H.~Ling,
+P.~Zhu, L.~Wen, D.~Du, et~al.,
 \newblock ``Detection and tracking meets drones: A benchmark,''
-\newblock {\em IEEE Transactions on Pattern Analysis and Machine Intelligence}, vol. 44, no. 11, pp. 7388--7404, 2021.
+\newblock {\em IEEE TPAMI}, vol. 44, no. 11, pp. 7388--7404, 2021.
 
 \bibitem{UAVDT}
-D.~Du, Y.~Qi, H.~Yu, Y.~Yang, K.~Duan, G.~Li, W.~Zhang, Q.~Huang, and L.~Shao,
+D.~Du, Y.~Qi, H.~Yu, et~al.,
 \newblock ``The unmanned aerial vehicle benchmark: Object detection and tracking,''
-\newblock in {\em European Conference on Computer Vision}, 2018, pp. 370--386.
+\newblock in {\em ECCV}, 2018, pp. 370--386.
 
 \bibitem{ESOD}
-K.~Liu, Z.~Fu, S.~Jin, Z.~Chen, F.~Zhou, R.~Jiang, Y.~Chen, and J.~Ye,
+K.~Liu, Z.~Fu, S.~Jin, et~al.,
 \newblock ``{ESOD}: Efficient small object detection on high-resolution images,''
-\newblock {\em IEEE Transactions on Image Processing}, vol. 34, pp. 183--195, 2025.
+\newblock {\em IEEE TIP}, vol. 33, pp. 5112--5126, 2024.
 
 \bibitem{TinyPerson}
 X.-Y. Zhang, G.~Xu, J.-Y. Fan, and H.~Ling,
 \newblock ``Scale match for tiny person detection,''
-\newblock in {\em Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision}, 2020, pp. 1256--1265.
+\newblock in {\em WACV}, 2020, pp. 1256--1265.
 
 \bibitem{AutoFocus}
 M.~Najibi, B.~Singh, and L.~S. Davis,
 \newblock ``{AutoFocus}: Efficient multi-scale inference,''
-\newblock in {\em Proceedings of the IEEE/CVF International Conference on Computer Vision}, 2019, pp. 9745--9755.
+\newblock in {\em ICCV}, 2019, pp. 9745--9755.
 
 \bibitem{QueryDet}
 C.~Yang, Z.~Huang, and N.~Wang,
 \newblock ``{QueryDet}: Cascaded sparse query for accelerating high-resolution small object detection,''
-\newblock in {\em Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, 2022, pp. 16668--16677.
+\newblock in {\em CVPR}, 2022, pp. 16668--16677.
 
 \bibitem{CEASC}
 B.~Du, Y.~Huang, J.~Chen, and D.~Huang,
 \newblock ``Adaptive sparse convolutional networks with global context enhancement for faster object detection on drone images,''
-\newblock in {\em Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, 2023, pp. 13435--13444.
+\newblock in {\em CVPR}, 2023, pp. 13435--13444.
 
 \bibitem{SET}
-H.~Sun, R.~Wang, Y.~Li, C.~Yang, Z.~Huang, N.~Wang, and L.~Zhou,
+H.~Sun, R.~Wang, Y.~Li, et~al.,
 \newblock ``{SET}: Spectral enhancement for tiny object detection,''
-\newblock in {\em Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, 2025, pp. 1--10.
+\newblock in {\em CVPR}, 2025, pp. 1--10.
 
 \bibitem{SSABNet}
-H.~Zhang, Z.~Ou, S.~Yao, M.~Xie, J.~Ye, and C.~Xu,
+H.~Zhang, Z.~Ou, S.~Yao, et~al.,
 \newblock ``{SSABNet}: Spatial-semantic aggregation and balancing network for small-target detection in {UAV} remote sensing images,''
-\newblock {\em Remote Sensing}, vol. 18, no. 4, pp. 550, 2026.
+\newblock {\em Remote Sens.}, vol. 18, no. 4, pp. 550, 2026.
 
 \bibitem{SeaDronesSee}
 L.~A. Varga, B.~Kiefer, M.~Messmer, and A.~Zell,
 \newblock ``{SeaDronesSee}: A maritime benchmark for detecting humans in open water,''
-\newblock in {\em Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision}, 2022, pp. 2260--2270.
+\newblock in {\em WACV}, 2022, pp. 2260--2270.
 
 \bibitem{ClusDet}
-F.~Yang, H.~Fan, P.~Chu, E.~Blasch, and H.~Ling,
+F.~Yang, H.~Fan, P.~Chu, et~al.,
 \newblock ``Clustered object detection in aerial images,''
-\newblock in {\em Proceedings of the IEEE/CVF International Conference on Computer Vision}, 2019, pp. 8311--8320.
+\newblock in {\em ICCV}, 2019, pp. 8311--8320.
 
 \bibitem{DMNet}
-C.~Li, T.~Tao, C.~Gong, X.~Chang, L.-C. Chen, and Z.~Wu,
+C.~Li, T.~Tao, C.~Zhu, et~al.,
 \newblock ``Density map guided object detection in aerial images,''
-\newblock in {\em Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, 2020, pp. 190--199.
+\newblock in {\em CVPR}, 2020, pp. 190--199.
 
 \bibitem{UFPMP}
 Y.~Huang, J.~Chen, and D.~Huang,
 \newblock ``{UFPMP-Det}: Toward accurate and efficient object detection on large-scale high-resolution remote sensing images,''
-\newblock in {\em Proceedings of the AAAI Conference on Artificial Intelligence}, 2022, pp. 1041--1049.
-
-\bibitem{ResBiDet}
-C.~Guo, Y.~Li, J.~Ma, Z.~Fang, Z.~Niu, and H.~Xu,
-\newblock ``{RESBIDET}: Efficient dual-branch small object detection for {UAVs} under resource-constrained conditions,''
-\newblock in {\em Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing}, 2026, pp. 3156--3160.
+\newblock in {\em AAAI}, 2022, pp. 1041--1049.
 
 \bibitem{NWD}
 J.~Wang, C.~Xu, W.~Yang, and L.~Yu,
 \newblock ``A normalized gaussian {Wasserstein} distance for tiny object detection,''
-\newblock {\em IEEE Transactions on Geoscience and Remote Sensing}, vol. 60, pp. 1--13, 2021.
+\newblock {\em IEEE TGRS}, vol. 60, pp. 1--13, 2021.
 
 \bibitem{RFLA}
-C.~Xu, J.~Wang, W.~Yang, H.~Yu, L.~Yu, and G.-S. Xia,
+C.~Xu, J.~Wang, W.~Yang, et~al.,
 \newblock ``{RFLA}: Gaussian receptive field based label assignment for tiny object detection,''
-\newblock in {\em European Conference on Computer Vision}, 2022, pp. 526--543.
+\newblock in {\em ECCV}, 2022, pp. 526--543.
 
 \bibitem{ESODYOLO}
-X.~Xu, Q.~Li, J.-S. Pan, L.~Wei, and X.-Z. Gao,
+X.~Xu, Q.~Li, J.~Pan, et~al.,
 \newblock ``{ESOD-YOLO}: An enhanced efficient small object detection framework for aerial images,''
 \newblock {\em Computing}, vol. 107, pp. 54, 2025.
 
 \bibitem{FasterRCNN}
 S.~Ren, K.~He, R.~Girshick, and J.~Sun,
 \newblock ``{Faster R-CNN}: Towards real-time object detection with region proposal networks,''
-\newblock {\em IEEE Transactions on Pattern Analysis and Machine Intelligence}, vol. 39, no. 6, pp. 1137--1149, 2017.
+\newblock {\em IEEE TPAMI}, vol. 39, no. 6, pp. 1137--1149, 2017.
 
 \bibitem{RetinaNet}
-T.-Y. Lin, P.~Goyal, R.~Girshick, K.~He, and P.~Doll{\'a}r,
+T.-Y. Lin, P.~Goyal, R.~Girshick, et~al.,
 \newblock ``Focal loss for dense object detection,''
-\newblock in {\em Proceedings of the IEEE/CVF International Conference on Computer Vision}, 2017, pp. 2980--2988.
+\newblock in {\em ICCV}, 2017, pp. 2980--2988.
 
 \end{thebibliography}
