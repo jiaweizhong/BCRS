@@ -50,14 +50,25 @@ IMG_SIZE="${IMG_SIZE:-1280}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
 DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/UAVDT_fresh}"
 DATA_YAML="${DATA_YAML:-/root/autodl-tmp/UAVDT_fresh.yaml}"
-# hyp.uavdt.yaml's lr0=0.01/warmup_epochs=3.0 is calibrated for training
-# from scratch (or COCO-pretrained weights) -- far too aggressive for
-# fine-tuning a head warm-started from an already-converged checkpoint with
-# the trunk frozen. First attempt (2026-09-03) collapsed to all-zero P/R/
-# mAP/BPR starting exactly at epoch 3 (when warmup ends and LR jumps to the
-# full 0.01) -- see hyp.uavdt_frozen.yaml's own header for the full
-# diagnosis. Use the 10x-lower-lr0 variant here instead.
-HYP="data/hyps/hyp.uavdt_frozen.yaml"
+# Root cause resolved (2026-09-05, HESOD-Experiment-Plan.md SS3.7): every
+# collapse this script produced before today (lr0=0.01, lr0=0.001 x
+# {warmup=1, warmup=0, warmup=25, different --seed}) was NOT an LR/warmup/
+# data-order issue -- an external audit found `intersect_dicts()`
+# (utils/torch_utils.py) misapplied a plain-backbone layer-offset adapter
+# to an already-ESOD-shaped source checkpoint, silently loading only
+# ~29% of it (173/601 keys) and leaving the "frozen" trunk at random init
+# the whole time. Fixed 2026-09-05 (direct-match-first, falls back to the
+# offset adapter only when direct matching covers too little of the target
+# model). A cheap identity-control rerun (Max ckpt -> Max cfg, CIoU,
+# --freeze, hyp.uavdt.yaml's own short warmup=3/lr0=0.01, 8 epochs)
+# confirmed the fix: `Transferred 601/601 items`, BPR stayed healthy
+# through and past the epoch-3 warmup-end transition that used to
+# collapse (0.988 during warmup -> 0.941 just after, matching arm 9's own
+# 0.940 eval BPR almost exactly -- a normal recalibration, not a crash).
+# Back to the standard, well-tested hyp.uavdt.yaml -- the lr0/warmup
+# variants in hyp.uavdt_frozen.yaml were band-aids for a bug that's now
+# actually fixed, not a real tuning need.
+HYP="data/hyps/hyp.uavdt.yaml"
 CLASSES="car,truck,bus"
 VAL_SPLIT="test"
 EPOCHS="${EPOCHS:-20}"
@@ -206,6 +217,23 @@ run_arm "uavdt_yolov5m_channel_pooled_max_isphead_frozen" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
+# max fusion + SABL + ISPPHead together, selector frozen at arm (9)'s
+# weights -- the staged-training counterpart to arm (10) (HESOD Full v2,
+# jointly trained from scratch). Same cfg/flags as arm (10) itself, only
+# --weights/--freeze are added: warm-starts from arm (9)'s converged
+# checkpoint instead of training everything together. This is the arm the
+# "leverage Dual Max's own high recall" staged-training proposal is
+# actually about -- if it recovers recall/BPR closer to arm (9)'s own
+# 90.36%/0.940 than arm (10)'s end-to-end 86.21%/0.920 (or its noisier
+# rerun, 90.29%/0.943 -- SS3.7 flags arm (10) itself as not very
+# reproducible, so this arm's own result should ideally get a confirmation
+# rerun too before being treated as final) while keeping ISPPHead's
+# compute savings, it's a stronger flagship-recipe candidate than arm (10).
+run_arm "uavdt_yolov5m_channel_pooled_max_sabl_isphead_frozen" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
+
 log "===== ALL DONE ====="
-log "  Max+SABL (frozen selector):     $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_max_sabl_frozen/"
-log "  Max+ISPPHead (frozen selector): $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_max_isphead_frozen/"
+log "  Max+SABL (frozen selector):          $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_max_sabl_frozen/"
+log "  Max+ISPPHead (frozen selector):      $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_max_isphead_frozen/"
+log "  Max+SABL+ISPPHead (frozen selector): $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_max_sabl_isphead_frozen/"

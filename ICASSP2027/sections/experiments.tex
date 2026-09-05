@@ -78,7 +78,7 @@ All models are implemented in PyTorch using a YOLOv5m base detector and trained 
 \caption{Benchmark results on UAVDT and SeaPerson.}
 \label{tab:main_results}
 \scriptsize
-\setlength{\tabcolsep}{3.5pt}
+\setlength{\tabcolsep}{0pt}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lccccc@{}}
 \toprule
 \textbf{Method} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \shortstack{\textbf{Params}\\\textbf{(M)}} & \textbf{GFLOPs} & \textbf{FPS} \\
@@ -103,7 +103,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \unde
 \bottomrule
 \end{tabular*}
 \vspace{0.8mm}
-\parbox{\columnwidth}{\scriptsize \textbf{Bold}: best; \underline{underline}: second-best.}
+\parbox{\columnwidth}{\scriptsize All baseline results are reproduced via best reruns under identical training protocols. \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{table}
 
 \textbf{Comparison with Dense Baselines.} As shown in Table~\ref{tab:main_results}, classical dense detectors incur prohibitive arithmetic overhead on multi-megapixel vision grids due to uniform convolution. Compared to Faster R-CNN and RetinaNet on SeaPerson ($2048\times 2048$), HESOD delivers substantial accuracy gains of \textbf{+22.3\,pp} and \textbf{+30.1\,pp} $\mathrm{mAP@.5}$, while slashing GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} at \textbf{80.7 FPS}, confirming that selective computation is essential for edge deployment.
@@ -117,38 +117,37 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{0.320} & \unde
 \centering
 \caption{Module ablation on UAVDT and SeaPerson.}
 \label{tab:ablation}
-\resizebox{\columnwidth}{!}{
-\setlength{\tabcolsep}{1.8pt}
-\begin{tabular}{lcc|cc|ccccc}
+\scriptsize
+\setlength{\tabcolsep}{0pt}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lcc|cc|ccccc@{}}
 \toprule
 \shortstack{\textbf{Arm /}\\\textbf{Selector}} & \shortstack{\textbf{Box}\\\textbf{Loss}} & \textbf{Head} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \textbf{GFLOPs} & \shortstack{\textbf{Very}\\\textbf{Tiny}} & \textbf{Tiny} & \textbf{Small} & \shortstack{\textbf{Med/}\\\textbf{Large}} & \textbf{Total} \\
 \midrule
 \multicolumn{10}{l}{\textit{\textbf{UAVDT Benchmark ($1280\times 1280$)}}} \\
 \midrule
-(1) Sem        & CIoU & Cpl  & 0.385 & \textbf{68.2} & 79.43\% & 84.21\% & 94.54\% & 59.78\% & 85.17\% \\
-(2) Sem$^*$    & CIoU & Cpl  & 0.384 & \underline{75.0} & 79.13\% & 83.91\% & 94.00\% & 59.95\% & 84.82\% \\
-(3) Spec$^*$   & CIoU & Cpl  & \textbf{0.396} & 98.1 & 83.78\% & 87.83\% & 97.62\% & \underline{64.68\%} & 88.83\% \\
-(4) Spec-P$^*$ & CIoU & Cpl  & \underline{0.394} & 99.3 & \textbf{86.88\%} & \textbf{92.23\%} & 97.74\% & \textbf{66.43\%} & \textbf{91.93\%} \\
-(5) Dual$^*$   & CIoU & Cpl  & 0.371 & 83.9 & 79.09\% & 85.85\% & 95.85\% & 62.66\% & 86.35\% \\
-(6) Dual$^*$   & SABL & Cpl  & 0.360 & 97.1 & \underline{83.53\%} & \underline{89.43\%} & 97.93\% & 64.16\% & \underline{89.72\%} \\
-(7) Dual$^*$   & CIoU & ISPP & 0.371 & 82.6 & 83.06\% & 88.19\% & \underline{98.07\%} & 62.32\% & 88.94\% \\
-(8) Dual$^*$   & SABL & ISPP & 0.378 & 81.6 & 82.54\% & 88.34\% & \textbf{98.09\%} & 63.02\% & 88.94\% \\
+(1) Sem$^*$    & CIoU & Cpl  & 0.385 & \textbf{68.2} & 79.43\% & 84.21\% & 94.54\% & 59.78\% & 85.17\% \\
+(2) Sem        & CIoU & Cpl  & 0.384 & \underline{75.0} & 79.13\% & 83.91\% & 94.00\% & 59.95\% & 84.82\% \\
+(3) Spec       & CIoU & Cpl  & \textbf{0.396} & 98.1 & 83.78\% & 87.83\% & 97.62\% & \underline{64.68\%} & 88.83\% \\
+(4) Spec-P     & CIoU & Cpl  & \underline{0.394} & 99.3 & \textbf{86.88\%} & \textbf{92.23\%} & 97.74\% & \textbf{66.43\%} & \textbf{91.93\%} \\
+(5) Dual       & CIoU & Cpl  & 0.371 & 83.9 & 79.09\% & 85.85\% & 95.85\% & 62.66\% & 86.35\% \\
+(6) Dual       & SABL & Cpl  & 0.360 & 97.1 & \underline{83.53\%} & \underline{89.43\%} & 97.93\% & 64.16\% & \underline{89.72\%} \\
+(7) Dual       & CIoU & ISPP & 0.371 & 82.6 & 83.06\% & 88.19\% & \underline{98.07\%} & 62.32\% & 88.94\% \\
+(8) Dual       & SABL & ISPP & 0.378 & 81.6 & 82.54\% & 88.34\% & \textbf{98.09\%} & 63.02\% & 88.94\% \\
 \midrule
 \multicolumn{10}{l}{\textit{\textbf{SeaPerson Benchmark ($2048\times 2048$)}}} \\
 \midrule
-(1) Sem        & CIoU & Cpl  & 0.750 & \textbf{202.4} & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
-(2) Sem$^*$    & CIoU & Cpl  & 0.769 & 266.8 & 75.49\% & 91.57\% & 95.71\% & 81.94\% & 87.75\% \\
-(3) Spec$^*$   & CIoU & Cpl  & 0.770 & 267.4 & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & 86.45\% & 87.77\% \\
-(4) Spec-P$^*$ & CIoU & Cpl  & 0.767 & 263.4 & 76.13\% & 91.36\% & 95.50\% & \textbf{87.10\%} & 87.77\% \\
-(5) Dual$^*$   & CIoU & Cpl  & \underline{0.772} & 281.2 & 76.00\% & 91.50\% & 95.68\% & 80.00\% & 87.84\% \\
-(6) Dual$^*$   & SABL & Cpl  & 0.771 & 263.7 & \underline{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \underline{87.89\%} \\
-(7) Dual$^*$   & CIoU & ISPP & 0.771 & 217.6 & 75.86\% & 91.25\% & \underline{95.85\%} & \textbf{87.10\%} & 87.68\% \\
-(8) Dual$^*$   & SABL & ISPP & \textbf{0.774} & \underline{209.0} & \textbf{77.14\%} & \underline{91.59\%} & 95.01\% & \underline{84.52\%} & \textbf{88.11\%} \\
+(1) Sem$^*$    & CIoU & Cpl  & 0.750 & \textbf{202.4} & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
+(2) Sem        & CIoU & Cpl  & 0.769 & 266.8 & 75.49\% & 91.57\% & 95.71\% & 81.94\% & 87.75\% \\
+(3) Spec       & CIoU & Cpl  & 0.770 & 267.4 & 75.23\% & \textbf{91.69\%} & \textbf{95.89\%} & 86.45\% & 87.77\% \\
+(4) Spec-P     & CIoU & Cpl  & 0.767 & 263.4 & 76.13\% & 91.36\% & 95.50\% & \textbf{87.10\%} & 87.77\% \\
+(5) Dual       & CIoU & Cpl  & \underline{0.772} & 281.2 & 76.00\% & 91.50\% & 95.68\% & 80.00\% & 87.84\% \\
+(6) Dual       & SABL & Cpl  & 0.771 & 263.7 & \underline{76.67\%} & 91.49\% & 94.77\% & 80.65\% & \underline{87.89\%} \\
+(7) Dual       & CIoU & ISPP & 0.771 & 217.6 & 75.86\% & 91.25\% & \underline{95.85\%} & \textbf{87.10\%} & 87.68\% \\
+(8) Dual       & SABL & ISPP & \textbf{0.774} & \underline{209.0} & \textbf{77.14\%} & \underline{91.59\%} & 95.01\% & \underline{84.52\%} & \textbf{88.11\%} \\
 \bottomrule
-\end{tabular}
-}
+\end{tabular*}
 \vspace{0.8mm}
-\parbox{\columnwidth}{\scriptsize $^*$Trained with $\mathcal{L}_{\mathrm{cover}}$ (vs. standard BCE). Arm (8): full HESOD. Selectors: Sem (Semantic), Spec (Spectral), Spec-P (Spectral-Pooled), Dual (Dual-Concat). Head: Cpl (Coupled), ISPP (Ours). Scale bins: Very Tiny ($<16^2$), Tiny ($16^2\text{--}32^2$), Small ($32^2\text{--}96^2$), Med/Large ($>96^2\text{ px}^2$). \textbf{Bold}: best; \underline{underline}: second-best.}
+\parbox{\columnwidth}{\scriptsize $^*$Trained with standard BCE (all other arms use $\mathcal{L}_{\mathrm{cover}}$). Arm (8): full HESOD. Selectors: Sem (Semantic), Spec (Spectral), Spec-P (Spectral-Pooled), Dual (Dual-Concat). Head: Cpl (Coupled), ISPP (Ours). Scale bins: Very Tiny ($<16^2$), Tiny ($16^2\text{--}32^2$), Small ($32^2\text{--}96^2$), Med/Large ($>96^2\text{ px}^2$). \textbf{Bold}: best; \underline{underline}: second-best.}
 \end{table}
 
 \textbf{Dual Evidence and Soft-Coverage Optimization.} Table~\ref{tab:ablation} isolates individual module contributions. On SeaPerson, replacing standard BCE with object-level soft-coverage loss $\mathcal{L}_{\mathrm{cover}}$ (Arm 1 $\to$ 2) yields an immediate \textbf{+1.9\,pp} $\mathrm{mAP@.5}$ boost and raises Bounding Patch Recall (BPR) to \textbf{0.991}, verifying that joint coverage prevents premature selector pruning. Furthermore, channel-pooled spectral routing (Arm 4) preserves unpooled accuracy (Arm 3) at $\mathcal{O}(1)$ spatial complexity, while dual-evidence fusion (Arm 5) attains \textbf{0.772} $\mathrm{mAP@.5}$ and rescues +631 micro targets ($<16^2\text{ px}$).
