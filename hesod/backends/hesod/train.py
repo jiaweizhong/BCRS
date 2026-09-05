@@ -305,22 +305,28 @@ def train(hyp, opt, device, tb_writer=None):
     hyp["weight_decay"] *= total_batch_size * accumulate / nbs  # scale weight_decay
     logger.info(f"Scaled weight_decay = {hyp['weight_decay']}")
 
+    # HESOD local patch (2026-09-05, audit-confirmed): the `or True` on
+    # each requires_grad check below unconditionally pulled frozen
+    # (--freeze) parameters into the optimizer's param groups. Harmless in
+    # practice -- autograd never populates .grad for a requires_grad=False
+    # tensor, so the optimizer step is a no-op for them -- but semantically
+    # wrong and worth excluding cleanly rather than relying on that.
     pg0, pg1, pg2 = [], [], []  # optimizer parameter groups
     for k, v in model.named_modules():
         if (
             hasattr(v, "bias")
             and isinstance(v.bias, nn.Parameter)
-            and (v.bias.requires_grad or True)
+            and v.bias.requires_grad
         ):
             pg2.append(v.bias)  # biases
-        if (isinstance(v, nn.BatchNorm2d) or isinstance(v, nn.LayerNorm)) and (
-            v.weight.requires_grad or True
-        ):
+        if (
+            isinstance(v, nn.BatchNorm2d) or isinstance(v, nn.LayerNorm)
+        ) and v.weight.requires_grad:
             pg0.append(v.weight)  # no decay
         elif (
             hasattr(v, "weight")
             and isinstance(v.weight, nn.Parameter)
-            and (v.weight.requires_grad or True)
+            and v.weight.requires_grad
         ):
             pg1.append(v.weight)  # apply decay
 

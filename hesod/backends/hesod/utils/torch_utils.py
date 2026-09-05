@@ -180,16 +180,48 @@ def de_parallel(model):
 def intersect_dicts(da, db, exclude=(), cfg_path: str = ""):
     # Dictionary intersection of matching keys and shapes, omitting 'exclude' keys, using da values
 
-    if "esod" not in cfg_path.lower():
-        print(f"Unknown ESOD model type: {cfg_path}. Load pretrained weights directly.")
-        intersect_dict = {
+    def _direct_intersect():
+        return {
             k: v
             for k, v in da.items()
             if k in db and not any(x in k for x in exclude) and v.shape == db[k].shape
         }
-        return intersect_dict
-    else:
-        print(f"Try to load pretrained weights for {cfg_path}.")
+
+    if "esod" not in cfg_path.lower():
+        print(f"Unknown ESOD model type: {cfg_path}. Load pretrained weights directly.")
+        return _direct_intersect()
+
+    # HESOD local patch (2026-09-05, audit-confirmed root cause of the
+    # frozen-selector experiment's collapse, HESOD-Experiment-Plan.md SS3.6):
+    # the layer-offset heuristic below exists to adapt a PLAIN (non-ESOD)
+    # pretrained backbone -- whose own layer numbering has no slot for
+    # ESOD's inserted evidence-branch/selector layers -- onto an ESOD cfg.
+    # It assumes `da` (the source checkpoint) is always such a plain
+    # backbone. That assumption breaks when `da` is ITSELF an ESOD-family
+    # checkpoint of matching or near-matching architecture (e.g. warm-
+    # starting a --freeze fine-tune from another ESOD arm's own converged
+    # weights): the offset then skips the source's real selector layers
+    # entirely and misaligns everything after them, silently loading a
+    # small minority of keys (confirmed: 173/601 for a same-cfg Max-fusion
+    # warm start) while `--freeze` proceeds to freeze those now-random,
+    # never-loaded layers, invalidating any experiment built on the
+    # premise that they hold the source checkpoint's converged weights.
+    # Try the direct (unshifted, same-key) intersection FIRST -- it is the
+    # correct match whenever source and target share the same layer
+    # numbering (identical or near-identical cfg) -- and only fall back to
+    # the offset heuristic when direct matching finds too little overlap
+    # to be the plain-backbone case this function was built for.
+    direct_dict = _direct_intersect()
+    if len(direct_dict) / len(db) >= 0.9:
+        print(
+            f"{cfg_path}: direct (unshifted) key match covers "
+            f"{len(direct_dict)}/{len(db)} -- treating source checkpoint as "
+            f"already ESOD-shaped, skipping the plain-backbone layer-offset "
+            f"adapter below."
+        )
+        return direct_dict
+
+    print(f"Try to load pretrained weights for {cfg_path}.")
 
     # load pretrained weights for ESOD models
     if "yolo" in cfg_path.lower():
@@ -220,6 +252,14 @@ def intersect_dicts(da, db, exclude=(), cfg_path: str = ""):
         )
         if k_ in da and v.shape == da[k_].shape:
             intersect_dict[k] = da[k_]
+
+    # Use whichever strategy actually recovered more matching keys, instead
+    # of trusting the cfg_path string heuristic alone -- a direct purely
+    # data-driven tie-breaker that fails safe if the offset assumption is
+    # wrong in either direction.
+    if len(direct_dict) > len(intersect_dict):
+        intersect_dict = direct_dict
+
     if len(intersect_dict) / len(db) < 0.6:
         warnings.warn(
             f"Only {len(intersect_dict)/len(db)} items are loaded from pretrained weights."
