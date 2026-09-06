@@ -217,6 +217,20 @@ run_arm "uavdt_yolov5m_channel_pooled_max_isphead_frozen" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2
 
+# Confirmation rerun (2026-09-07) -- arm 14 is the current UAVDT flagship
+# ("HESOD: Dual-Max + ISPP, staged", the headline number in HESOD-
+# Experiment-Plan.md SS3.1/SS1.3) and, per SS6.2's own acceptance rule and
+# SS3.3's noise-floor discussion, has never had an independent confirmation
+# rerun -- unlike R0/arm(5)/arm(8)/arm(10). Same warm-start source
+# (ARM9_CKPT, the ORIGINAL arm 9 checkpoint, unchanged) and same cfg/flags
+# as arm 14 itself; only --seed differs, so this isolates the staged fine-
+# tune stage's own reproducibility rather than re-testing arm 9's.
+RERUN_SEED_14=$RANDOM
+log "arm14 rerun seed: $RERUN_SEED_14"
+run_arm "uavdt_yolov5m_channel_pooled_max_isphead_frozen_run2" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --seed "$RERUN_SEED_14"
+
 # max fusion + SABL + ISPPHead together, selector frozen at arm (9)'s
 # weights -- the staged-training counterpart to arm (10) (HESOD Full v2,
 # jointly trained from scratch). Same cfg/flags as arm (10) itself, only

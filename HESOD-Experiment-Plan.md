@@ -1,6 +1,6 @@
 # HESOD Experiment Plan & Benchmark Contract
 
-**Canonical status: 2026-09-06.** This document records the current benchmark contract, validated results, and paper-facing decisions for HESOD. It is intentionally not a chronological experiment log: superseded runs, discarded checkpoints, and patch-by-patch narratives are omitted once their conclusions have been absorbed into the protocol or interpretation below.
+**Canonical status: 2026-09-07.** This document records the current benchmark contract, validated results, and paper-facing decisions for HESOD. It is intentionally not a chronological experiment log: superseded runs, discarded checkpoints, and patch-by-patch narratives are omitted once their conclusions have been absorbed into the protocol or interpretation below.
 
 ## 1. Paper Decision
 
@@ -51,6 +51,22 @@ Joint optimization is not the canonical training recipe: on UAVDT it lets head g
 - **Jointly trained Dual-Max + ISPPHead** is not the flagship training protocol; it is retained only as a negative control demonstrating selector/head interference.
 - The historical names **Concat-Max** and **HESOD Full v2** are deprecated. The corresponding fusion-only model is named **Dual-Max** throughout this document and should be named the same way in the paper.
 
+### 1.5 Why the spectral branch is channel-pooled
+
+The spectral branch is channel-pooled (`ChannelPooledSpectralBranch`, spatial max/mean pooling to 2 channels before the depthwise saliency filters) rather than operating on the full stem-feature width. This is not a compute-only claim: GFLOPs alone do not favor pooling by a wide margin at the single-evidence level (§A.1 arm 3 vs. arm 4: 98.1 vs. 99.3 GFLOPs on UAVDT; §A.5 arm 3 vs. arm 4: 267.4 vs. 263.4 on SeaPerson), so pooling is justified by memory footprint and by its effect once combined with the semantic branch under Dual-Max, not by FLOPs reduction in isolation.
+
+| Property | Full-width spectral branch | Channel-pooled spectral branch |
+|---|:---:|:---:|
+| SeaPerson training batch size (shared budget: 8) | 2 (OOMs at 8) | 8 |
+| SeaPerson Dual-Max mAP@.5 | 0.763 | **0.778** |
+| SeaPerson Dual-Max mAP@.5:.95 | 0.320 | **0.330** |
+| SeaPerson Dual-Max BPR | 0.986 | **0.991** |
+| SeaPerson Dual-Max total recall | 87.53% | **88.10%** |
+| SeaPerson Dual-Max GFLOPs | 277.8 | **255.1** |
+| SeaPerson Dual-Max FPS | 70.1 | **73.8** |
+
+Under Dual-Max specifically, the channel-pooled spectral branch is not a trade-off against the full-width branch -- it wins on every reported metric simultaneously (mAP@.5 +1.5 pp, mAP@.5:.95 +1.0 pp, BPR +0.5 points, total recall +0.57 pp, GFLOPs -8.9%, FPS +5.0%), in addition to the memory benefit that motivated trying it in the first place. Testing this required a training-time comparison, not an inference-time one: eval/measure-time memory pressure is much lower than training's, so an inference-only VRAM check would not have reproduced the batch-size ceiling that full-width spectral evidence hits during training. Parameter count is essentially unaffected either way (35.79M pooled vs. 35.94M full-width, a difference of $<0.5\%$), consistent with pooling changing the spectral branch's own input channel count rather than its parameter-bearing layers.
+
 ## 2. Fixed Experimental Contract
 
 ### 2.1 Dataset configurations
@@ -62,7 +78,7 @@ Joint optimization is not the canonical training recipe: on UAVDT it lets head g
 | UAVDT | `/root/autodl-tmp/UAVDT_fresh.yaml` | 3 | arm-specific UAVDT YOLOv5m | `hyp.uavdt.yaml` | 1280 | Test: 16,580 images, 373,997 GT |
 | SeaPerson (TinyPersonV2) | `/root/autodl-tmp/seaperson.yaml` | 1 | arm-specific SeaPerson YOLOv5m | `hyp.seaperson.yaml` | 2048 | Official test: 5,752 images, 300,375 GT |
 
-Unless explicitly marked otherwise, models use YOLOv5m, 50 epochs, SGD, cosine learning-rate decay, weight decay 0.0005, and global batch size 8. The full-channel SeaPerson spectral-only diagnostic uses batch size 2 because of memory pressure; the channel-pooled models use batch size 8.
+Unless explicitly marked otherwise, models use YOLOv5m, 50 epochs, SGD, cosine learning-rate decay, weight decay 0.0005, and global batch size 8. SeaPerson diagnostics using the full-width (non-channel-pooled) spectral branch require batch size 2 because of memory pressure -- both the single-evidence spectral-only diagnostic and the full-width Dual-Max pooling diagnostic (§1.5, §A.5 arm 11) hit this ceiling; every channel-pooled model, including the Dual-Max mainline, trains at the shared batch size 8.
 
 ### 2.2 UAVDT split caveat
 
@@ -94,14 +110,17 @@ where $w_j=\operatorname{clip}(4/a_j,1,5)$ upweights objects occupying fewer sel
 
 ### 3.1 Selector contribution
 
-| Dataset | Method | mAP@.5 | mAP@.5:.95 | BPR | Total recall | GFLOPs | FPS |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| UAVDT | ESOD R0 | 0.385 | 0.214 | 0.884 | 85.17% | **68.2** | **117.8** |
-| UAVDT | **Dual-Max selector reference** | **0.395** | **0.218** | **0.940** | **90.36%** | 90.1 | 102.3 |
-| SeaPerson | ESOD R0 | 0.750 | 0.320 | 0.947 | 84.42% | **202.4** | **85.7** |
-| SeaPerson | **Dual-Max selector reference** | **0.778** | **0.330** | **0.991** | **88.10%** | 255.1 | 73.8 |
+| Dataset | Method | mAP@.5 | mAP@.5:.95 | BPR | Total recall | GFLOPs | Params (M) | FPS |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| UAVDT | ESOD R0 | 0.385 | 0.214 | 0.884 | 85.17% | **68.2** | 35.85 | **117.8** |
+| UAVDT | Dual-Max selector reference | **0.395** | **0.218** | **0.940** | **90.36%** | 90.1 | 35.85 | 102.3 |
+| UAVDT | **HESOD (Dual-Max + ISPP, staged)** | 0.394 | 0.215 | **0.940** | 88.83% | 74.9 | **25.98** | 106.1 |
+| SeaPerson | ESOD R0 | 0.750 | 0.320 | 0.947 | 84.42% | **202.4** | 35.78 | **85.7** |
+| SeaPerson | **Dual-Max selector reference** | **0.778** | **0.330** | **0.991** | **88.10%** | 255.1 | 35.79 | 73.8 |
 
-The Dual-Max selector improves every reported detection and routing-quality metric on both datasets. The strongest evidence is selector coverage: versus R0, BPR/total recall rise by 5.6 points/5.19 pp on UAVDT and 4.4 points/3.68 pp on SeaPerson. The cost is denser routing: GFLOPs rise by 32.1% on UAVDT and 26.0% on SeaPerson, while FPS falls by 13.2% and 13.9%, respectively. This is the overhead ISPPHead is intended to recover.
+The Dual-Max selector improves every reported detection and routing-quality metric on both datasets. The strongest evidence is selector coverage: versus R0, BPR/total recall rise by 5.6 points/5.19 pp on UAVDT and 4.4 points/3.68 pp on SeaPerson. The cost is denser routing: GFLOPs rise by 32.1% on UAVDT and 26.0% on SeaPerson, while FPS falls by 13.2% and 13.9%, respectively.
+
+ISPPHead is designed to recover this overhead, and on UAVDT it does: the complete, staged HESOD row keeps mAP@.5/BPR within 0.1 pp/0.0 of the selector reference (0.395$\to$0.394, 0.940$\to$0.940) while cutting GFLOPs 16.9% (90.1$\to$74.9) and parameters 27.5% (35.85M$\to$25.98M) relative to Dual-Max -- more than half of R0's own compute increase is recovered, and FPS actually improves over the selector reference (102.3$\to$106.1). Total recall gives back 1.53 pp (90.36%$\to$88.83%) as part of this trade, still 3.66 pp above R0. **The equivalent SeaPerson row is not yet available** -- it is the single decisive pending run this document is tracking (§7, §A.8); until it completes, SeaPerson's selector and head contributions are each independently confirmed (this table's own Dual-Max row; §3.2/§5.2's Dual-Concat+ISPP row) but their exact staged composition is not.
 
 ### 3.2 ISPPHead efficiency contribution
 
@@ -300,6 +319,7 @@ These reruns establish the approximate 2--4 pp UAVDT noise floor. They are retai
 | 8 | Dual-Concat + SABL + ISPP | ISPP / SABL | 0.774 | 0.326 | 0.991 | **88.11%** | 209.0 | **80.7** | Superseded full recipe |
 | 9 | Dual-Max + SABL + ISPP | ISPP / SABL | 0.763 | 0.320 | 0.988 | 87.05% | 221.9 | 77.1 | Composition negative control |
 | 10 | **Dual-Max** | Coupled / CIoU | **0.778** | **0.330** | **0.991** | 88.10% | 255.1 | 73.8 | Mainline selector reference; confirmed rerun |
+| 11 | Dual-Max, full-width spectral | Coupled / CIoU | 0.763 | 0.320 | 0.986 | 87.53% | 277.8 | 70.1 | Pooling diagnostic (§1.5); batch size forced to 2 (OOMs at the shared 8) |
 
 ### A.6 SeaPerson complete physical-size recall
 
@@ -315,6 +335,7 @@ These reruns establish the approximate 2--4 pp UAVDT noise floor. They are retai
 | 8 | Dual-Concat + SABL + ISPP | **77.14%** | 91.59% | 95.01% | 84.52% | **88.11%** |
 | 9 | Dual-Max + SABL + ISPP | 76.01% | 90.36% | 94.78% | 83.87% | 87.05% |
 | 10 | **Dual-Max** | 75.65% | **92.06%** | 95.85% | 81.94% | 88.10% |
+| 11 | Dual-Max, full-width spectral | 74.45% | 91.75% | 95.48% | 77.42% | 87.53% |
 
 The original SeaPerson Dual-Max run (mAP@.5 0.766, mAP@.5:.95 0.323, BPR 0.988, total recall 87.51%, 255.5 GFLOPs, 76.5 FPS) is retained as a superseded run record. Its independent rerun improved every accuracy/routing metric and is the canonical arm-10 result above.
 

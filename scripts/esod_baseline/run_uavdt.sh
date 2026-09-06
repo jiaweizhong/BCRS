@@ -413,6 +413,20 @@ run_arm "uavdt_yolov5m_max${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_max.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --batch-size 2
 
+# Confirmation rerun (2026-09-07) -- arm (9)'s own +1.0pp mAP@.5 gain over
+# R0 (0.385->0.395) is below UAVDT's own established 2-4pp run-to-run
+# noise floor (HESOD-Experiment-Plan.md SS3.3/SS6.2), so per SS6.2's own
+# acceptance rule it needs an independent rerun before being described as
+# confirmed -- unlike R0/arm(5)/arm(8)/arm(10), arm (9) itself (the core
+# "Dual-Max selector reference" headline number) has never been rerun.
+# Random seed via $RANDOM, same convention as every other confirmation
+# rerun this project has done.
+RERUN_SEED_9=$RANDOM
+log "arm9 rerun seed: $RERUN_SEED_9"
+run_arm "uavdt_yolov5m_channel_pooled_max_run2${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --seed "$RERUN_SEED_9"
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"
