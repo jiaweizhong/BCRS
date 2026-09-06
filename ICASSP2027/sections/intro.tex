@@ -1,6 +1,71 @@
+\begin{figure}[t]
+\centering
+% Column headers
+\begin{minipage}[b]{0.036\columnwidth}\hfill\end{minipage}\hspace{1mm}%
+\begin{minipage}[b]{0.468\columnwidth}
+  \centering
+  \scriptsize\textbf{UAVDT (\emph{Urban})}\\[-0.2mm]
+  \scriptsize img000015
+\end{minipage}\hspace{1.2mm}%
+\begin{minipage}[b]{0.468\columnwidth}
+  \centering
+  \scriptsize\textbf{SeaPerson (\emph{Surfing})}\\[-0.2mm]
+  \scriptsize rgb\_x0080\_P000\_115344
+\end{minipage}
+
+\vspace{0.2mm}
+% Row 1: Ground Truth
+\begin{minipage}[c]{0.036\columnwidth}
+  \centering
+  \rotatebox{90}{\scriptsize\textbf{(a) Ground Truth}}
+\end{minipage}\hspace{1mm}%
+\begin{minipage}[c]{0.468\columnwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/uavdt-img000015/img000015-label.jpg}
+\end{minipage}\hspace{1.2mm}%
+\begin{minipage}[c]{0.468\columnwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-label.jpg}
+\end{minipage}
+
+\vspace{0.4mm}
+% Row 2: ESOD (Baseline)
+\begin{minipage}[c]{0.036\columnwidth}
+  \centering
+  \rotatebox{90}{\scriptsize\textbf{(b) ESOD}}
+\end{minipage}\hspace{1mm}%
+\begin{minipage}[c]{0.468\columnwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/uavdt-img000015/img000015-esod.jpg}
+\end{minipage}\hspace{1.2mm}%
+\begin{minipage}[c]{0.468\columnwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-esod.jpg}
+\end{minipage}
+
+\vspace{0.4mm}
+% Row 3: HESOD (Ours)
+\begin{minipage}[c]{0.036\columnwidth}
+  \centering
+  \rotatebox{90}{\scriptsize\textbf{(c) HESOD}}
+\end{minipage}\hspace{1mm}%
+\begin{minipage}[c]{0.468\columnwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/uavdt-img000015/img000015-hesod.jpg}
+\end{minipage}\hspace{1.2mm}%
+\begin{minipage}[c]{0.468\columnwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-hesod.jpg}
+\end{minipage}
+\vspace{-2mm}
+\caption{Qualitative comparison on UAVDT and SeaPerson.}
+\label{fig:teaser}
+\end{figure}
+
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.92\textwidth]{figures/HESOD.pdf}
+\vspace{-2mm}
 \caption{Overview of HESOD: (a) End-to-end selective pipeline; (b) Dual-evidence priority head. Red dashed boxes indicate our proposed contributions.}
 \label{fig:overview}
 \end{figure*}
@@ -12,9 +77,9 @@ High-resolution aerial and maritime vision is essential for remote surveillance,
 
 Spatial selective computation mitigates arithmetic redundancy by routing processing strictly to candidate foreground regions~\cite{QueryDet,CEASC,ESOD}. However, existing selectors exhibit two critical vulnerabilities: (i) \emph{Evidence fragility}: relying solely on deep semantic activations leads to severe feature collapse for micro targets after stem downsampling, causing irrecoverable false-negative pruning under asymmetric selection cost~\cite{SET,ESOD}; and (ii) \emph{Coverage deficit}: standard per-pixel binary cross-entropy optimizes grid cells independently, failing to guarantee joint multi-cell coverage over individual instances.
 
-To address these limitations, we present \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), an efficient selective detection framework. Our key contributions are:
+As illustrated in Fig.~\ref{fig:teaser}, faint micro targets (e.g., compact vehicles or distant surfers) easily suffer severe coarse-stage pruning in existing single-evidence selectors (e.g., ESOD~\cite{ESOD}) due to degraded semantic contrast. To resolve these challenges, we propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a dual-evidence selective framework that couples high-frequency spectral gradients with semantic objectness and soft-coverage optimization. More specifically, our key contributions are:
 \begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}\setlength{\topsep}{1pt}
-    \item \textbf{Dual-Evidence Spatial Selector}: We couple high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ channel complexity, reliably preserving degraded micro targets.
-    \item \textbf{Object-Level Soft-Coverage Loss ($\mathcal{L}_{\mathrm{cover}}$)}: We formulate a differentiable joint-coverage objective to prevent premature false-negative pruning under asymmetric selection cost.
-    \item \textbf{Edge-Efficient Decoupled Architecture}: By integrating an inverted residual ISPP head with scale-aware SABL regression, HESOD establishes an optimal accuracy-efficiency frontier (-27.6\% params at 80.7 FPS).
+    \item \textbf{Dual-Evidence Spatial Selector}: We couple high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ spatial complexity, reliably preserving degraded micro targets.
+    \item \textbf{Object-Level Soft-Coverage Loss ($\mathcal{L}_{\mathrm{cover}}$)}: We formulate a differentiable joint-coverage objective to suppress premature false-negative pruning under asymmetric selection cost.
+    \item \textbf{Scale-Aware Edge-Efficient Head}: We integrate an inverted residual decoupled head with scale-aware Wasserstein regression to simultaneously reduce inference overhead and enhance micro-target localization.
 \end{enumerate}

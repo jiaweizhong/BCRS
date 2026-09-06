@@ -1,7 +1,7 @@
 \section{Proposed Method}
 \label{sec:method}
 
-The overall architecture of HESOD is illustrated in Fig.~\ref{fig:overview}(a). Given an input image $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense feature map $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then proceeds in two steps: (i) a priority head fuses semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) to generate a continuous priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer module dynamically crops high-priority candidate patches $\mathcal{P}$ directly from $\mathbf{F}$. Downstream backbone, neck, and lightweight ISPP decoupled heads evaluate only these retained patches, supervised end-to-end by an object-level soft-coverage loss and scale-aware regression (\S\ref{ssec:coverage}, \S\ref{ssec:head}).
+The overall architecture of HESOD is illustrated in Fig.~\ref{fig:overview}(a). Given an input image $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense feature map $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then proceeds in two steps: (i) a priority head fuses semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) to generate continuous priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer module dynamically crops candidate foreground patches $\mathcal{P}$ directly from $\mathbf{F}$. Downstream backbone, neck, and lightweight ISPP decoupled heads evaluate only these retained patches, supervised by an object-level soft-coverage loss and scale-aware regression (\S\ref{ssec:coverage}, \S\ref{ssec:head}).
 
 \subsection{Dual-Evidence Priority Estimation}
 \label{ssec:evidence}
@@ -13,14 +13,17 @@ Let $\mathbf{f}_i \in \mathbb{R}^C$ denote the feature vector at spatial locatio
 \mathbf{F}_{\mathrm{pooled}} = \left[ \max_c \mathbf{F}_{:,:,c} \,\|\, \frac{1}{C}\sum_{c=1}^C \mathbf{F}_{:,:,c} \right] \in \mathbb{R}^{H_s \times W_s \times 2},
 \label{eq:channel_pool}
 \end{equation}
-where $[\cdot \,\|\, \cdot]$ denotes concatenation. Compressing $\mathbf{F}$ to 2 channels guarantees that subsequent spatial filtering complexity remains $\mathcal{O}(1)$ regardless of backbone width $C$. 
+where $[\cdot \,\|\, \cdot]$ denotes concatenation. Channel compression ensures spatial filtering complexity remains $\mathcal{O}(1)$ regardless of backbone width $C$. Learnable depthwise $3\times 3$ convolutions (initialized via Laplacian and Sobel filters) then filter $\mathbf{F}_{\mathrm{pooled}}$, followed by a $1\times 1$ projection to yield spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
 
-Next, a learnable depthwise $3\times 3$ convolution bank, initialized with discrete Laplacian and directional Sobel filters, is applied over $\mathbf{F}_{\mathrm{pooled}}$ to capture isotropic edge transitions and directional gradients. A $1\times 1$ projection layer maps the 6 filtered channels to dimension $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i$. Finally, semantic and spectral logits are concatenated and fused via a $1\times 1$ convolution to predict class-agnostic routing priority scores $s_i \in [0, 1]$:
+To prevent confidence dilution on weak targets, evidence fusion $\mathcal{F}$ satisfies \emph{evidence preservation} $\mathcal{F}(p_s, p_f) \ge \max(p_s, p_f)$, producing priority score $s_i \in [0, 1]$:
 \begin{equation}
-s_i = \sigma\!\left(\mathrm{Conv}_{1\times 1}\!\left(\left[ \mathbf{z}^{\mathrm{sem}}_i \,\|\, \mathbf{z}^{\mathrm{spec}}_i \right]\right)\right).
+s_i = \begin{cases}
+\max\!\left(\sigma(\mathbf{z}^{\mathrm{sem}}_i),\, \sigma(\mathbf{z}^{\mathrm{spec}}_i)\right), & \text{Max (cluttered)} \\
+\sigma\!\left(\mathrm{Conv}_{1\times 1}\!\left(\left[ \mathbf{z}^{\mathrm{sem}}_i \,\|\, \mathbf{z}^{\mathrm{spec}}_i \right]\right)\right), & \text{Concat (sparse)}
+\end{cases}
 \label{eq:fusion}
 \end{equation}
-Candidate regions with $s_i > \tau$ are clustered into bounding patches and routed downstream.
+where Max preserves salient cues in dense clutter (UAVDT), while Concat provides smooth blending in sparse scenes (SeaPerson). Candidate cells with $s_i > \tau$ are clustered into bounding patches $\mathcal{P}$.
 
 \subsection{Object-Level Soft-Coverage Loss}
 \label{ssec:coverage}
@@ -37,7 +40,7 @@ The soft-coverage loss directly optimizes joint instance coverage:
 \mathcal{L}_{\mathrm{cover}} = -\frac{1}{N_{\mathrm{gt}}} \sum_{j=1}^{N_{\mathrm{gt}}} w_j \log\left( p_j^{\mathrm{cover}} + \epsilon \right),
 \label{eq:cover_loss}
 \end{equation}
-where $w_j = \operatorname{clip}(4/a_j, 1, 5)$ is a scale-adaptive weight based on bounding box area $a_j$ in grid cells, penalizing misses on micro targets ($a_j < 4$). The total training objective is $\mathcal{L} = \mathcal{L}_{\mathrm{det}} + \lambda_{\mathrm{sel}} (\mathcal{L}_{\mathrm{BCE}} + \lambda_{\mathrm{cov}} \mathcal{L}_{\mathrm{cover}})$, with $\lambda_{\mathrm{sel}}=0.2$ and $\lambda_{\mathrm{cov}}=0.5$.
+where $w_j = \operatorname{clip}(4/a_j, 1, 5)$ penalizes misses on micro targets ($a_j < 4$) based on box area $a_j$. The total training objective is $\mathcal{L} = \mathcal{L}_{\mathrm{det}} + \lambda_{\mathrm{sel}}(\mathcal{L}_{\mathrm{BCE}} + \lambda_{\mathrm{cov}}\mathcal{L}_{\mathrm{cover}})$, with $\lambda_{\mathrm{sel}}=0.2$ and $\lambda_{\mathrm{cov}}=0.5$.
 
 \subsection{Efficient Decoupled Head and Scale-Aware Loss}
 \label{ssec:head}
@@ -45,17 +48,18 @@ where $w_j = \operatorname{clip}(4/a_j, 1, 5)$ is a scale-adaptive weight based 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\columnwidth]{figures/ISPPHead.pdf}
+\vspace{-2mm}
 \caption{Inverted Residual Decoupled Head (ISPP).}
 \label{fig:ispphead}
 \end{figure}
 
 To reduce computational overhead while boosting localization precision, we incorporate an inverted residual partial-convolution (ISPP) decoupled head~\cite{ESODYOLO} and a Scale-Aware Balancing Loss (SABL)~\cite{SSABNet}.
 
-As shown in Fig.~\ref{fig:ispphead}, the ISPP head expands neck feature channels to $2C_1$, partitioning them into an active branch ($0.25$ ratio) processed by a $3\times 3$ Partial Convolution (PConv) and an identity passthrough branch ($0.75$ ratio), where $\textcircled{\scriptsize C}$ denotes channel concatenation. After linear projection and residual addition, decoupled $1\times 1$ heads predict classification, box regression, and objectness independently, drastically lowering compute while eliminating task interference.
+As shown in Fig.~\ref{fig:ispphead}, the ISPP head expands neck features to $2C_1$, partitioning them into an active branch ($0.25$ ratio) processed by $3\times 3$ Partial Convolution (PConv) and an identity branch ($0.75$ ratio), where $\textcircled{\scriptsize C}$ denotes channel concatenation. After linear projection and residual addition, decoupled $1\times 1$ heads predict classification, box regression, and objectness independently, reducing compute while eliminating task interference.
 
-Furthermore, standard IoU-based regression suffers from vanishing gradients on micro objects due to extreme sensitivity to tiny spatial misalignments. To ensure robust localization, SABL dynamically balances Normalized Gaussian Wasserstein Distance ($D_W$) and Complete IoU (CIoU) via scale-dependent gating $\mu(s) = \exp(-(s/32)^6)$:
+Furthermore, standard IoU-based regression suffers from vanishing gradients on micro objects due to extreme sensitivity to tiny spatial misalignments. To ensure robust localization, SABL dynamically balances Gaussian Wasserstein distance ($\mathcal{L}_{\mathrm{NWD}} = 1 - e^{-D_W / 12}$) and Complete IoU (CIoU) via scale-dependent gating $\mu(s) = \exp(-(s/32)^6)$:
 \begin{equation}
-\mathcal{L}_{\mathrm{box}} = 1 - \mathrm{IoU} + \mu(s)\!\left(1 - e^{-D_W / 12}\right) + (1 - \mu(s))\ell_{\mathrm{ctr}} + \alpha v,
+\mathcal{L}_{\mathrm{box}} = 1 - \mathrm{IoU} + \mu(s)\mathcal{L}_{\mathrm{NWD}} + (1 - \mu(s))(\ell_{\mathrm{ctr}} + \alpha v),
 \label{eq:sabl_loss}
 \end{equation}
-where $s = \sqrt{w \cdot h}$ is the bounding box geometric scale, $\ell_{\mathrm{ctr}}$ penalizes normalized center distance, and $v$ measures aspect ratio consistency. For micro targets ($s \ll 32\text{ px}$), $\mu(s) \to 1$, activating the non-vanishing Wasserstein distribution distance to provide stable continuous gradients even under zero spatial IoU overlap; for larger objects ($s \gg 32\text{ px}$), $\mu(s) \to 0$, smoothly reverting to standard CIoU regression.
+where $s = \sqrt{w \cdot h}$ is the bounding box geometric scale, $\ell_{\mathrm{ctr}}$ penalizes center distance, and $v$ measures aspect consistency. For micro targets ($s \ll 32\text{ px}$), $\mu(s) \to 1$, activating Wasserstein distance to provide non-vanishing gradients under zero IoU overlap; for larger objects ($s \gg 32\text{ px}$), $\mu(s) \to 0$, smoothly reverting to standard CIoU regression.

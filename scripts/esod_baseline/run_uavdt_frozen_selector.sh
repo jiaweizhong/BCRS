@@ -233,6 +233,23 @@ run_arm "uavdt_yolov5m_channel_pooled_max_sabl_isphead_frozen" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
+# Confirmation rerun (2026-09-06) -- arm (15)'s own mAP@.5 (0.392) landed
+# 0.2-0.3pp below both arms (13)/(14) alone (0.395/0.394), HESOD-Experiment-
+# Plan.md SS3.7 own noise-floor discipline flags anything under ~2-4pp as
+# indistinguishable from noise, and none of arms 13/14/15 have an
+# independent rerun yet (unlike R0/arm3/arm5/arm8/arm10 earlier). Same
+# config/flags as arm 15, only --seed differs (default init_seeds(2+rank)
+# is identical every run since rank is always -1 on single-GPU -- without
+# an explicit different seed this would just deterministically replay the
+# same data order/augmentation, not a genuine independent sample). Seed is
+# drawn fresh at launch time ($RANDOM, bash's own PRNG) rather than a
+# literal so this rerun doesn't depend on a manually hand-picked constant.
+RERUN_SEED=$RANDOM
+log "arm15 rerun seed: $RERUN_SEED"
+run_arm "uavdt_yolov5m_channel_pooled_max_sabl_isphead_frozen_run2" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2 --seed "$RERUN_SEED"
+
 log "===== ALL DONE ====="
 log "  Max+SABL (frozen selector):          $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_max_sabl_frozen/"
 log "  Max+ISPPHead (frozen selector):      $RUN_ROOT/test/uavdt_yolov5m_channel_pooled_max_isphead_frozen/"
