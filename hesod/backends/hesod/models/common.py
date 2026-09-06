@@ -389,7 +389,7 @@ class HeatMapParser(nn.Module):
             mask_pred = mask_pred.sigmoid()
 
         # Preserve released ESOD's routing contract: channel 0 of the first
-        # selector level is the scalar routing map. In DES-ESOD the coverage
+        # selector level is the scalar routing map. In HESOD the coverage
         # term supervises this channel with every GT object; the remaining
         # channels retain pixelwise mask supervision only.
         mask_pred = mask_pred[:, 0, :, :].detach()

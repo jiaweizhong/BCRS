@@ -1,7 +1,7 @@
 # 论文投稿目标规划 (Target Conferences Roadmap)
 
 > **研究方向**：高分辨率图像微小目标检测 (Small Object Detection)、空间条件/选择性计算 (Selective Computation)、无人机与遥感边缘感知 (UAV & Remote Sensing Perception)  
-> **论文成果**：DES-ESOD (Dual-Evidence Selection and Coverage Optimization)
+> **论文成果**：HESOD (High-Resolution Efficient Small Object Detection)
 
 ---
 
@@ -22,7 +22,7 @@
 
 ```mermaid
 graph LR
-    Core["HESOD / DES-ESOD Core<br/>(Dual-Evidence + Coverage Loss + ISPP/SABL)"]
+    Core["HESOD Core<br/>(Dual-Evidence + Coverage Loss + ISPPHead)"]
     
     Core -->|强调信号处理理论与空频域先验| ICASSP["ICASSP 2027 (CCF-B / CORE-A)<br/>📍 加拿大·多伦多 (Toronto)<br/>Deadline: 2026年9月上旬"]
     Core -->|强调数字图像处理算法与特征优化| ICDIP["ICDIP 2027 (SPIE / EI核心)<br/>📍 中国·北京 (Beijing)<br/>Deadline: 2026年11月10日"]
