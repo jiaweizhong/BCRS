@@ -394,6 +394,25 @@ run_arm "uavdt_yolov5m_channel_pooled_max_sabl_isphead_run2${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max_isphead.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss sabl --workers 2
 
+# --- Channel-pooling isolation on Max fusion (2026-09-06), NOT part of the
+# roster proper. Full-width (non-pooled) SpectralBranch instead of
+# ChannelPooledSpectralBranch, same MaxEvidenceSegmenter fusion rule as arm
+# 9 otherwise -- cross-dataset counterpart to the same probe just added to
+# run_seaperson.sh's own seaperson_yolov5m_max arm. Motivated by arm 3 vs
+# arm 4 (SS3.4 point 1): pooled beats non-pooled on Total Recall/BPR there
+# (91.93% vs 88.83%) but LOSES on mAP@.5/mAP@.5:.95 (0.394 vs 0.396, 0.209
+# vs 0.214) and doesn't save GFLOPs either (99.3 vs 98.1) -- since mAP, not
+# recall, is the metric that actually matters, that comparison already
+# argues against pooling paying for itself, and this arm checks whether the
+# same holds once Max fusion (not spectral-only) is the routing rule.
+# --batch-size 2 override (same precaution as arm 3 Spectral-only): full-
+# width SpectralBranch now runs alongside the semantic branch in the same
+# Segmenter, untested combination memory-wise. --workers 2: same worker-
+# leak precaution applied to every other arm in this script. ---
+run_arm "uavdt_yolov5m_max${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_max.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --batch-size 2
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"
