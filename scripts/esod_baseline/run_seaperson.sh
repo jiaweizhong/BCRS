@@ -88,6 +88,10 @@ run_arm() {
   # it was launched as its own separate `BATCH=2 bash run_seaperson.sh`
   # invocation, not mixed into one ARMS call with batch=8 arms.
   local run_name="$1" model_cfg="$2" selector_loss="$3" box_loss="${4:-upstream}" batch="${5:-$BATCH}"
+  # $6+ (optional): extra flags passed through verbatim to train.py, e.g.
+  # --seed for a randomized-seed confirmation rerun. Added 2026-09-06,
+  # empty for every pre-existing call above (no behavior change for them).
+  local extra_flags=("${@:6}")
 
   if [ -n "$ARMS" ]; then
     case ",$ARMS," in
@@ -126,6 +130,7 @@ run_arm() {
       --hyp "$HYP" \
       --batch-size "$batch" --img-size "$IMG_SIZE" --epochs "$EPOCHS" --device "$GPU" \
       --selector-loss "$selector_loss" --box-loss "$box_loss" \
+      "${extra_flags[@]}" \
       --project "$RUN_ROOT/train" --name "$run_name" --exist-ok \
       2>&1 | tee "$results_dir/${run_name}_train.log"
   fi
@@ -278,6 +283,33 @@ run_arm "seaperson_yolov5m_channel_pooled_max_sabl_isphead${SUFFIX}" \
 # upstream flags -- only the fusion rule differs.
 run_arm "seaperson_yolov5m_channel_pooled_max${SUFFIX}" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_max.yaml" coverage upstream
+
+# Confirmation rerun (2026-09-06) -- before warm-starting the planned
+# Max+ISPPHead staged fine-tune off this arm's checkpoint (mirroring
+# UAVDT's arm14 recipe, run_seaperson_frozen_selector.sh), check whether a
+# second independent run of Max-only can reach a higher Total Recall than
+# the original (87.51%) -- UAVDT showed real run-to-run swings on its own
+# arms (HESOD-Experiment-Plan.md SS3 intro's noise-floor note), so this
+# picks the better of the two checkpoints as the staged fine-tune's
+# warm-start source instead of assuming the first run was already optimal.
+# Random seed (bash's own $RANDOM), not a hardcoded literal, for a genuine
+# independent sample -- same reasoning as UAVDT's own arm15 rerun.
+RERUN_SEED=$RANDOM
+log "seaperson max rerun seed: $RERUN_SEED"
+run_arm "seaperson_yolov5m_channel_pooled_max_run2${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max.yaml" coverage upstream "$BATCH" \
+  --seed "$RERUN_SEED"
+
+# --- Channel-pooling isolation on Max fusion (2026-09-06), NOT part of the
+# roster proper. Full-width (non-pooled) SpectralBranch instead of
+# ChannelPooledSpectralBranch, same MaxEvidenceSegmenter fusion rule as
+# arm 10 otherwise -- isolates channel pooling's own cost/benefit when
+# paired with Max specifically (never tested before; only tested on
+# spectral-only/Concat, HESOD-Experiment-Plan.md SS3.4/SS4.4, where the
+# effect was small and mixed). Forced batch=2 override (5th arg), same
+# OOM ceiling full-width SpectralBranch already forced on spectral-only. ---
+run_arm "seaperson_yolov5m_max${SUFFIX}" \
+  "models/cfg/esod/seaperson_yolov5m_max.yaml" coverage upstream 2
 
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/seaperson_yolov5m_baseline${SUFFIX}/"

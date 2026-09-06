@@ -97,6 +97,37 @@ class ConcatEvidenceSegmenter(nn.Module):
         return res
 
 
+class MaxEvidenceSegmenter(nn.Module):
+    """Elementwise-max fusion of semantic + full-width spectral evidence.
+
+    Full-width (unpooled SpectralBranch) counterpart to
+    ChannelPooledMaxEvidenceSegmenter, added 2026-09-06 to isolate channel
+    pooling's own effect on the Max fusion rule specifically -- SS3.4/SS4.4
+    of HESOD-Experiment-Plan.md found channel pooling's isolated effect (on
+    top of single-evidence spectral-only and Concat) is small and mixed
+    (near-identical or slightly worse GFLOPs/FPS, small mAP deltas in
+    either direction depending on dataset), never confirmed for the Max
+    fusion rule itself. Full-width SpectralBranch forces the same
+    batch-size ceiling spectral-only already hit (SeaPerson: batch=2, OOMs
+    at the shared batch=8) -- that memory cost, not compute, is the
+    documented trade-off for whatever this recovers/loses vs.
+    ChannelPooledMaxEvidenceSegmenter.
+    """
+
+    def __init__(self, nc=10, ch=()):
+        super().__init__()
+        self.m = nn.ModuleList(nn.Conv2d(x, nc, 1) for x in ch)
+        self.spectral_branches = nn.ModuleList(SpectralBranch(x, nc) for x in ch)
+
+    def forward(self, x):
+        res = []
+        for i in range(len(x)):
+            p_semantic = self.m[i](x[i])
+            p_spectral, _ = self.spectral_branches[i](x[i])
+            res.append(torch.max(p_semantic, p_spectral))
+        return res
+
+
 class ChannelPooledSpectralOnlySegmenter(nn.Module):
     """SpectralOnlySegmenter with the low-overhead channel-pooled filter (SS7.9)."""
 

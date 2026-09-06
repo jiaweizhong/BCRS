@@ -38,6 +38,7 @@ from models.segmenter import (
     SpectralOnlySegmenter,
     DualEvidenceSegmenter,
     ConcatEvidenceSegmenter,
+    MaxEvidenceSegmenter,
     ChannelPooledSpectralOnlySegmenter,
     ChannelPooledDualEvidenceSegmenter,
     ChannelPooledConcatEvidenceSegmenter,
@@ -591,6 +592,7 @@ class Model(nn.Module):
                     SpectralOnlySegmenter,
                     DualEvidenceSegmenter,
                     ConcatEvidenceSegmenter,
+                    MaxEvidenceSegmenter,
                     ChannelPooledSpectralOnlySegmenter,
                     ChannelPooledDualEvidenceSegmenter,
                     ChannelPooledConcatEvidenceSegmenter,
@@ -694,11 +696,12 @@ class Model(nn.Module):
                 (
                     DualEvidenceSegmenter,
                     ChannelPooledDualEvidenceSegmenter,
+                    MaxEvidenceSegmenter,
                     ChannelPooledMaxEvidenceSegmenter,
                     ChannelPooledSoftOrEvidenceSegmenter,
                 ),
             ):
-                # ChannelPooledMaxEvidenceSegmenter (torch.max) and
+                # MaxEvidenceSegmenter/ChannelPooledMaxEvidenceSegmenter (torch.max) and
                 # ChannelPooledSoftOrEvidenceSegmenter (logsumexp noisy-OR)
                 # share DualEvidenceSegmenter's property here: neither has a
                 # combining conv, so both self.m and the spectral head's own
@@ -873,6 +876,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             SpectralOnlySegmenter,
             DualEvidenceSegmenter,
             ConcatEvidenceSegmenter,
+            MaxEvidenceSegmenter,
             ChannelPooledSpectralOnlySegmenter,
             ChannelPooledDualEvidenceSegmenter,
             ChannelPooledConcatEvidenceSegmenter,
