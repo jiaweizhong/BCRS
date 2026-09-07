@@ -189,6 +189,23 @@ run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
   --selector-loss coverage --box-loss upstream
 
+# Low-LR probe (2026-09-07) -- the canonical run above (warmup_epochs=20,
+# via hyp.seaperson_frozen.yaml) avoided the epoch-1/2 collapse but
+# converged to a flat val mAP@.5 plateau (~0.766-0.771) within 3-4 epochs
+# and never moved for the remaining 16 -- genuinely converged, not
+# undertrained (HESOD-Experiment-Plan.md SS7). This arm isolates LR
+# magnitude from warmup length: short warmup close to the original
+# hyp.seaperson.yaml (3.0 vs. 2.0, a small safety margin) but lr0 cut 10x
+# (0.01 -> 0.001, hyp.seaperson_frozen_lowlr.yaml) so the post-warmup jump
+# itself is gentler, testing whether that reaches a better plateau than
+# warmup=20 did rather than just avoiding the crash. Run separately
+# (ARMS=seaperson_yolov5m_channel_pooled_max_isphead_frozen_lowlr
+# HYP=data/hyps/hyp.seaperson_frozen_lowlr.yaml ...) -- does not touch the
+# already-canonical arm above.
+run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen_lowlr" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
+  --selector-loss coverage --box-loss upstream
+
 # max fusion (full-width, non-pooled spectral branch) + ISPPHead, no SABL,
 # selector frozen at seaperson_yolov5m_max's own weights -- isolates
 # channel pooling's own effect on the flagship "Max + staged ISPPHead"
