@@ -173,15 +173,15 @@ SeaPerson contains 300,375 test instances, more than 85% of which are tiny or mi
 
 ### 5.1 Dense baselines and ESOD family
 
-| Method | Type | mAP@.5 | mAP@.5:.95 | Params (M) | GFLOPs | FPS |
-|---|---|:---:|:---:|:---:|:---:|:---:|
-| Faster R-CNN, ResNet-50-FPN | Dense two-stage | 0.551 | 0.246 | 43.26 | 1546.8 | 23.1 |
-| RetinaNet, ResNet-50-FPN | Dense one-stage | 0.473 | 0.201 | 36.35 | 942.7 | 28.0 |
-| ESOD R0 | Selective, single evidence | 0.750 | 0.320 | 35.78 | **202.4** | **85.7** |
-| Dual-Max selector reference | Selective, dual evidence | **0.778** | **0.330** | 35.79 | 255.1 | 73.8 |
-| **HESOD (Ours)** | Selective, dual evidence, staged | 0.773 | 0.327 | **25.92** | 208.5 | 80.6 |
+| Method | Type | mAP@.5 | mAP@.5:.95 | Total recall | Params (M) | GFLOPs | FPS |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Faster R-CNN, ResNet-50-FPN | Dense two-stage | 0.551 | 0.246 | 67.27% | 43.26 | 1546.8 | 23.1 |
+| RetinaNet, ResNet-50-FPN | Dense one-stage | 0.473 | 0.201 | 65.98% | 36.35 | 942.7 | 28.0 |
+| ESOD R0 | Selective, single evidence | 0.750 | 0.320 | 84.42% | 35.78 | **202.4** | **85.7** |
+| Dual-Max selector reference | Selective, dual evidence | **0.778** | **0.330** | **88.10%** | 35.79 | 255.1 | 73.8 |
+| **HESOD (Ours)** | Selective, dual evidence, staged | 0.773 | 0.327 | 87.75% | **25.92** | 208.5 | 80.6 |
 
-The Dual-Max selector reference exceeds R0 by 2.8 pp mAP@.5 and 1.0 pp mAP@.5:.95. The staged HESOD row trades 0.5 pp of that back for compute (255.1$\to$208.5 GFLOPs) but still exceeds R0 by 2.3 pp mAP@.5 at lower parameter count. Against the dense detectors, HESOD improves mAP@.5 by 22.2 pp over Faster R-CNN and 30.0 pp over RetinaNet while cutting GFLOPs by 7.4$\times$ and 4.5$\times$ respectively, at 80.6 FPS. The dense detectors provide conventional reference points, but they are not evidence for the selector ablation because their training and inference structures differ substantially.
+The Dual-Max selector reference exceeds R0 by 2.8 pp mAP@.5 and 1.0 pp mAP@.5:.95. The staged HESOD row trades 0.5 pp of that back for compute (255.1$\to$208.5 GFLOPs) but still exceeds R0 by 2.3 pp mAP@.5 at lower parameter count. Against the dense detectors, HESOD improves mAP@.5 by 22.2 pp over Faster R-CNN and 30.0 pp over RetinaNet, total recall by 20.48 pp and 21.77 pp respectively, while cutting GFLOPs by 7.4$\times$ and 4.5$\times$ respectively, at 80.6 FPS. The recall gap is the more striking number here: at a fixed IoU/confidence matching protocol, both dense detectors miss roughly a third of all instances (particularly Very Tiny: 46.07%/50.05% recall vs. HESOD's 75.71%), consistent with the selective-computation motivation this comparison exists to support. The dense detectors provide conventional reference points, but they are not evidence for the selector ablation because their training and inference structures differ substantially; BPR is left blank for them since it is a selector-routing metric with no analog in a dense detector.
 
 ### 5.2 Minimal selector ablation
 

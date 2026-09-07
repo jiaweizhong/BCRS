@@ -33,8 +33,8 @@ ESOD~\cite{ESOD}                 & 0.385 & 35.9 & \textbf{68.2} & 85.17\% & 0.88
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{SeaPerson Benchmark ($2048\times 2048$)}}} \\
 \midrule
-Faster R-CNN~\cite{FasterRCNN}   & 0.551 & 43.3 & 1546.8 & \textit{[TBD]} & -- & 23.1 \\
-RetinaNet~\cite{RetinaNet}       & 0.473 & 36.4 & 942.7  & \textit{[TBD]} & -- & 28.0 \\
+Faster R-CNN~\cite{FasterRCNN}   & 0.551 & 43.3 & 1546.8 & 67.27\% & -- & 23.1 \\
+RetinaNet~\cite{RetinaNet}       & 0.473 & 36.4 & 942.7  & 65.98\% & -- & 28.0 \\
 ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 84.42\% & 0.947 & \textbf{85.7} \\
 \textbf{HESOD (Ours)}            & \textbf{0.773} & \textbf{25.9} & \underline{208.5} & \textbf{87.75\%} & \textbf{0.991} & \underline{80.6} \\
 \midrule
@@ -85,7 +85,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 \vspace{-1.5mm}
 \end{table*}
 
-\textbf{Comparison with Dense Baselines.} As shown in Table~\ref{tab:main_results}, dense detectors incur prohibitive overhead on high-resolution grids. Compared to Faster R-CNN and RetinaNet on SeaPerson ($2048\times 2048$), selective detection yields massive gains of \textbf{+22.2\,pp} and \textbf{+30.0\,pp} $\mathrm{mAP@.5}$ while slashing GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} at \textbf{80.6}\,FPS, confirming the necessity of selective computation for resource-efficient high-resolution inference.
+\textbf{Comparison with Dense Baselines.} As shown in Table~\ref{tab:main_results}, dense detectors incur prohibitive overhead on high-resolution grids. Compared to Faster R-CNN and RetinaNet on SeaPerson ($2048\times 2048$), selective detection yields massive gains of \textbf{+22.2\,pp} and \textbf{+30.0\,pp} $\mathrm{mAP@.5}$ while slashing GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} at \textbf{80.6}\,FPS, confirming the necessity of selective computation for resource-efficient high-resolution inference. The recall gap is equally stark: at a fixed matching protocol, both dense detectors miss roughly a third of all instances (67.27\%/65.98\% total recall vs. HESOD's \textbf{87.75\%}), with the gap concentrated on Very Tiny targets (46.07\%/50.05\% vs. \textbf{75.71\%}).
 
 \textbf{Comparison with Selective Baseline (ESOD).} Against ESOD, HESOD achieves substantial instance recall recovery and parameter compression across both benchmarks (Table~\ref{tab:main_results}). On UAVDT ($1280\times 1280$), HESOD improves $\mathrm{mAP@.5}$ to \textbf{0.394} (+0.9\,pp) and BPR to \textbf{0.940} (+5.6\,pp, rescuing +13,700 targets), while staged ISPP fine-tuning cuts parameters by \textbf{27.5\%} (25.98M vs. 35.85M) at 106.1 FPS (+3.66\,pp total recall). Recall improves across all classes: \emph{car} ($85.6\% \to 89.0\%$), \emph{truck} ($81.1\% \to 86.5\%$), and \emph{bus} ($67.7\% \to 81.4\%$, \textbf{+13.7\,pp}). On SeaPerson ($2048\times 2048$), HESOD reaches \textbf{0.773} $\mathrm{mAP@.5}$ (+2.3\,pp over ESOD) and \textbf{0.991} BPR (+4.4\,pp, total recall $84.42\% \to 87.75\%$), while staged ISPP compression cuts parameters by \textbf{27.6\%} (25.92M vs. 35.78M) and recovers Dual-Max compute overhead down to 208.5 GFLOPs at 80.6 FPS. The Dual-Max selector reference achieves peak accuracy of \textbf{0.778} $\mathrm{mAP@.5}$ and \textbf{88.10\%} recall.
 
