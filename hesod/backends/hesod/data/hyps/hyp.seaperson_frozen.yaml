@@ -1,0 +1,53 @@
+# SeaPerson staged/frozen-selector fine-tune hyp (2026-09-07). Copy of
+# hyp.seaperson.yaml with one change: warmup_epochs raised from 2.0 to
+# 20.0 (== EPOCHS for every staged arm this project runs, all via
+# run_seaperson_frozen_selector.sh) so the LR/momentum/accumulate warmup
+# ramp never actually completes within a 20-epoch staged fine-tune --
+# avoiding the destructive warmup-end transition entirely rather than
+# tuning around it.
+#
+# Motivation: seaperson_yolov5m_channel_pooled_max_isphead_frozen (staged
+# ISPPHead on the confirmed 0.778-mAP pooled Dual-Max checkpoint,
+# HESOD-Experiment-Plan.md SS7) collapsed reproducibly at the exact
+# iteration warmup_epochs=2.0 completes (nw = 2.0 * ~714 batches/epoch):
+# epoch 0-1 mAP@.5 ~0.75, epoch 2 mAP@.5 crashes to ~0.01, then recovers
+# only to ~0.71 by epoch 19 -- never back to the pre-crash level. UAVDT's
+# own staged arms (13/14/15) use hyp.uavdt.yaml's warmup_epochs=3.0 at the
+# same 20-epoch budget (15% of the run vs SeaPerson's 10%) and do not show
+# this collapse -- SeaPerson's higher resolution (2048 vs 1280) and much
+# denser per-image instance count plausibly make the freshly-initialized
+# ISPPHead more sensitive to the warmup-end LR/momentum/accumulate jump,
+# though this hyp change is the actual test of that hypothesis, not a
+# confirmed mechanism.
+#
+# Do not use for the 8-arm main roster (run_seaperson.sh) or the non-pooled
+# pooling-isolation diagnostics -- this is specifically for staged/frozen
+# fine-tunes under run_seaperson_frozen_selector.sh.
+lr0: 0.01
+lrf: 0.2
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 20.0
+warmup_momentum: 0.8
+warmup_bias_lr: 0.1
+box: 0.05
+cls: 0.5
+cls_pw: 1.0
+obj: 1.0
+obj_pw: 1.0
+iou_t: 0.20
+anchor_t: 4.0
+fl_gamma: 0.0
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4
+degrees: 0.0
+translate: 0.1
+scale: 0.5
+shear: 0.0
+perspective: 0.0
+flipud: 0.0
+fliplr: 0.5
+mosaic: 1.0
+mixup: 0.0
+pixl: 0.4
