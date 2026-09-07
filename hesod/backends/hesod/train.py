@@ -553,7 +553,21 @@ def train(hyp, opt, device, tb_writer=None):
     for epoch in range(
         start_epoch, epochs
     ):  # epoch ------------------------------------------------------------------
-        use_gt = epoch < epochs * 0.6
+        # GT-assisted routing exists to protect a selector that is still
+        # learning to route from scratch. In a --freeze staged fine-tune the
+        # selector is already converged and frozen, so there is nothing to
+        # protect -- forcing use_gt False here (rather than leaving it gated
+        # only by the unrelated optimizer warmup_flag below) makes both
+        # training and validation use the real, frozen selector's own
+        # routing from epoch 0, independent of whatever warmup_epochs is set
+        # to for the optimizer. See HESOD-Experiment-Plan.md SS6.2/SS7 for
+        # the failure mode this fixes: previously use_gt and the optimizer's
+        # warmup_flag were coupled, so short optimizer warmup caused an
+        # early, simultaneous LR jump + routing-distribution switch (the
+        # observed SeaPerson staged-ISPPHead collapse), and long optimizer
+        # warmup only delayed the routing switch to a hard-coded epoch*0.6
+        # cutoff rather than removing it.
+        use_gt = (epoch < epochs * 0.6) and not opt.freeze
         model.train()
         if opt.freeze:
             # model.train() above puts every submodule (including frozen
@@ -783,7 +797,13 @@ def train(hyp, opt, device, tb_writer=None):
                 results, maps, times = test.test(
                     data_dict,
                     use_gt=use_gt and warmup_flag,
-                    conf_thres=0.1 if warmup_flag else 0.001,
+                    # Same --freeze decoupling as use_gt above: a staged
+                    # fine-tune's validation must always score the real,
+                    # deployment-matching threshold, not the permissive
+                    # warmup-only 0.1 -- otherwise best-checkpoint selection
+                    # (and any in-training mAP read off results.txt) is
+                    # comparing apples to oranges across the warmup boundary.
+                    conf_thres=0.001 if opt.freeze else (0.1 if warmup_flag else 0.001),
                     batch_size=batch_size * 2 if "_tr" not in opt.cfg else 1,
                     imgsz=imgsz_test,
                     model=ema.ema,

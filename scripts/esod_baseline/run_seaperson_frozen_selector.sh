@@ -206,6 +206,26 @@ run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen_lowlr" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
   --selector-loss coverage --box-loss upstream
 
+# Corrected staged fine-tune, v2 (2026-09-07) -- the actual fix, not
+# another workaround. train.py's use_gt (routing) and validation conf_thres
+# are now forced off the coupled optimizer warmup_flag whenever --freeze is
+# set (HESOD-Experiment-Plan.md SS6.2/SS7): GT-assisted routing is always
+# off and validation always scores conf_thres=0.001 for a staged fine-tune,
+# regardless of warmup_epochs. hyp.seaperson_frozen_v2.yaml can therefore
+# use a short, normal optimizer warmup (2.0 epochs, matching the original
+# hyp.seaperson.yaml) with lr0 cut 10x (0.01->0.001) and warmup_bias_lr cut
+# 100x (0.1->0.001) -- this arm supersedes both hyp.seaperson_frozen.yaml
+# (warmup=20, avoided the crash but only by delaying the routing switch to
+# a fixed epoch*0.6 cutoff, and left validation using the wrong threshold
+# for the whole run -- its own 0.761 result is a confounded diagnostic, not
+# canonical) and hyp.seaperson_frozen_lowlr.yaml (still shared the coupled
+# warmup_flag, killed before completion once the real fix was found).
+# 30 epochs, matching the extra runway staged fine-tunes may need once
+# training is no longer artificially destabilized at a fixed cutoff.
+run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen_v2" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
+  --selector-loss coverage --box-loss upstream
+
 # max fusion (full-width, non-pooled spectral branch) + ISPPHead, no SABL,
 # selector frozen at seaperson_yolov5m_max's own weights -- isolates
 # channel pooling's own effect on the flagship "Max + staged ISPPHead"

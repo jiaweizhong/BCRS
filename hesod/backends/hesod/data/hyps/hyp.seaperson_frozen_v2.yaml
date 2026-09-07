@@ -1,0 +1,48 @@
+# SeaPerson staged/frozen-selector fine-tune hyp, v2 (2026-09-07).
+# Used only once train.py's use_gt/conf_thres are decoupled from the
+# optimizer's warmup_flag for --freeze runs (HESOD-Experiment-Plan.md SS6.2)
+# -- with that fix, warmup_epochs here controls ONLY LR/momentum/
+# gradient-accumulation interpolation. GT-assisted routing is always off
+# and validation always uses conf_thres=0.001 for --freeze runs regardless
+# of this file's warmup_epochs, so a short, normal warmup is safe again
+# (unlike the two earlier variants: hyp.seaperson_frozen.yaml's
+# warmup_epochs=20 only worked around the coupling by preventing
+# warmup_flag from ever completing; hyp.seaperson_frozen_lowlr.yaml's
+# lr0=0.001 change was a diagnostic run explicitly flagged as insufficient
+# on its own, since it still shared the coupled warmup_flag).
+#
+# warmup_bias_lr is also cut 10x (0.1 -> 0.001) relative to every other hyp
+# in this project -- the bias-LR spike exists to let a from-scratch head's
+# objectness bias converge quickly, but this head is being fine-tuned from
+# an already-converged trunk, not learning objectness priors from zero;
+# a large bias-LR spike into a freshly-initialized-but-partially-adapted
+# ISPPHead is one of the mechanisms suspected (not yet confirmed) to
+# amplify the destructive step at the old coupled warmup-end transition.
+lr0: 0.001
+lrf: 0.2
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 2.0
+warmup_momentum: 0.8
+warmup_bias_lr: 0.001
+box: 0.05
+cls: 0.5
+cls_pw: 1.0
+obj: 1.0
+obj_pw: 1.0
+iou_t: 0.20
+anchor_t: 4.0
+fl_gamma: 0.0
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4
+degrees: 0.0
+translate: 0.1
+scale: 0.5
+shear: 0.0
+perspective: 0.0
+flipud: 0.0
+fliplr: 0.5
+mosaic: 1.0
+mixup: 0.0
+pixl: 0.4
