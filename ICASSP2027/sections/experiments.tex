@@ -29,7 +29,7 @@ RetinaNet~\cite{RetinaNet}       & \textit{[TBD]} & 34.0 & \textit{[TBD]} & \tex
 ESOD~\cite{ESOD}                 & 0.385 & 35.9 & \textbf{68.2} & 85.17\% & 0.884 & \textbf{117.8} \\
 \textbf{HESOD (Ours)}            & \textbf{0.394} & \textbf{26.0} & \underline{74.9} & \textbf{88.83\%} & \textbf{0.940} & \underline{106.1} \\
 \midrule
-\textit{Delta ($\Delta$ vs. ESOD)} & \textbf{+0.9\,pp} & \textbf{-27.5\%} & +9.8\% & \textbf{+3.66\,pp} & \textbf{+5.6\,pp} & -9.9\% \\
+\textit{$\Delta$ vs. ESOD} & \textbf{+0.9\,pp} & \textbf{-27.5\%} & +9.8\% & \textbf{+3.66\,pp} & \textbf{+5.6\,pp} & -9.9\% \\
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{SeaPerson Benchmark ($2048\times 2048$)}}} \\
 \midrule
@@ -38,7 +38,7 @@ RetinaNet~\cite{RetinaNet}       & 0.473 & 36.4 & 942.7  & 65.98\% & -- & 28.0 \
 ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 84.42\% & 0.947 & \textbf{85.7} \\
 \textbf{HESOD (Ours)}            & \textbf{0.773} & \textbf{25.9} & \underline{208.5} & \textbf{87.75\%} & \textbf{0.991} & \underline{80.6} \\
 \midrule
-\textit{Delta ($\Delta$ vs. ESOD)} & \textbf{+2.3\,pp} & \textbf{-27.6\%} & +3.0\% & \textbf{+3.33\,pp} & \textbf{+4.4\,pp} & -6.0\% \\
+\textit{$\Delta$ vs. ESOD} & \textbf{+2.3\,pp} & \textbf{-27.6\%} & +3.0\% & \textbf{+3.33\,pp} & \textbf{+4.4\,pp} & -6.0\% \\
 \bottomrule
 \end{tabular*}
 \vspace{0.4mm}
@@ -50,10 +50,10 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 \centering
 \caption{Module ablation, efficiency, and scale recall breakdown on UAVDT and SeaPerson.}
 \label{tab:ablation_and_recall}
-\scriptsize
+\footnotesize
 \setlength{\tabcolsep}{2.5pt}
-\renewcommand{\arraystretch}{0.96}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc|ccccc@{}}
+\renewcommand{\arraystretch}{0.98}
+\begin{tabularx}{\textwidth}{l*{6}{C}|*{5}{W}}
 \toprule
  & \multicolumn{6}{c|}{\textbf{Detection Accuracy and Computational Efficiency}} & \multicolumn{5}{c}{\textbf{Physical-Scale Recall Breakdown}} \\
 \cmidrule(lr){2-7} \cmidrule(lr){8-12}
@@ -79,7 +79,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 (6) Dual-Max                 & \textbf{0.778} & \textbf{0.330} & \textbf{0.991} & 35.8 & 255.1 & 73.8 & 75.65\% & \textbf{92.06\%} & \underline{95.85\%} & 81.94\% & \textbf{88.10\%} \\
 (7) \textbf{HESOD (Ours)}    & \underline{0.773} & \underline{0.327} & \textbf{0.991} & \textbf{25.9} & \underline{208.5} & \underline{80.6} & 75.71\% & \underline{91.47\%} & 95.72\% & 80.65\% & 87.75\% \\
 \bottomrule
-\end{tabular*}
+\end{tabularx}
 \vspace{0.4mm}
 \parbox{\textwidth}{\scriptsize $^*$Trained with standard BCE (others use $\mathcal{L}_{\mathrm{cover}}$). Parenthetical values denote ground-truth counts per bin. One-to-one matching at conf $\ge 0.001$, IoU $\ge 0.5$. \textbf{Bold}: best; \underline{underline}: second-best.}
 \vspace{-1.5mm}
