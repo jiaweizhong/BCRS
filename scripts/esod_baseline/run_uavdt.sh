@@ -421,11 +421,27 @@ run_arm "uavdt_yolov5m_max${SUFFIX}" \
 # "Dual-Max selector reference" headline number) has never been rerun.
 # Random seed via $RANDOM, same convention as every other confirmation
 # rerun this project has done.
-RERUN_SEED_9=$RANDOM
-log "arm9 rerun seed: $RERUN_SEED_9"
+#
+# --batch-size 6 (2026-09-07): this arm was killed by the OS (plain
+# `Killed`, no CUDA/Python error -- host RAM OOM signature) THREE times
+# across resumes (epoch 4/43%, epoch 5/37%, epoch 8/58%), the last of which
+# was with the run's saved opt.yaml hand-edited to workers:0. Both
+# trainloader and testloader are constructed once, outside the epoch loop,
+# with workers=opt.workers (train.py lines 428-474) -- so workers:0 really
+# did mean zero DataLoader worker subprocesses for that third attempt, yet
+# it still leaked and died. That rules out the concat-only arm's
+# documented "orphaned val-loader worker generations" mechanism (this
+# script, arm 5's own comment above) as the cause here: the leak is in the
+# MAIN process, not in worker subprocesses, root cause not yet isolated
+# (candidates: pinned-memory buffers, opt.cache_images, or something
+# accumulating per-batch inside the channel-pooled Max evidence path).
+# Lowering batch size is a mitigation (smaller per-step footprint, same
+# spirit as --workers 2 elsewhere in this script), not a fix -- reverting
+# to workers 2 here since the workers:0 mitigation is now known not to
+# address the actual leak.
 run_arm "uavdt_yolov5m_channel_pooled_max_run2${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
-  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --seed "$RERUN_SEED_9"
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --batch-size 6 --seed "$RERUN_SEED_9"
 
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"

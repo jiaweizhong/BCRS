@@ -1,11 +1,11 @@
 \section{Introduction}
 \label{sec:intro}
 
-High-resolution aerial and maritime vision is fundamental to intelligent surveillance, traffic monitoring, and search-and-rescue~\cite{VisDrone,UAVDT,TinyPerson}. In these operational scenarios, targets of interest typically occupy only a handful of pixels ($<16\times 16$ px), while uniform backgrounds dominate over $70\%\text{--}80\%$ of the spatial canvas~\cite{ESOD,AutoFocus}. Evaluating standard dense deep detectors across multi-megapixel grids ($1280\times 1280$ to $2048\times 2048$) incurs prohibitive arithmetic latency on resource-constrained platforms.
+High-resolution aerial and maritime vision is fundamental to intelligent surveillance, environmental monitoring, and search-and-rescue. In operational scenarios across aerial and maritime domains~\cite{VisDrone,UAVDT,TinyPerson}, targets of interest typically occupy only a handful of pixels ($<16\times 16$ px) amid massive uniform backgrounds ($>70\%\text{--}80\%$)~\cite{ESOD,AutoFocus}. Evaluating standard dense deep detectors across multi-megapixel grids ($1280\times 1280$ to $2048\times 2048$) incurs prohibitive arithmetic latency on resource-constrained platforms.
 
-To eliminate redundant computation on background regions, \emph{spatial selective computation} dynamically routes feature processing strictly to prospective foreground regions~\cite{QueryDet,CEASC,ESOD}. Notably, ESOD~\cite{ESOD} predicts an early-stage spatial priority heatmap directly after a shallow stem, slicing features into candidate bounding patches (AdaSlicer) and bypassing background across downstream stages.
+To eliminate redundant computation, \emph{spatial selective computation} dynamically routes feature processing strictly to prospective foreground regions~\cite{QueryDet,CEASC,ESOD}. Notably, ESOD~\cite{ESOD} predicts an early spatial priority heatmap directly after a shallow stem, slicing features into candidate bounding patches (AdaSlicer) and bypassing background across downstream stages.
 
-Crucially, spatial selection operates under a fundamentally \emph{asymmetric error cost}: retaining a false-positive background patch merely introduces minor local compute overhead, whereas discarding a true tiny target produces an \emph{irrecoverable false negative} that permanently removes the instance from all downstream stages~\cite{ESOD}. Despite notable efficiency gains, existing spatial selectors exhibit two critical vulnerabilities: (i)~\emph{Evidence Fragility}: relying exclusively on single semantic objectness causes severe degradation on micro targets after downsampling~\cite{SET}; and (ii)~\emph{Coverage Deficit}: standard per-pixel binary cross-entropy (BCE) supervises grid cells independently, failing to guarantee joint multi-cell coverage across an instance's physical spatial extent and often pruning faint targets (Fig.~\ref{fig:teaser}).
+Crucially, spatial selection operates under an \emph{asymmetric error cost}: retaining a false-positive background patch merely introduces minor local compute overhead, whereas discarding a true tiny target produces an \emph{irrecoverable false negative} that permanently removes the instance from all downstream stages~\cite{ESOD}. Despite notable efficiency gains, existing spatial selectors exhibit two critical vulnerabilities: (i)~\emph{Evidence Fragility}: relying solely on single semantic objectness causes severe degradation on micro targets after downsampling~\cite{SET}; and (ii)~\emph{Coverage Deficit}: standard per-pixel binary cross-entropy (BCE) supervises grid cells independently, failing to guarantee joint multi-cell coverage across an instance's physical spatial extent and often pruning faint targets (Fig.~\ref{fig:teaser}).
 
 \begin{figure}[!t]
 \centering
@@ -66,7 +66,7 @@ Crucially, spatial selection operates under a fundamentally \emph{asymmetric err
   \centering
   \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-hesod.jpg}
 \end{minipage}
-\vspace{-2mm}
+\vspace{-2.5mm}
 \caption{Qualitative comparison on UAVDT and SeaPerson.}
 \label{fig:teaser}
 \end{figure}
@@ -79,10 +79,10 @@ Crucially, spatial selection operates under a fundamentally \emph{asymmetric err
 \label{fig:overview}
 \end{figure*}
 
-To resolve these challenges, we observe that tiny targets retain prominent high-frequency spatial gradients and spectral saliency even when deep semantic responses fade~\cite{SET}. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a unified dual-evidence framework integrating semantic-spectral routing, coverage-constrained spatial optimization, and staged downstream compute recovery (Fig.~\ref{fig:overview}). Specifically, our key contributions are:
+To resolve these challenges, we observe that tiny targets retain prominent high-frequency spatial gradients and spectral saliency even when deep semantic responses fade~\cite{SET}. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a unified dual-evidence framework integrating semantic-spectral routing, coverage-constrained spatial optimization, and staged compute recovery (Fig.~\ref{fig:overview}). Specifically, our key contributions are:
 \begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}\setlength{\topsep}{1pt}
-    \item \textbf{Semantic-Spectral Dual Selection}: We couple semantic objectness with channel-pooled spectral saliency at strictly $\mathcal{O}(1)$ width complexity to rescue degraded micro targets.
-    \item \textbf{Evidence Preservation and Soft Coverage}: We formulate a monotonic elementwise max-fusion rule and an object-level soft-coverage loss to optimize joint multi-cell instance coverage directly.
-    \item \textbf{Lightweight Staged Downstream Detection}: We design an inverted residual partial-convolution decoupled head (ISPP) fine-tuned via selector-first staged training, reducing parameters by \textbf{27.5\%} and GFLOPs by \textbf{16.9\%} while maintaining peak detection accuracy.
+    \item \textbf{Semantic-Spectral Dual Selection}: We couple semantic objectness with channel-pooled spectral saliency at strictly $\mathcal{O}(1)$ width complexity, extracting directional edge gradients to rescue degraded micro targets from semantic collapse.
+    \item \textbf{Evidence Preservation and Soft Coverage}: We formulate a monotonic elementwise max-fusion rule and an object-level soft-coverage loss to directly optimize joint multi-cell instance recall under irreversible pruning.
+    \item \textbf{Lightweight Staged Downstream Detection}: We design an inverted residual decoupled head (ISPP) fine-tuned via selector-first staged training, cutting parameters by \textbf{27.5\%} and GFLOPs by \textbf{16.9\%} at \textbf{106.1 FPS} with peak detection accuracy.
 \end{enumerate}
 
