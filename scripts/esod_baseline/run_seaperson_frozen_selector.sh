@@ -47,10 +47,18 @@ IMG_SIZE="${IMG_SIZE:-2048}"
 ESOD_REPO="$SCRIPT_DIR/../../hesod/backends/hesod"
 DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/seaperson_v2}"
 DATA_YAML="${DATA_YAML:-/root/autodl-tmp/seaperson.yaml}"
-HYP="${HYP:-data/hyps/hyp.seaperson.yaml}"
+# hyp.seaperson_frozen_v2.yaml, not hyp.seaperson.yaml, is the correct
+# default for this script (2026-09-07): every arm here is a --freeze
+# staged fine-tune, and train.py now forces GT-routing off and
+# conf_thres=0.001 for --freeze runs regardless of warmup_epochs (SS6.2),
+# so the short/gentle warmup + low-LR settings in the v2 hyp are safe and
+# no longer need an explicit HYP= override to take effect -- see SS7 for
+# why relying on a caller-supplied override was itself a reproducibility
+# gap in the pre-fix runs.
+HYP="${HYP:-data/hyps/hyp.seaperson_frozen_v2.yaml}"
 CLASSES="person"
 VAL_SPLIT="test"
-EPOCHS="${EPOCHS:-20}"
+EPOCHS="${EPOCHS:-30}"
 log_prefix="FROZEN"
 
 # Warm-start checkpoints -- must already exist for whichever arm below is
@@ -181,48 +189,21 @@ run_arm() {
 }
 
 # max fusion (pooled) + ISPPHead, no SABL, selector frozen at arm (10)'s
-# weights -- the SeaPerson counterpart to UAVDT's arm 14. Tests whether
-# dropping SABL and unifying on Max reaches arm (10)'s own 0.766 ceiling
-# while keeping ISPPHead's parameter/GFLOPs savings, as the new candidate
-# flagship recipe (replacing SABL+ISPPHead entirely, on both datasets).
+# weights -- the SeaPerson counterpart to UAVDT's arm 14, and the current
+# SeaPerson flagship (HESOD-Experiment-Plan.md SS7/SSA.5 arm 12): mAP@.5
+# 0.773 (-0.5 pp vs. the 0.778 pre-staging Dual-Max ceiling), mAP@.5:.95
+# 0.327 (-0.3 pp), BPR fully preserved (0.991), 208.5 GFLOPs (-18.2%),
+# 80.6 FPS (+9.2%). Two earlier, now-superseded/discarded attempts under
+# this same run name are recorded in SSA.7 for provenance: (1) two runs
+# warm-started from the wrong checkpoint due to a run-name collision
+# (mAP@.5 ~0.71); (2) a run using the correct checkpoint but train.py's
+# then-still-coupled warmup_flag (GT-routing and validation conf_thres tied
+# to optimizer warmup, not decoupled until this fix) produced a real but
+# confounded 0.761. The fix (train.py, SS6.2) plus this script's own
+# default HYP (now hyp.seaperson_frozen_v2.yaml, short 2-epoch optimizer
+# warmup, lr0=0.001, warmup_bias_lr=0.001) together produced the canonical
+# 0.773 result -- no HYP= override needed to reproduce it.
 run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen" \
-  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
-  --selector-loss coverage --box-loss upstream
-
-# Low-LR probe (2026-09-07) -- the canonical run above (warmup_epochs=20,
-# via hyp.seaperson_frozen.yaml) avoided the epoch-1/2 collapse but
-# converged to a flat val mAP@.5 plateau (~0.766-0.771) within 3-4 epochs
-# and never moved for the remaining 16 -- genuinely converged, not
-# undertrained (HESOD-Experiment-Plan.md SS7). This arm isolates LR
-# magnitude from warmup length: short warmup close to the original
-# hyp.seaperson.yaml (3.0 vs. 2.0, a small safety margin) but lr0 cut 10x
-# (0.01 -> 0.001, hyp.seaperson_frozen_lowlr.yaml) so the post-warmup jump
-# itself is gentler, testing whether that reaches a better plateau than
-# warmup=20 did rather than just avoiding the crash. Run separately
-# (ARMS=seaperson_yolov5m_channel_pooled_max_isphead_frozen_lowlr
-# HYP=data/hyps/hyp.seaperson_frozen_lowlr.yaml ...) -- does not touch the
-# already-canonical arm above.
-run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen_lowlr" \
-  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
-  --selector-loss coverage --box-loss upstream
-
-# Corrected staged fine-tune, v2 (2026-09-07) -- the actual fix, not
-# another workaround. train.py's use_gt (routing) and validation conf_thres
-# are now forced off the coupled optimizer warmup_flag whenever --freeze is
-# set (HESOD-Experiment-Plan.md SS6.2/SS7): GT-assisted routing is always
-# off and validation always scores conf_thres=0.001 for a staged fine-tune,
-# regardless of warmup_epochs. hyp.seaperson_frozen_v2.yaml can therefore
-# use a short, normal optimizer warmup (2.0 epochs, matching the original
-# hyp.seaperson.yaml) with lr0 cut 10x (0.01->0.001) and warmup_bias_lr cut
-# 100x (0.1->0.001) -- this arm supersedes both hyp.seaperson_frozen.yaml
-# (warmup=20, avoided the crash but only by delaying the routing switch to
-# a fixed epoch*0.6 cutoff, and left validation using the wrong threshold
-# for the whole run -- its own 0.761 result is a confounded diagnostic, not
-# canonical) and hyp.seaperson_frozen_lowlr.yaml (still shared the coupled
-# warmup_flag, killed before completion once the real fix was found).
-# 30 epochs, matching the extra runway staged fine-tunes may need once
-# training is no longer artificially destabilized at a fixed cutoff.
-run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen_v2" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
   --selector-loss coverage --box-loss upstream
 

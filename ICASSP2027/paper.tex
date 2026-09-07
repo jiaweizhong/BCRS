@@ -10,29 +10,38 @@
 \address{Affiliation(s) omitted for blind review}
 
 % Spacing tweaks for tight 4+1 page layout
-\setlength{\floatsep}{5pt plus 1pt minus 1pt}
-\setlength{\textfloatsep}{6pt plus 1pt minus 1pt}
-\setlength{\dblfloatsep}{5pt plus 1pt minus 1pt}
-\setlength{\dbltextfloatsep}{6pt plus 1pt minus 1pt}
-\setlength{\intextsep}{5pt plus 1pt minus 1pt}
-\setlength{\abovecaptionskip}{3pt}
-\setlength{\belowcaptionskip}{2pt}
-\setlength{\skip\footins}{8pt plus 2pt minus 2pt}
-\setlength{\abovedisplayskip}{3pt plus 1pt minus 1pt}
-\setlength{\belowdisplayskip}{3pt plus 1pt minus 1pt}
-\setlength{\abovedisplayshortskip}{1.5pt plus 1pt}
-\setlength{\belowdisplayshortskip}{2pt plus 1pt minus 1pt}
+\setlength{\floatsep}{4pt plus 1pt minus 1pt}
+\setlength{\textfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\dblfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\dbltextfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\intextsep}{4pt plus 1pt minus 1pt}
+\setlength{\abovecaptionskip}{2pt}
+\setlength{\belowcaptionskip}{1pt}
+\setlength{\skip\footins}{5pt plus 1pt minus 1pt}
+\setlength{\abovedisplayskip}{2pt plus 1pt minus 1pt}
+\setlength{\belowdisplayskip}{2pt plus 1pt minus 1pt}
+\setlength{\abovedisplayshortskip}{1.0pt plus 1pt}
+\setlength{\belowdisplayshortskip}{1.0pt plus 1pt minus 1pt}
+
+% Float placement flexibility
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\bottomfraction}{0.95}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.85}
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\dblfloatpagefraction}{0.85}
 
 \begin{document}
-\setlength{\abovedisplayskip}{3pt plus 1pt minus 1pt}
-\setlength{\belowdisplayskip}{3pt plus 1pt minus 1pt}
-\setlength{\abovedisplayshortskip}{1.5pt plus 1pt}
-\setlength{\belowdisplayshortskip}{2pt plus 1pt minus 1pt}
-%\ninept
+\ninept
+\raggedbottom
+\setlength{\abovedisplayskip}{2pt plus 1pt minus 1pt}
+\setlength{\belowdisplayskip}{2pt plus 1pt minus 1pt}
+\setlength{\abovedisplayshortskip}{1.0pt plus 1pt}
+\setlength{\belowdisplayshortskip}{1.0pt plus 1pt minus 1pt}
 \maketitle
 
 \begin{abstract}
-Detecting tiny objects in high-resolution aerial and maritime imagery is severely challenged by background redundancy and extreme scale variation. While spatial selective computation mitigates arithmetic overhead by routing candidate foreground regions, existing single-evidence selectors suffer from severe semantic collapse on micro targets, causing irrecoverable coarse-stage pruning. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a dual-evidence framework featuring semantic-spectral routing and coverage-constrained spatial optimization. HESOD couples high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ spatial complexity to rescue faint targets under an adaptive evidence preservation principle. To guarantee recall safety, an object-level soft-coverage loss directly optimizes multi-cell joint coverage probability across all ground-truth instances. Combined with an inverted residual decoupled head and scale-aware Wasserstein regression, HESOD advances $\mathrm{mAP@.5}$ by +0.7\,pp on UAVDT and +2.4\,pp on SeaPerson while cutting parameters by 27.6\% with negligible FLOPs overhead, establishing a superior accuracy-efficiency Pareto frontier for edge platforms.
+Detecting tiny objects in high-resolution aerial and maritime imagery is severely challenged by background redundancy and extreme scale variation. While spatial selective computation mitigates arithmetic overhead by routing candidate foreground regions, existing single-evidence selectors suffer from severe semantic collapse on micro targets, causing irrecoverable coarse-stage pruning. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a dual-evidence framework featuring semantic-spectral routing, coverage-constrained spatial optimization, and staged lightweight downstream detection. HESOD couples high-level semantic objectness with channel-pooled spectral saliency at constant channel dimension under a monotonic evidence-preserving max-fusion rule to rescue degraded targets. To promote recall-safe routing, an object-level soft-coverage loss directly optimizes multi-cell joint instance coverage across ground-truth objects. To recover downstream efficiency, an inverted residual partial-convolution decoupled head (ISPP) is fine-tuned via selector-first staged training. Extensive experiments show that HESOD improves $\mathrm{mAP@.5}$ by 0.9\,pp and 2.3\,pp (boosting total recall by 3.66\,pp and 3.33\,pp) on UAVDT and SeaPerson, respectively, with $>27\%$ fewer parameters and negligible FLOPs overhead, establishing an effective accuracy-efficiency co-design suitable for resource-constrained deployment.
 \end{abstract}
 
 \begin{keywords}

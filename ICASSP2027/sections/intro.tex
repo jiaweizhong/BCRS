@@ -1,4 +1,13 @@
-\begin{figure}[t]
+\section{Introduction}
+\label{sec:intro}
+
+High-resolution aerial and maritime vision is fundamental to intelligent surveillance, traffic monitoring, and search-and-rescue~\cite{VisDrone,UAVDT,TinyPerson}. In these operational scenarios, targets of interest typically occupy only a handful of pixels ($<16\times 16$ px), while uniform backgrounds dominate over $70\%\text{--}80\%$ of the spatial canvas~\cite{ESOD,AutoFocus}. Evaluating standard dense deep detectors across multi-megapixel grids ($1280\times 1280$ to $2048\times 2048$) incurs prohibitive arithmetic latency on resource-constrained platforms.
+
+To eliminate redundant computation on background regions, \emph{spatial selective computation} dynamically routes feature processing strictly to prospective foreground regions~\cite{QueryDet,CEASC,ESOD}. Notably, ESOD~\cite{ESOD} predicts an early-stage spatial priority heatmap directly after a shallow stem, slicing features into candidate bounding patches (AdaSlicer) and bypassing background across downstream stages.
+
+Crucially, spatial selection operates under a fundamentally \emph{asymmetric error cost}: retaining a false-positive background patch merely introduces minor local compute overhead, whereas discarding a true tiny target produces an \emph{irrecoverable false negative} that permanently removes the instance from all downstream stages~\cite{ESOD}. Despite notable efficiency gains, existing spatial selectors exhibit two critical vulnerabilities: (i)~\emph{Evidence Fragility}: relying exclusively on single semantic objectness causes severe degradation on micro targets after downsampling~\cite{SET}; and (ii)~\emph{Coverage Deficit}: standard per-pixel binary cross-entropy (BCE) supervises grid cells independently, failing to guarantee joint multi-cell coverage across an instance's physical spatial extent and often pruning faint targets (Fig.~\ref{fig:teaser}).
+
+\begin{figure}[!t]
 \centering
 % Column headers
 \begin{minipage}[b]{0.036\columnwidth}\hfill\end{minipage}\hspace{1mm}%
@@ -64,22 +73,16 @@
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{figures/HESOD.pdf}
-\vspace{-2mm}
-\caption{Overview of HESOD: (a) End-to-end selective pipeline; (b) Dual-evidence priority head. Red dashed boxes indicate our proposed contributions.}
+\includegraphics[width=\textwidth]{figures/HESOD.pdf}
+\vspace{-2.5mm}
+\caption{Overview of HESOD: (a) End-to-end selective pipeline; (b) Dual-Evidence Priority Head. Dashed boxes highlight our proposed contributions over ESOD.}
 \label{fig:overview}
 \end{figure*}
 
-\section{Introduction}
-\label{sec:intro}
-
-High-resolution aerial and maritime vision is essential for remote surveillance, environmental monitoring, and search-and-rescue~\cite{VisDrone,UAVDT,TinyPerson}. In these settings, micro targets typically occupy fewer than $16\times 16$ pixels amidst vast background areas ($>70\text{--}80\%$), making dense uniform convolution computationally prohibitive on edge platforms~\cite{ESOD,AutoFocus}.
-
-Spatial selective computation mitigates arithmetic redundancy by routing processing strictly to candidate foreground regions~\cite{QueryDet,CEASC,ESOD}. However, existing selectors exhibit two critical vulnerabilities: (i) \emph{Evidence fragility}: relying solely on deep semantic activations leads to severe feature collapse for micro targets after stem downsampling, causing irrecoverable false-negative pruning under asymmetric selection cost~\cite{SET,ESOD}; and (ii) \emph{Coverage deficit}: standard per-pixel binary cross-entropy optimizes grid cells independently, failing to guarantee joint multi-cell coverage over individual instances.
-
-As illustrated in Fig.~\ref{fig:teaser}, faint micro targets (e.g., compact vehicles or distant surfers) easily suffer severe coarse-stage pruning in existing single-evidence selectors (e.g., ESOD~\cite{ESOD}) due to degraded semantic contrast. To resolve these challenges, we propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a dual-evidence selective framework that couples high-frequency spectral gradients with semantic objectness and soft-coverage optimization. More specifically, our key contributions are:
+To resolve these challenges, we observe that tiny targets retain prominent high-frequency spatial gradients and spectral saliency even when deep semantic responses fade~\cite{SET}. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a unified dual-evidence framework integrating semantic-spectral routing, coverage-constrained spatial optimization, and staged downstream compute recovery (Fig.~\ref{fig:overview}). Specifically, our key contributions are:
 \begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}\setlength{\topsep}{1pt}
-    \item \textbf{Dual-Evidence Spatial Selector}: We couple high-level semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ spatial complexity, reliably preserving degraded micro targets.
-    \item \textbf{Object-Level Soft-Coverage Loss ($\mathcal{L}_{\mathrm{cover}}$)}: We formulate a differentiable joint-coverage objective to suppress premature false-negative pruning under asymmetric selection cost.
-    \item \textbf{Scale-Aware Edge-Efficient Head}: We integrate an inverted residual decoupled head with scale-aware Wasserstein regression to simultaneously reduce inference overhead and enhance micro-target localization.
+    \item \textbf{Semantic-Spectral Dual Selection}: We couple semantic objectness with channel-pooled spectral saliency at strictly $\mathcal{O}(1)$ width complexity to rescue degraded micro targets.
+    \item \textbf{Evidence Preservation and Soft Coverage}: We formulate a monotonic elementwise max-fusion rule and an object-level soft-coverage loss to optimize joint multi-cell instance coverage directly.
+    \item \textbf{Lightweight Staged Downstream Detection}: We design an inverted residual partial-convolution decoupled head (ISPP) fine-tuned via selector-first staged training, reducing parameters by \textbf{27.5\%} and GFLOPs by \textbf{16.9\%} while maintaining peak detection accuracy.
 \end{enumerate}
+

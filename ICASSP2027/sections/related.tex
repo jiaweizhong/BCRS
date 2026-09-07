@@ -1,17 +1,18 @@
 \section{Related Work}
 \label{sec:related}
 
-\subsection{Small Object Detection in Aerial Imagery}
+\subsection{Small Object Detection in High-Resolution Vision}
 \label{ssec:related_sod}
 
-Detecting micro targets in high-resolution aerial and maritime vision is challenged by extreme scale disparity, low contrast, and massive background areas~\cite{VisDrone,UAVDT,TinyPerson,SeaDronesSee}. Classical solutions employ density-guided patch cropping (e.g., ClusDet~\cite{ClusDet}, DMNet~\cite{DMNet}, UFPMP-Det~\cite{UFPMP}) or coarse-to-fine slicing (e.g., ResBiDet~\cite{ResBiDet}), which incur redundant feature extraction and complex boundary stitching. Other works explore specialized metrics, such as Normalized Gaussian Wasserstein Distance (NWD)~\cite{NWD}, RFLA~\cite{RFLA}, and scale-aware balancing (SSABNet)~\cite{SSABNet}. However, dense detectors uniformly evaluate all spatial locations, leaving background redundancy unresolved.
+Detecting tiny targets in high-resolution aerial and maritime imagery is severely challenged by extreme scale disparity, low contrast, and massive background areas ($>70\%\text{--}80\%$)~\cite{VisDrone,UAVDT,TinyPerson,SeaDronesSee}. Classical approaches utilize density-guided cropping (ClusDet~\cite{ClusDet}, DMNet~\cite{DMNet}) or scale-adaptive label assignment (NWD~\cite{NWD}, RFLA~\cite{RFLA}). Recently, ResBiDet~\cite{ResBiDet} introduced a coarse-to-fine framework using global heatmap guidance for region cropping. However, it relies on multi-scale image-level slicing and boundary stitching. In contrast, HESOD performs early feature-level selective routing directly within the detector trunk and explicitly optimizes instance coverage under irreversible pruning.
 
 \subsection{Selective and Dynamic Computation}
 \label{ssec:related_selective}
 
-Dynamic computation reduces arithmetic overhead by evaluating only prospective foreground regions. AutoFocus~\cite{AutoFocus} predicts focus pixels for multi-scale inference, QueryDet~\cite{QueryDet} accelerates feature pyramids via cascaded sparse queries, and CEASC~\cite{CEASC} designs adaptive activation masks. ESOD~\cite{ESOD} routes foreground patches (AdaSlicer) after the stem. Nonetheless, existing selectors rely strictly on single semantic activations and independent BCE loss, making them prone to early-stage pruning. In contrast, HESOD combines dual-evidence routing with joint soft-coverage optimization.
+Dynamic computation accelerates inference by allocating compute strictly to prospective foreground regions (e.g., AutoFocus~\cite{AutoFocus}, QueryDet~\cite{QueryDet}, CEASC~\cite{CEASC}). Notably, ESOD~\cite{ESOD} predicts an early-stage spatial priority heatmap to extract bounding patches (AdaSlicer). However, ESOD relies exclusively on a single semantic score supervised by independent per-cell BCE. Under extreme scale disparity, micro targets suffer from semantic feature collapse after downsampling; meanwhile, per-cell BCE lacks joint instance-level coverage constraints, causing fatal false negatives under an asymmetric error cost. HESOD resolves this by combining semantic and spectral dual cues with object-level soft-coverage optimization.
 
-\subsection{Spectral Saliency and Frequency Representations}
+\subsection{Spectral Saliency and Frequency Methods}
 \label{ssec:related_spectral}
 
-Frequency-domain cues provide rich spatial structural priors. SET~\cite{SET} demonstrated that micro objects preserve distinct high-frequency gradients even when semantic responses fade, though it applies dense frequency operations across feature pyramids. HESOD repurposes spectral saliency as an ultra-lightweight, channel-pooled routing signal to ensure recall-safe selection at negligible overhead.
+Frequency-domain representations offer rich structural priors for micro targets, which retain sharp high-frequency edge gradients even when photometric semantics fade~\cite{SET}. While SET~\cite{SET} applies dense frequency transforms across multi-scale pyramids with prohibitive latency, HESOD repurposes spectral saliency as an ultra-lightweight routing cue: channel pooling compresses stem features to 2 channels, enabling directional Laplacian and Sobel gradient filtering at strictly $\mathcal{O}(1)$ width complexity.
+

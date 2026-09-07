@@ -17,7 +17,7 @@ The paper's primary method is **HESOD: an evidence-preserving selector paired wi
 
 The flagship configuration is therefore **Dual-Max + coverage supervision + ISPPHead, without SABL**, trained with the selector-first staged protocol in §1.3. The coupled-head Dual-Max model remains the selector reference used to measure recall gains; it is not the intended final efficiency configuration.
 
-The exact staged flagship has been completed on UAVDT. SeaPerson already verifies both ingredients independently in the intended direction -- Dual-Max improves routing/accuracy, while ISPPHead substantially compresses a matched dual-evidence detector with negligible accuracy change -- but the exact staged composition remains the decisive pending run. This distinction must remain explicit until that run completes.
+The exact staged flagship is now complete and canonical on both datasets. On UAVDT it is a near-free trade (mAP@.5/BPR within 0.1 pp/0.0 of the selector reference, §3.1). On SeaPerson, after fixing a `train.py` protocol confound that made an earlier attempt's number unreliable (§6.2/§7), the corrected run reaches mAP@.5 0.773 (-0.5 pp vs. the 0.778 selector reference), mAP@.5:.95 0.327 (-0.3 pp), fully preserves BPR at 0.991, and reduces Dual-Max GFLOPs from 255.1 to 208.5 (-18.2%) with FPS rising from 73.8 to 80.6. Both datasets now show the same qualitative pattern: ISPPHead trades a small amount of accuracy for a real, material efficiency gain, with BPR untouched.
 
 ### 1.2 Why max fusion is the core contribution
 
@@ -33,16 +33,17 @@ Implementation: `ChannelPooledMaxEvidenceSegmenter` in `hesod/backends/hesod/mod
 
 ISPPHead is the efficiency half of the method rather than an optional add-on. Dual evidence improves patch coverage by routing more useful regions, but that benefit increases detector work. ISPPHead is designed to recover a large fraction of this overhead without erasing the selector gain.
 
-On UAVDT, staged Dual-Max + ISPPHead changes mAP@.5 only from 0.395 to 0.394 and preserves BPR at 0.940, while reducing Dual-Max from 90.1 to 74.9 GFLOPs (-16.9%) and from 35.85M to 25.98M parameters (-27.5%). On SeaPerson, the currently available matched head comparison uses Dual-Concat: replacing its coupled head with ISPPHead changes mAP@.5 from 0.772 to 0.771 and mAP@.5:.95 from 0.326 to 0.328, while reducing GFLOPs from 281.2 to 217.6 (-22.6%), parameters from 35.79M to 25.92M (-27.6%), and increasing FPS from 69.8 to 77.3 (+10.7%). These results support ISPPHead's mainline role as the compute compensator, while the remaining SeaPerson staged run verifies its exact composition with Dual-Max.
+On UAVDT, staged Dual-Max + ISPPHead changes mAP@.5 only from 0.395 to 0.394 and preserves BPR at 0.940, while reducing Dual-Max from 90.1 to 74.9 GFLOPs (-16.9%) and from 35.85M to 25.98M parameters (-27.5%). On SeaPerson, the corrected staged run (§6.2/§7) changes mAP@.5 from 0.778 to 0.773 (-0.5 pp) and mAP@.5:.95 from 0.330 to 0.327 (-0.3 pp), fully preserves BPR at 0.991, and reduces Dual-Max from 255.1 to 208.5 GFLOPs (-18.2%), from 35.79M to 25.92M parameters (-27.6%), and increases FPS from 73.8 to 80.6 (+9.2%). A separate Dual-Concat comparison shows ISPPHead is also nearly accuracy-neutral there (0.772$\to$0.771 mAP@.5) under a different fusion rule and training history -- consistent supporting evidence, not the same matched estimate as the Dual-Max row. ISPPHead is the mainline compute compensator on both datasets, with its exact staged composition now clean on both.
 
 The staged protocol is:
 
 1. train the complete Dual-Max selector with the original coupled head;
 2. initialize the ISPPHead model from the converged Dual-Max checkpoint;
 3. freeze the backbone, evidence branches, fusion segmenter, and heat-map parser (`model.0-12`);
-4. fine-tune only the neck and detection head.
+4. fine-tune only the neck and detection head, using the **real frozen-selector routing distribution from epoch 0** for both training and validation;
+5. keep optimizer warmup independent of routing mode and select the best checkpoint only from real-routing validation.
 
-Joint optimization is not the canonical training recipe: on UAVDT it lets head gradients perturb the selector and damages BPR/recall. Staged training is therefore part of the method, not merely an experimental trick. Until the matching SeaPerson run completes, the paper may claim that ISPPHead **substantially recovers the extra cost of dual-evidence routing with little accuracy loss**, but it must not claim that the complete architecture has already been validated identically on both datasets or that it is cheaper than R0 in absolute terms.
+Joint optimization is not the canonical training recipe: on UAVDT it lets head gradients perturb the selector and damages BPR/recall. Staged training is therefore part of the method, not merely an experimental trick. SeaPerson additionally exposed and required fixing a `train.py` implementation bug: one `warmup_flag` had been controlling optimizer interpolation, GT-assisted-routing, and validation settings together, combined with a hard-coded `use_gt = epoch < epochs * 0.6` (§6.2). An early attempt at this arm crashed reproducibly at the exact iteration a short optimizer warmup completed, because the LR jump, the routing-distribution switch, and the validation-threshold switch all happened simultaneously; extending warmup to cover the whole run avoided the simultaneous LR jump but left the run using GT-assisted routing for 60% of training and the wrong validation threshold for all of it, producing a real but confounded 0.761 result. Fixing `train.py` to force real-selector routing and the real validation threshold from epoch 0 for any `--freeze` run (independent of `warmup_epochs`, which now controls only the optimizer) resolved this: the corrected rerun trains smoothly with no crash and lands at 0.773, the number now used throughout this document. The paper may claim that ISPPHead **substantially recovers the extra cost of dual-evidence routing with a small, honestly-reported accuracy cost on both datasets**. HESOD is not cheaper than R0 in absolute GFLOPs/FPS terms on either dataset.
 
 ### 1.4 Excluded from the flagship
 
@@ -116,11 +117,12 @@ where $w_j=\operatorname{clip}(4/a_j,1,5)$ upweights objects occupying fewer sel
 | UAVDT | Dual-Max selector reference | **0.395** | **0.218** | **0.940** | **90.36%** | 90.1 | 35.85 | 102.3 |
 | UAVDT | **HESOD (Dual-Max + ISPP, staged)** | 0.394 | 0.215 | **0.940** | 88.83% | 74.9 | **25.98** | 106.1 |
 | SeaPerson | ESOD R0 | 0.750 | 0.320 | 0.947 | 84.42% | **202.4** | 35.78 | **85.7** |
-| SeaPerson | **Dual-Max selector reference** | **0.778** | **0.330** | **0.991** | **88.10%** | 255.1 | 35.79 | 73.8 |
+| SeaPerson | Dual-Max selector reference | **0.778** | **0.330** | **0.991** | **88.10%** | 255.1 | 35.79 | 73.8 |
+| SeaPerson | **HESOD (Dual-Max + ISPP, staged)** | 0.773 | 0.327 | **0.991** | 87.75% | 208.5 | **25.92** | 80.6 |
 
 The Dual-Max selector improves every reported detection and routing-quality metric on both datasets. The strongest evidence is selector coverage: versus R0, BPR/total recall rise by 5.6 points/5.19 pp on UAVDT and 4.4 points/3.68 pp on SeaPerson. The cost is denser routing: GFLOPs rise by 32.1% on UAVDT and 26.0% on SeaPerson, while FPS falls by 13.2% and 13.9%, respectively.
 
-ISPPHead is designed to recover this overhead, and on UAVDT it does: the complete, staged HESOD row keeps mAP@.5/BPR within 0.1 pp/0.0 of the selector reference (0.395$\to$0.394, 0.940$\to$0.940) while cutting GFLOPs 16.9% (90.1$\to$74.9) and parameters 27.5% (35.85M$\to$25.98M) relative to Dual-Max -- more than half of R0's own compute increase is recovered, and FPS actually improves over the selector reference (102.3$\to$106.1). Total recall gives back 1.53 pp (90.36%$\to$88.83%) as part of this trade, still 3.66 pp above R0. **The equivalent SeaPerson row is not yet available** -- it is the single decisive pending run this document is tracking (§7, §A.8); until it completes, SeaPerson's selector and head contributions are each independently confirmed (this table's own Dual-Max row; §3.2/§5.2's Dual-Concat+ISPP row) but their exact staged composition is not.
+ISPPHead is designed to recover this overhead, and on both datasets it does. On UAVDT it is nearly free: the complete, staged HESOD row keeps mAP@.5/BPR within 0.1 pp/0.0 of the selector reference (0.395$\to$0.394, 0.940$\to$0.940) while cutting GFLOPs 16.9% (90.1$\to$74.9) and parameters 27.5% (35.85M$\to$25.98M) relative to Dual-Max -- more than half of R0's own compute increase is recovered, and FPS improves over the selector reference (102.3$\to$106.1). Total recall gives back 1.53 pp (90.36%$\to$88.83%) as part of this trade, still 3.66 pp above R0. On SeaPerson the staged row keeps mAP@.5 within 0.5 pp and mAP@.5:.95 within 0.3 pp of the selector reference (0.778$\to$0.773, 0.330$\to$0.327), fully preserves BPR (0.991$\to$0.991), and cuts GFLOPs 18.2% (255.1$\to$208.5) and parameters 27.6% (35.79M$\to$25.92M) while FPS rises above both R0 and the selector reference (80.6 vs. 85.7/73.8). Total recall gives back 0.35 pp (88.10%$\to$87.75%), still 3.33 pp above R0.
 
 ### 3.2 ISPPHead efficiency contribution
 
@@ -128,8 +130,9 @@ ISPPHead is designed to recover this overhead, and on UAVDT it does: the complet
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | UAVDT | Dual-Max $\to$ staged Dual-Max+ISPP | -0.1 pp | -0.3 pp | 0.0 | -1.53 pp | **-16.9%** | **-27.5%** | **+3.7%** |
 | SeaPerson | Dual-Concat $\to$ Dual-Concat+ISPP | -0.1 pp | **+0.2 pp** | +0.2 points | -0.16 pp | **-22.6%** | **-27.6%** | **+10.7%** |
+| SeaPerson | Dual-Max $\to$ staged Dual-Max+ISPP | -0.5 pp | -0.3 pp | 0.0 | -0.35 pp | **-18.2%** | **-27.6%** | **+9.2%** |
 
-The two comparisons use different fusion rules, so they establish the head's function rather than a completed cross-dataset test of the exact full recipe. In both cases ISPPHead removes a large portion of detector compute and roughly one quarter of parameters with little change in detection accuracy. UAVDT additionally establishes that selector-first staged training is required when ISPPHead is composed with Dual-Max.
+The Dual-Concat and Dual-Max rows use different fusion rules and training histories, so their difference is suggestive rather than a clean causal isolation of ISPPHead. What is established is: ISPPHead is nearly free on top of Dual-Concat on SeaPerson (-0.1 pp mAP@.5), and now also nearly free on top of Dual-Max on both datasets (-0.1 pp UAVDT, -0.5 pp SeaPerson) once the SeaPerson staged fine-tune uses the corrected protocol (§6.2/§7) -- BPR is preserved (0.0 change) in all three comparisons.
 
 ### 3.3 Evidence strength
 
@@ -175,9 +178,10 @@ SeaPerson contains 300,375 test instances, more than 85% of which are tiny or mi
 | Faster R-CNN, ResNet-50-FPN | Dense two-stage | 0.551 | 0.246 | 43.26 | 1546.8 | 23.1 |
 | RetinaNet, ResNet-50-FPN | Dense one-stage | 0.473 | 0.201 | 36.35 | 942.7 | 28.0 |
 | ESOD R0 | Selective, single evidence | 0.750 | 0.320 | 35.78 | **202.4** | **85.7** |
-| **Dual-Max selector reference** | Selective, dual evidence | **0.778** | **0.330** | 35.79 | 255.1 | 73.8 |
+| Dual-Max selector reference | Selective, dual evidence | **0.778** | **0.330** | 35.79 | 255.1 | 73.8 |
+| **HESOD (Ours)** | Selective, dual evidence, staged | 0.773 | 0.327 | **25.92** | 208.5 | 80.6 |
 
-The Dual-Max selector reference exceeds R0 by 2.8 pp mAP@.5 and 1.0 pp mAP@.5:.95. The dense detectors provide conventional reference points, but they are not evidence for the selector ablation because their training and inference structures differ substantially. The full HESOD row will be added after the staged SeaPerson composition is complete.
+The Dual-Max selector reference exceeds R0 by 2.8 pp mAP@.5 and 1.0 pp mAP@.5:.95. The staged HESOD row trades 0.5 pp of that back for compute (255.1$\to$208.5 GFLOPs) but still exceeds R0 by 2.3 pp mAP@.5 at lower parameter count. Against the dense detectors, HESOD improves mAP@.5 by 22.2 pp over Faster R-CNN and 30.0 pp over RetinaNet while cutting GFLOPs by 7.4$\times$ and 4.5$\times$ respectively, at 80.6 FPS. The dense detectors provide conventional reference points, but they are not evidence for the selector ablation because their training and inference structures differ substantially.
 
 ### 5.2 Minimal selector ablation
 
@@ -189,10 +193,11 @@ The Dual-Max selector reference exceeds R0 by 2.8 pp mAP@.5 and 1.0 pp mAP@.5:.9
 | Dual-Concat | Coverage | Coupled / CIoU | 0.772 | 0.326 | 0.986 | 87.84% | 281.2 | 69.8 |
 | **Dual-Max** | Coverage | Coupled / CIoU | **0.778** | **0.330** | **0.991** | **88.10%** | 255.1 | 73.8 |
 | Dual-Concat + ISPP | Coverage | ISPP / CIoU | 0.771 | 0.328 | 0.988 | 87.68% | **217.6** | **77.3** |
+| **HESOD: Dual-Max + ISPP, staged** | Coverage | ISPP / CIoU | 0.773 | 0.327 | **0.991** | 87.75% | 208.5 | 80.6 |
 
 Coverage supervision supplies the first major routing gain: semantic-only raises BPR from 0.947 to 0.991 and reduces selector-dropped errors from 25.6% to 19.2%. Spectral-only provides a similarly strong independent cue. Against the correct fusion baseline, Dual-Max improves over Dual-Concat on every reported axis: +0.6 pp mAP@.5, +0.4 pp mAP@.5:.95, +0.5 BPR points, +0.26 pp recall, 9.3% fewer GFLOPs, and 5.7% higher FPS.
 
-The SeaPerson head ablation already validates ISPPHead's mainline purpose: compared with the matched Dual-Concat coupled-head model, it cuts GFLOPs by 22.6% and parameters by 27.6% with only -0.1 pp mAP@.5 and +0.2 pp mAP@.5:.95. Because this completed comparison uses Dual-Concat rather than Dual-Max, the exact staged Dual-Max + ISPP, no-SABL experiment is still required to validate the final composition, not to justify ISPPHead's role in the paper.
+ISPPHead's mainline purpose is supported by two matched comparisons that isolate it from the fusion rule: against Dual-Concat's coupled head it costs almost nothing (-0.1 pp mAP@.5, +0.2 pp mAP@.5:.95, -22.6% GFLOPs, -27.6% params); against Dual-Max's coupled head (the actual flagship composition) it now also costs almost nothing (-0.5 pp mAP@.5, -0.3 pp mAP@.5:.95) once the staged fine-tune uses the corrected protocol (§6.2/§7: real selector routing and the real validation threshold from epoch 0, independent of optimizer warmup), while fully preserving BPR (0.991$\to$0.991) and cutting GFLOPs 18.2% and params 27.6%.
 
 ### 5.3 Relevant size-bucket recall
 
@@ -201,8 +206,9 @@ The SeaPerson head ablation already validates ISPPHead's mainline purpose: compa
 | ESOD R0 | 74.03% | 86.78% | 94.74% | 79.35% | 84.42% |
 | Dual-Concat | **76.00%** | 91.50% | 95.68% | 80.00% | 87.84% |
 | **Dual-Max** | 75.65% | **92.06%** | **95.85%** | **81.94%** | **88.10%** |
+| **HESOD: Dual-Max + ISPP, staged** | 75.71% | 91.47% | 95.72% | 80.65% | 87.75% |
 
-Dual-Max does not maximize the Very Tiny bin in this run, but it improves the much larger Tiny bin and produces the best aggregate recall and detection accuracy among the clean selector-only configurations. The paper should report this distribution rather than implying that every size bucket improves.
+Dual-Max does not maximize the Very Tiny bin in this run, but it improves the much larger Tiny bin and produces the best aggregate recall and detection accuracy among the clean selector-only configurations. The paper should report this distribution rather than implying that every size bucket improves. The staged HESOD row is essentially flat against Dual-Max on the three largest bins -- Very Tiny is marginally higher (+0.06 pp), Tiny/Small marginally lower (-0.59/-0.13 pp) -- with a larger Medium/Large drop (-1.29 pp, but that bin has only 155 GT total, so this one delta should be read with wide uncertainty). This is consistent with a genuine, small head-capacity/compute trade rather than a systematic bucket-specific failure mode.
 
 ## 6. Reproducibility Constraints Integrated from Code Fixes
 
@@ -212,23 +218,62 @@ Staged training is valid only if a converged Dual-Max checkpoint is loaded witho
 
 All reported staged results use the corrected loader. The five failed pre-fix frozen-selector attempts are intentionally excluded because they do not test the claimed method.
 
-### 6.2 Run acceptance
+### 6.2 Decouple optimizer warmup from routing (fixed)
+
+`train.py`'s `warmup_flag` used to simultaneously control optimizer interpolation, the training input (`GT masks` versus selector-routed images), validation routing, and validation confidence threshold. This created two confounds:
+
+- at the end of warmup, routing distribution, LR/momentum/accumulation, and validation threshold all changed together;
+- if `warmup_epochs` equalled the entire fine-tune, the hard-coded `use_gt = epoch < epochs * 0.6` still made the first 60% of epochs use GT-assisted routing and the remaining 40% use real routing, while the warmup validation threshold remained active for the whole run.
+
+**Fix applied** (`train.py`): `use_gt` is now forced `False` whenever `opt.freeze` is set, and validation `conf_thres` is forced to `0.001` whenever `opt.freeze` is set, both independent of `warmup_flag`/`warmup_epochs`. A staged (`--freeze`) fine-tune therefore always uses real selector routing and the real validation threshold from epoch 0, while `warmup_epochs` continues to control only LR/momentum/gradient-accumulation, unaffected by this change; non-`--freeze` runs (the 8-arm rosters, joint-training negative controls) are unaffected. Confirmed: the corrected SeaPerson staged rerun (§7) trains with no crash and no epoch-12-style metric step, and its BPR/Occupy are stable from epoch 0.
+
+### 6.3 Run acceptance
 
 - A completed run must include detection metrics, BPR, physical-size recall, GFLOPs, fused parameter count, and FPS from the same checkpoint.
 - Cross-tool recall checks from `audit_buckets.py` and `vt_diagnose.py` should agree within rounding.
 - UAVDT improvements below its observed 2--4 pp run-to-run range require an independent rerun before being described as confirmed.
 - A configuration file or queued runner is not evidence. Only completed, audited runs enter the canonical tables.
+- For staged runs, the log must record transferred and unmatched checkpoint keys and confirm (via §6.2's fix) that routing and validation threshold are real/final from epoch 0, independent of optimizer warmup length.
+- Historical note: before §6.2's fix, a probe that only changed LR magnitude while still sharing the coupled `warmup_flag` could not distinguish a gentler optimizer transition from a routing-distribution transition -- this class of ambiguity no longer applies once a run uses the corrected `train.py`.
 
-## 7. Remaining Composition Validation
+## 7. SeaPerson Staged Composition: Failure Analysis, Fix, and Final Result
 
-Run **SeaPerson Dual-Max + ISPPHead, no SABL, staged/frozen selector** from the confirmed Dual-Max checkpoint using the same freeze boundary and fine-tuning protocol as UAVDT. Report it against SeaPerson R0, Dual-Max, and the existing Dual-Concat + ISPP head ablation.
+### 7.1 Failure analysis (historical -- describes the pre-fix behavior)
 
-Promotion rule:
+**Initial observed result.** An early, correctly-checkpointed attempt at `seaperson_yolov5m_channel_pooled_max_isphead_frozen` completed without NaN, OOM, or runtime failure: mAP@.5 0.761, mAP@.5:.95 0.311, BPR 0.991, total recall 87.34%, 208.5 GFLOPs, 25.92M params, 80.6 FPS. Cross-tool check: `audit_buckets.py` Very Tiny recall 75.22% versus `vt_diagnose.py` 75.24%, agreeing within rounding. "Collapse" below refers to optimization/performance collapse during earlier short-warmup trajectories, not a crashed process.
 
-- if it preserves the Dual-Max accuracy/BPR advantage within the established run variance while materially reducing Dual-Max GFLOPs, it becomes the canonical SeaPerson result for the full HESOD architecture;
-- if it does not, the paper must report the selector and head as two validated mainline contributions but avoid claiming that their exact staged composition is uniformly positive across datasets.
+**What did not fail, even pre-fix.** Relative to the converged channel-pooled Dual-Max source, BPR was identical (0.991) and occupancy was identical (0.337). Physical recall decreased only 0.76 pp (88.10% to 87.34%), whereas mAP@.5 and mAP@.5:.95 decreased 1.7 and 1.9 pp. This pattern localized the degradation downstream of patch selection: the selector was routing essentially the same content, but the fine-tuned neck/head was producing worse classification/localization. The frozen selector and its BN/eval handling were correctly ruled out as the primary suspect.
 
-No additional SABL, learned-gate, or obsolete full-recipe reruns are required for the current paper claim.
+**Primary protocol confound.** In `train.py`, one `warmup_flag` controlled all of the following:
+
+1. LR, momentum, and gradient-accumulation interpolation;
+2. GT-assisted versus real-selector routing during training;
+3. GT-assisted versus real-selector routing during validation;
+4. validation confidence threshold (0.1 during warmup, 0.001 afterward).
+
+Consequently, an AP crash at `warmup_epochs=2` (mAP@.5 falling from $\sim$0.75-0.79 to $\sim$0.01-0.03 at the exact iteration warmup completed, then only partially recovering) occurred when **three experimental factors changed together** and could not be assigned specifically to the LR jump. Setting `warmup_epochs=20` kept `warmup_flag` true for every training batch and avoided that specific crash, but the separate hard-coded `use_gt` condition still switched training and validation from GT-assisted routing to real routing after epoch 12 (60% of 20), and the validation confidence threshold remained 0.1 for all 20 epochs rather than the real 0.001 -- the resulting smooth-looking curve was not proof the instability was fixed, only that its most visible symptom (the LR-driven crash) had been avoided; it produced the confounded 0.761/0.311 result above.
+
+**Secondary optimization risk (not separately confirmed, kept for completeness).** Replacing `YOLOv6Head` with `ISPPHead` preserves compatible prediction-layer shapes, but its `expand`, partial-convolution, and `project` feature block has no equivalent source tensors and must adapt during the short fine-tune. The pre-fix default SeaPerson recipe also applied full-detector-scale SGD (`lr0=0.01`, `warmup_bias_lr=0.1`) to the trainable neck/head. §7.3's low-LR/short-warmup hyp (independently adopted in the fix) addresses this whether or not it was a distinct contributing factor.
+
+### 7.2 Fix applied
+
+`train.py`: `use_gt` is now forced `False` whenever `opt.freeze` is set (line ~556), and validation `conf_thres` is now forced to `0.001` whenever `opt.freeze` is set (line ~786), both independent of `warmup_flag`/`warmup_epochs`. A staged fine-tune therefore uses real selector routing and the real validation threshold from epoch 0; `warmup_epochs` now controls only the optimizer's LR/momentum/accumulation schedule, exactly as intended. Non-`--freeze` runs are unaffected. `run_seaperson_frozen_selector.sh`'s own default `HYP` now points at `hyp.seaperson_frozen_v2.yaml` (short 2-epoch optimizer warmup, `lr0=0.001`, `warmup_bias_lr=0.001` -- a 10x/100x reduction from the original `hyp.seaperson.yaml`, since the trainable neck/head is being fine-tuned from an already-converged trunk, not learning objectness priors from scratch) rather than the original `hyp.seaperson.yaml`, closing the reproducibility gap where a corrected run previously required a caller-supplied `HYP=` override to take effect.
+
+### 7.3 Final result and promotion
+
+**Corrected rerun.** Same warm-start checkpoint (`seaperson_yolov5m_channel_pooled_max`, the confirmed 0.778-mAP pooled Dual-Max), same freeze boundary (`model.0-12`), 30 epochs. Training trajectory (`results.txt`, val split) is smooth throughout -- mAP@.5 rises from 0.671 (epoch 0) to $\sim$0.805-0.808 by epoch 4 and stays there through epoch 11 (last epoch inspected mid-run) with BPR/Occupy exactly flat (0.9957/0.4281) for every epoch, no step change anywhere. Final test-split result (`audit_buckets.py`/`vt_diagnose.py` cross-checked, Very Tiny 75.71% vs. 75.73%, agree within rounding):
+
+| Metric | Dual-Max (pre-staging) | v1, confounded (§7.1) | **Corrected (canonical)** |
+|---|:---:|:---:|:---:|
+| mAP@.5 | 0.778 | 0.761 (-1.7 pp) | **0.773 (-0.5 pp)** |
+| mAP@.5:.95 | 0.330 | 0.311 (-1.9 pp) | **0.327 (-0.3 pp)** |
+| BPR | 0.991 | 0.991 | **0.991** |
+| Total recall | 88.10% | 87.34% | **87.75%** |
+| GFLOPs | 255.1 | 208.5 | **208.5** |
+| Params (M) | 35.79 | 25.92 | **25.92** |
+| FPS | 73.8 | 80.6 | **80.6** |
+
+**Promotion.** Applying the promotion rule stated before this run (preserve the Dual-Max accuracy/BPR advantage within accepted variation while materially reducing GFLOPs $\Rightarrow$ canonical): BPR is fully preserved, the AP cost shrank from a real 1.7/1.9 pp to a near-UAVDT-level 0.5/0.3 pp, and GFLOPs/FPS are unchanged from the confounded run (the fix changed training dynamics, not the resulting architecture's own efficiency). This is now the canonical SeaPerson HESOD result, used throughout §1, §3, §5, §A.5, §A.6. The confounded 0.761/0.311 run and the two wrong-checkpoint attempts before it are retained only in §A.7 for provenance; neither should be cited as a paper number. No additional SABL, learned-gate, or obsolete full-recipe reruns are required.
 
 ## 8. Active Runners and Test Gates
 
@@ -320,6 +365,7 @@ These reruns establish the approximate 2--4 pp UAVDT noise floor. They are retai
 | 9 | Dual-Max + SABL + ISPP | ISPP / SABL | 0.763 | 0.320 | 0.988 | 87.05% | 221.9 | 77.1 | Composition negative control |
 | 10 | **Dual-Max** | Coupled / CIoU | **0.778** | **0.330** | **0.991** | 88.10% | 255.1 | 73.8 | Mainline selector reference; confirmed rerun |
 | 11 | Dual-Max, full-width spectral | Coupled / CIoU | 0.763 | 0.320 | 0.986 | 87.53% | 277.8 | 70.1 | Pooling diagnostic (§1.5); batch size forced to 2 (OOMs at the shared 8) |
+| 12 | **HESOD: Dual-Max + ISPP, staged** | ISPP / CIoU | **0.773** | **0.327** | **0.991** | 87.75% | 208.5 | 80.6 | **Current SeaPerson flagship** (§7) |
 
 ### A.6 SeaPerson complete physical-size recall
 
@@ -336,6 +382,7 @@ These reruns establish the approximate 2--4 pp UAVDT noise floor. They are retai
 | 9 | Dual-Max + SABL + ISPP | 76.01% | 90.36% | 94.78% | 83.87% | 87.05% |
 | 10 | **Dual-Max** | 75.65% | **92.06%** | 95.85% | 81.94% | 88.10% |
 | 11 | Dual-Max, full-width spectral | 74.45% | 91.75% | 95.48% | 77.42% | 87.53% |
+| 12 | **HESOD: Dual-Max + ISPP, staged** | 75.71% | 91.47% | 95.72% | 80.65% | 87.75% |
 
 The original SeaPerson Dual-Max run (mAP@.5 0.766, mAP@.5:.95 0.323, BPR 0.988, total recall 87.51%, 255.5 GFLOPs, 76.5 FPS) is retained as a superseded run record. Its independent rerun improved every accuracy/routing metric and is the canonical arm-10 result above.
 
@@ -346,6 +393,8 @@ The original SeaPerson Dual-Max run (mAP@.5 0.766, mAP@.5:.95 0.323, BPR 0.988, 
 | Learned gated fusion (`ChannelPooledDualEvidenceSegmenter`) | SeaPerson mAP@.5 0.765; total recall 87.26% | Negative: learned gate suppresses candidate evidence; no further runs planned |
 | SeaDronesSeeV2 R0 at 1536 | mAP@.5 0.894; total recall 95.76%; Very Tiny only 1.9% of GT | Out of scope for the selector-headroom claim |
 | Five pre-fix frozen-selector attempts | Only 173/601 checkpoint tensors transferred | Invalid, not method results; retained only as provenance for the loader constraint in §6.1 |
+| SeaPerson staged Dual-Max+ISPP, first two attempts | Warm-started from the wrong checkpoint (`seaperson_yolov5m_max`, a full-width-spectral diagnostic, not Dual-Max) due to a run-name collision; mAP@.5 $\sim$0.71 | Invalid, not method results; discarded once the mismatch was found -- see §7.1 |
+| SeaPerson staged Dual-Max+ISPP, correct checkpoint but pre-fix `train.py` | mAP@.5 0.761, mAP@.5:.95 0.311 (BPR/GFLOPs/params/FPS identical to the canonical row) | Superseded, not invalid -- a real run with a real protocol confound (coupled `warmup_flag`/`use_gt`/validation threshold); replaced once §6.2's fix was applied -- see §7 |
 | Pest24 | Recorded in `HESOD-Agri-Experiment-Plan.md` | Separate project; not duplicated here |
 
 ### A.8 Pending result placeholders
@@ -354,8 +403,7 @@ The original SeaPerson Dual-Max run (mAP@.5 0.766, mAP@.5:.95 0.323, BPR 0.988, 
 
 | Dataset | Configuration | mAP@.5 | mAP@.5:.95 | BPR | Total recall | GFLOPs | Params (M) | FPS | Purpose/status |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|---|
-| SeaPerson | **HESOD: Dual-Max + ISPP, staged, no SABL** | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Decisive full-composition run; queued/awaiting completion |
-| UAVDT | Dual-Max independent confirmation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Confirm AP gain beyond the observed run variance |
-| UAVDT | HESOD staged independent confirmation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Confirm final flagship stability |
+| UAVDT | Dual-Max independent confirmation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Confirm AP gain beyond the observed run variance; queued as `uavdt_yolov5m_channel_pooled_max_run2` |
+| UAVDT | HESOD staged independent confirmation | TBD | TBD | TBD | TBD | TBD | TBD | TBD | Confirm final flagship stability; also re-verifies UAVDT's own staged runs under the §6.2 `train.py` fix (UAVDT was not previously known to need it, but shares the same code path) |
 
-When the SeaPerson staged result completes, replace its placeholder in this table first, audit all metrics under §6.2, and only then add the full HESOD row to the main SeaPerson table in §5.1.
+The SeaPerson staged composition placeholder that previously occupied this table is resolved -- §7 records the fix, the corrected rerun, and its promotion to the canonical §A.5 arm 12 result.
