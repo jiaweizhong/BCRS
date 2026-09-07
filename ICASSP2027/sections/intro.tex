@@ -5,8 +5,6 @@ High-resolution aerial and maritime vision is fundamental to intelligent surveil
 
 To eliminate redundant computation, \emph{spatial selective computation} dynamically routes feature processing strictly to prospective foreground regions~\cite{QueryDet,CEASC,ESOD}. Notably, ESOD~\cite{ESOD} predicts an early spatial priority heatmap directly after a shallow stem, slicing features into candidate bounding patches (AdaSlicer) and bypassing background across downstream stages.
 
-Crucially, spatial selection operates under an \emph{asymmetric error cost}: retaining a false-positive background patch merely introduces minor local compute overhead, whereas discarding a true tiny target produces an \emph{irrecoverable false negative} that permanently removes the instance from all downstream stages~\cite{ESOD}. Despite notable efficiency gains, existing spatial selectors exhibit two critical vulnerabilities: (i)~\emph{Evidence Fragility}: relying solely on single semantic objectness causes severe degradation on micro targets after downsampling~\cite{SET}; and (ii)~\emph{Coverage Deficit}: standard per-pixel binary cross-entropy (BCE) supervises grid cells independently, failing to guarantee joint multi-cell coverage across an instance's physical spatial extent and often pruning faint targets (Fig.~\ref{fig:teaser}).
-
 \begin{figure}[!t]
 \centering
 % Column headers
@@ -67,9 +65,16 @@ Crucially, spatial selection operates under an \emph{asymmetric error cost}: ret
   \includegraphics[width=\linewidth]{figures/rgb-x0080-google-115344/rgb-x0080-google-115344-Surfing-hesod.jpg}
 \end{minipage}
 \vspace{-2.5mm}
-\caption{Qualitative comparison on UAVDT and SeaPerson.}
+\caption{Visual comparison on UAVDT and SeaPerson. Baseline ESOD drops micro targets (b), while HESOD restores full instance recall (c).}
 \label{fig:teaser}
 \end{figure}
+
+Crucially, spatial selection operates under a severe \emph{asymmetric error cost}: false-positive background patches merely incur minor compute overhead, whereas discarding a true tiny target produces an \emph{irrecoverable false negative} across downstream stages~\cite{ESOD}. Existing detectors like ESOD~\cite{ESOD} rely exclusively on single semantic objectness with independent per-cell BCE. Under extreme downsampling, micro targets suffer severe semantic collapse, causing faint instances to be prematurely pruned (Fig.~\ref{fig:teaser}(b)). To overcome this recall dilemma, we observe that tiny targets retain prominent high-frequency spatial gradients and spectral saliency even when deep semantics fade~\cite{SET}. By coupling dual-evidence routing with an object-level soft-coverage loss, our selector reliably rescues dropped targets (Fig.~\ref{fig:teaser}(c)). We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a dual-evidence framework uniting semantic-spectral routing, coverage-constrained spatial optimization, and lightweight downstream detection. More specifically, our key contributions are:
+\begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}\setlength{\topsep}{1pt}
+    \item \textbf{Semantic-Spectral Dual Selection}: We couple semantic objectness with channel-pooled spectral saliency at $\mathcal{O}(1)$ complexity, extracting directional gradients to rescue micro targets from semantic collapse.
+    \item \textbf{Evidence Preservation and Soft Coverage}: We formulate a monotonic max-fusion rule and an object-level soft-coverage loss to directly optimize multi-cell instance recall under irreversible pruning.
+    \item \textbf{Lightweight Staged Detection}: We design an inverted residual decoupled head (ISPP) with selector-first staged training, substantially reducing computational overhead while boosting accuracy and inference speed.
+\end{enumerate}
 
 \begin{figure*}[t]
 \centering
@@ -78,11 +83,4 @@ Crucially, spatial selection operates under an \emph{asymmetric error cost}: ret
 \caption{Overview of HESOD: (a) End-to-end selective pipeline; (b) Dual-Evidence Priority Head. Dashed boxes highlight our proposed contributions over ESOD.}
 \label{fig:overview}
 \end{figure*}
-
-To resolve these challenges, we observe that tiny targets retain prominent high-frequency spatial gradients and spectral saliency even when deep semantic responses fade~\cite{SET}. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a unified dual-evidence framework integrating semantic-spectral routing, coverage-constrained spatial optimization, and staged compute recovery (Fig.~\ref{fig:overview}). Specifically, our key contributions are:
-\begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}\setlength{\topsep}{1pt}
-    \item \textbf{Semantic-Spectral Dual Selection}: We couple semantic objectness with channel-pooled spectral saliency at strictly $\mathcal{O}(1)$ width complexity, extracting directional edge gradients to rescue degraded micro targets from semantic collapse.
-    \item \textbf{Evidence Preservation and Soft Coverage}: We formulate a monotonic elementwise max-fusion rule and an object-level soft-coverage loss to directly optimize joint multi-cell instance recall under irreversible pruning.
-    \item \textbf{Lightweight Staged Downstream Detection}: We design an inverted residual decoupled head (ISPP) fine-tuned via selector-first staged training, cutting parameters by \textbf{27.5\%} and GFLOPs by \textbf{16.9\%} at \textbf{106.1 FPS} with peak detection accuracy.
-\end{enumerate}
 
