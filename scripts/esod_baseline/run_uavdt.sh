@@ -439,6 +439,8 @@ run_arm "uavdt_yolov5m_max${SUFFIX}" \
 # spirit as --workers 2 elsewhere in this script), not a fix -- reverting
 # to workers 2 here since the workers:0 mitigation is now known not to
 # address the actual leak.
+RERUN_SEED_9=$RANDOM
+log "arm9 rerun seed: $RERUN_SEED_9"
 run_arm "uavdt_yolov5m_channel_pooled_max_run2${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --batch-size 6 --seed "$RERUN_SEED_9"
