@@ -207,6 +207,23 @@ run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen" \
   "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
   --selector-loss coverage --box-loss upstream
 
+# Confirmation rerun (2026-09-07) -- the canonical arm above (0.773 mAP@.5)
+# has never had an independent rerun, unlike UAVDT's own arm 9/arm 14 and
+# SeaPerson's own arm 10 Dual-Max reference, which all have a confirmed
+# "_run2" noise-floor check (SSA.7/SS3.6/SS7.3). Same config/flags/warm-start
+# checkpoint, only the run name and random seed differ. Queue this AFTER
+# whatever UAVDT run is currently occupying the box, not in parallel: this
+# session just diagnosed the box's OOM crashes as host-RAM cgroup exhaustion
+# from page cache built up by repeatedly reading a large image dataset
+# (HESOD-Experiment-Plan.md's own recent debugging, not yet written up as a
+# section) -- SeaPerson's 2048px images would add to that pressure on top of
+# whatever UAVDT is already doing, not use genuinely idle capacity.
+RERUN_SEED_12=$RANDOM
+log "arm12 (SeaPerson flagship) rerun seed: $RERUN_SEED_12"
+run_arm "seaperson_yolov5m_channel_pooled_max_isphead_frozen_run2" \
+  "models/cfg/esod/seaperson_yolov5m_channel_pooled_max_isphead.yaml" "$ARM10_CKPT" \
+  --selector-loss coverage --box-loss upstream --seed "$RERUN_SEED_12"
+
 # max fusion (full-width, non-pooled spectral branch) + ISPPHead, no SABL,
 # selector frozen at seaperson_yolov5m_max's own weights -- isolates
 # channel pooling's own effect on the flagship "Max + staged ISPPHead"
@@ -223,4 +240,5 @@ run_arm "seaperson_yolov5m_max_isphead_frozen" \
 
 log "===== ALL DONE ====="
 log "  Max+ISPPHead, pooled (frozen selector, no SABL):     $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_max_isphead_frozen/"
+log "  Max+ISPPHead, pooled, confirmation rerun:            $RUN_ROOT/test/seaperson_yolov5m_channel_pooled_max_isphead_frozen_run2/"
 log "  Max+ISPPHead, non-pooled (frozen selector, no SABL): $RUN_ROOT/test/seaperson_yolov5m_max_isphead_frozen/"

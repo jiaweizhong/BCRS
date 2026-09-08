@@ -227,6 +227,18 @@ run_arm "uavdt_yolov5m_spectral_only${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_spectral_only.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --batch-size 2
 
+# Confirmation rerun (2026-09-07) -- arm (3)'s own +5.21pp Total Recall gain
+# over R0 is one of the stronger single-arm findings in this roster and has
+# never had an independent rerun, unlike R0/arm(5)/arm(8)/arm(9)/arm(10),
+# which all do. Same config/flags (including the --batch-size 2 memory
+# precaution), only the run name and random seed differ, matching the
+# "_run2" convention used throughout this project.
+RERUN_SEED_3=$RANDOM
+log "arm3 (spectral-only) rerun seed: $RERUN_SEED_3"
+run_arm "uavdt_yolov5m_spectral_only_run2${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_spectral_only.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --batch-size 2 --seed "$RERUN_SEED_3"
+
 # concat-only: channel-pooled concat evidence, CIoU box (no SABL, no
 # ISPPHead) -- the missing isolation control HESOD-Experiment-Plan.md SS9.2
 # flagged (only R0 and the fully-bundled concat+SABL+ISPPHead existed
