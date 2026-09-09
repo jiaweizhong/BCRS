@@ -14,5 +14,5 @@ Dynamic computation accelerates inference by allocating compute strictly to pros
 \subsection{Spectral Saliency and Frequency Methods}
 \label{ssec:related_spectral}
 
-Frequency-domain representations offer rich structural priors for micro targets, which retain sharp high-frequency edge gradients even when photometric semantics fade~\cite{SET}. While SET~\cite{SET} applies dense frequency transforms across multi-scale pyramids with prohibitive latency, HESOD repurposes spectral saliency as an ultra-lightweight routing cue: channel pooling compresses stem features to 2 channels, enabling directional Laplacian and Sobel gradient filtering at strictly $\mathcal{O}(1)$ width complexity.
+Frequency-domain representations offer rich structural priors for micro targets, which retain sharp high-frequency edge gradients even when photometric semantics fade~\cite{SET}. While SET~\cite{SET} applies dense frequency transforms across multi-scale pyramids with prohibitive latency, HESOD repurposes spectral saliency as an ultra-lightweight routing cue: channel pooling compresses stem features to 2 channels, enabling directional Laplacian and Sobel gradient filtering at constant width, independent of backbone channel dimension $C$.
 

@@ -1,7 +1,7 @@
 \section{Proposed Method}
 \label{sec:method}
 
-The overall architecture of HESOD is illustrated in Fig.~\ref{fig:overview}(a). Given an input image $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense feature map $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then coordinates two stages: (i) a Dual-Evidence Priority Head fuses high-level semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) to generate a continuous spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer routing module dynamically clusters candidate foreground cells into bounding patches $\mathcal{P}$ directly from $\mathbf{F}$. Downstream backbone stages, neck, and lightweight ISPP decoupled heads evaluate only these retained patches, supervised by an object-level soft-coverage loss and trained via a selector-first staged protocol (\S\ref{ssec:coverage}, \S\ref{ssec:head}).
+The architecture of HESOD is shown in Fig.~\ref{fig:overview}(a). From input $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense features $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then coordinates: (i) a priority head fusing semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) into spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer module dynamically clustering candidate foreground cells into bounding patches $\mathcal{P}$ from $\mathbf{F}$. Downstream backbone stages and lightweight decoupled heads evaluate only retained patches $\mathcal{P}$ under soft-coverage supervision (\S\ref{ssec:coverage}, \S\ref{ssec:head}).
 
 \subsection{Dual-Evidence Priority Estimation}
 \label{ssec:evidence}
@@ -13,9 +13,7 @@ Let $\mathbf{f}_i \in \mathbb{R}^C$ denote the feature vector at spatial locatio
 \mathbf{F}_{\mathrm{pooled}} = \left[ \max_c \mathbf{F}_{:,:,c} \,\|\, \frac{1}{C}\sum_{c=1}^C \mathbf{F}_{:,:,c} \right] \in \mathbb{R}^{H_s \times W_s \times 2},
 \label{eq:channel_pool}
 \end{equation}
-where $[\cdot \,\|\, \cdot]$ denotes channel concatenation. Compressing $\mathbf{F}$ to 2 channels retains both the peak local edge activation and background energy profile, while guaranteeing that subsequent spatial filtering complexity remains strictly $\mathcal{O}(H_s W_s)$ with constant channel dimension, regardless of backbone width $C$. 
-
-Next, a learnable depthwise $3\times 3$ convolution bank---initialized with discrete Laplacian (isotropic second-order edge transitions) and directional horizontal/vertical Sobel operators---filters $\mathbf{F}_{\mathrm{pooled}}$ into 6 structural channels. A $1\times 1$ projection layer maps the filtered channels to dimension $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
+where $[\cdot \,\|\, \cdot]$ denotes channel concatenation. Compressing $\mathbf{F}$ to 2 channels retains peak edge activation and background energy while ensuring $\mathcal{O}(H_s W_s)$ spatial filtering complexity independent of backbone width $C$. Next, a learnable depthwise $3\times 3$ convolution bank---initialized with discrete Laplacian (isotropic second-order edge transitions) and directional horizontal/vertical Sobel operators---filters $\mathbf{F}_{\mathrm{pooled}}$ into 6 structural channels. A $1\times 1$ projection layer maps the filtered channels to dimension $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
 
 To prevent confidence dilution on weak targets, evidence fusion enforces \emph{evidence preservation} via a parameter-free elementwise maximum:
 \begin{equation}
@@ -29,24 +27,24 @@ where taking the elementwise maximum guarantees monotonic evidence preservation 
 
 Standard pixel-wise binary cross-entropy (BCE) evaluates grid cells independently, failing to guarantee instance-level coverage: a selector may over-allocate cells to large objects while dropping micro objects whose receptive fields contain only weak responses. To prevent premature false negatives, we formulate a differentiable object-level soft-coverage loss.
 
-Let $\mathcal{N}(j)$ denote the set of selector cells overlapping ground-truth box $j \in \{1, \dots, N_{\mathrm{gt}}\}$. Assuming independent cell activations, the joint probability that instance $j$ is covered by at least one selected cell is:
+Let $\mathcal{N}(j)$ denote the set of selector cells overlapping ground-truth box $j \in \{1, \dots, N_{\mathrm{gt}}\}$. We formulate a noisy-OR-inspired differentiable coverage surrogate for instance $j$ being covered by at least one selected cell:
 \begin{equation}
 p_j^{\mathrm{cover}} = 1 - \prod_{i \in \mathcal{N}(j)} (1 - s_i).
 \label{eq:cover_prob}
 \end{equation}
-The soft-coverage loss directly optimizes joint instance coverage:
+The per-instance coverage loss is defined as:
 \begin{equation}
-\mathcal{L}_{\mathrm{cover}} = -\frac{1}{N_{\mathrm{gt}}} \sum_{j=1}^{N_{\mathrm{gt}}} w_j \log\left( p_j^{\mathrm{cover}} + \epsilon \right),
+\ell_j = -w_j \log\left( p_j^{\mathrm{cover}} + \epsilon \right),
 \label{eq:cover_loss}
 \end{equation}
-where $w_j = \operatorname{clip}(4/a_j, 1, 5)$ is a scale-adaptive weight based on bounding box area $a_j$ in grid cells, penalizing misses on micro targets ($a_j < 4$). The gradient with respect to cell score $s_i$ is:
+where $w_j = \operatorname{clip}(4/a_j, 1, 5)$ is a scale-adaptive weight based on bounding box area $a_j$ in cells, penalizing misses on micro targets ($a_j < 4$). For any cell $i \in \mathcal{N}(j)$, the gradient of $\ell_j$ with respect to cell score $s_i$ is:
 \begin{equation}
-\frac{\partial \mathcal{L}_{\mathrm{cover}}}{\partial s_i} = -\frac{w_j}{p_j^{\mathrm{cover}} + \epsilon} \prod_{k \in \mathcal{N}(j) \setminus \{i\}} (1 - s_k).
+\frac{\partial \ell_j}{\partial s_i} = -\frac{w_j}{p_j^{\mathrm{cover}} + \epsilon} \prod_{k \in \mathcal{N}(j) \setminus \{i\}} (1 - s_k).
 \label{eq:cover_grad}
 \end{equation}
-When neighboring candidate cells have low scores ($s_k \to 0$), the product term approaches $1$, generating a strong gradient to boost cell $i$ and encouraging at least one cell to activate per instance. The overall multi-task training objective is $\mathcal{L} = \mathcal{L}_{\mathrm{det}} + \lambda_{\mathrm{sel}}(\mathcal{L}_{\mathrm{BCE}} + \lambda_{\mathrm{cov}}\mathcal{L}_{\mathrm{cover}})$, with $\lambda_{\mathrm{sel}}=0.2$ and $\lambda_{\mathrm{cov}}=0.5$.
+When neighboring candidate cells have low scores ($s_k \to 0$), the product term approaches $1$, generating a strong gradient to boost cell $i$ and encouraging at least one cell to activate per instance. The overall soft-coverage loss averages over instances: $\mathcal{L}_{\mathrm{cover}} = \frac{1}{N_{\mathrm{gt}}} \sum_{j=1}^{N_{\mathrm{gt}}} \ell_j$. The multi-task training objective is $\mathcal{L} = \mathcal{L}_{\mathrm{det}} + \lambda_{\mathrm{sel}}(\mathcal{L}_{\mathrm{BCE}} + \lambda_{\mathrm{cov}}\mathcal{L}_{\mathrm{cover}})$, with $\lambda_{\mathrm{sel}}=0.2$ and $\lambda_{\mathrm{cov}}=0.5$.
 
-\subsection{Lightweight Decoupled Head and Staged Training}
+\subsection{Lightweight Decoupled Head and Training Protocol}
 \label{ssec:head}
 
 \begin{figure}[t]
@@ -61,5 +59,5 @@ While dual-evidence routing substantially improves patch coverage by retaining f
 
 As shown in Fig.~\ref{fig:ispphead}, the ISPP head expands neck feature channels to $2C_1$, partitioning them into an active branch ($0.25$ ratio) processed by a $3\times 3$ Partial Convolution (PConv) and an identity passthrough branch ($0.75$ ratio). After linear projection and residual addition, decoupled $1\times 1$ heads predict classification, box regression, and objectness independently, lowering arithmetic complexity while eliminating inter-task gradient interference.
 
-\textbf{Selector-First Staged Training.} Joint training of lightweight heads perturbs shallow selector features, degrading recall. To eliminate interference, HESOD adopts a two-stage protocol: (i)~\emph{Stage 1 (Selector Learning)}: Train the Dual-Max selector with a coupled head under $\mathcal{L}_{\mathrm{cover}}$, establishing a recall-safe priority map; and (ii)~\emph{Stage 2 (Downstream Compression)}: Freeze the trunk (backbone, dual branches, router) and fine-tune only the lightweight ISPP neck and heads. This staged decoupling preserves peak coverage (0.940 BPR on UAVDT) while slashing GFLOPs by 16.9\% and parameters by 27.5\%.
+\textbf{Two-Stage Training Protocol.} To ensure stable routing behavior, HESOD employs a two-stage training scheme: (i)~\emph{Stage 1 (Selector Convergence)}: Train the Dual-Max selector with a coupled head under $\mathcal{L}_{\mathrm{cover}}$, establishing a well-calibrated priority heatmap; and (ii)~\emph{Stage 2 (Head Fine-Tuning)}: Freeze the upstream trunk (backbone, dual branches, router) and fine-tune the lightweight ISPP neck and decoupled heads on the frozen routing distribution. Relative to the uncompressed Dual-Max selector, this lightweight head slashes GFLOPs by 16.9\% and parameters by 27.5\% (on UAVDT) while fully preserving peak coverage (0.940 BPR), maintaining competitive real-time FPS with only fractional overhead vs.~ESOD.
 
