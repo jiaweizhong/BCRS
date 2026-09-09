@@ -457,6 +457,42 @@ run_arm "uavdt_yolov5m_channel_pooled_max_run2${SUFFIX}" \
   "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
   --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --batch-size 6 --seed "$RERUN_SEED_9"
 
+# --- Seed=1 reproduction checks (2026-09-08) ---
+#
+# Both random-seed reruns above (arm 3's own and arm 9's own) landed
+# 1.1-1.6pp below their originals on mAP@.5/mAP@.5:.95, inside the
+# documented 2-4pp noise band but consistently on the lower side twice in a
+# row. train.py line 202 -- init_seeds(opt.seed if opt.seed is not None
+# else 2 + rank) -- means every original arm in this project that never
+# passed --seed (including arm 3 and arm 9's own originals) trained under
+# the SAME fixed seed 1 (2 + rank, rank always -1 on this project's
+# single-GPU launches), not an independent random draw. These two arms
+# retrain arm 3 and arm 9 with --seed 1 explicitly, matching the original's
+# exact seed and (for arm 3) exact flags -- the goal is to see whether the
+# current codebase/environment reproduces the original numbers under the
+# same seed. Note: GPU training is not guaranteed bit-exact even under an
+# identical seed (cudnn algorithm selection, atomic-add ordering, etc.), so
+# a small residual gap here would not be meaningful -- but a gap similar in
+# size to the random-seed reruns above WOULD indicate the difference isn't
+# purely seed choice (something in code/data/environment also drifted).
+#
+# arm 9's seed=1 check intentionally keeps the shared $BATCH (8, no
+# --batch-size override) to match the original's own invocation exactly,
+# unlike the random-seed rerun above which needed --batch-size 6 as an OOM
+# mitigation -- changing batch size here would itself be a confound. This
+# does reintroduce some risk of the same host-RAM page-cache OOM documented
+# earlier in this file; the box was clean after the 2026-09-08 restart and
+# the batch=6/batch=2 runs above both completed without incident, so it is
+# not expected, but if it recurs, treat it as this arm's problem, not
+# evidence about the seed question.
+run_arm "uavdt_yolov5m_spectral_only_seed1${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_spectral_only.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --batch-size 2 --seed 1
+
+run_arm "uavdt_yolov5m_channel_pooled_max_seed1${SUFFIX}" \
+  "models/cfg/esod/uavdt_yolov5m_channel_pooled_max.yaml" \
+  --selector-loss coverage --lambda-cov 0.5 --pos-weight 2.0 --box-loss upstream --workers 2 --seed 1
+
 log "===== ALL DONE ====="
 log "  R0:                    $RUN_ROOT/test/uavdt_yolov5m_baseline${SUFFIX}/"
 log "  Semantic-only:         $RUN_ROOT/test/uavdt_yolov5m_semantic_coverage${SUFFIX}/"
