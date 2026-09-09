@@ -24,9 +24,9 @@ All models employ YOLOv5m in PyTorch and train for 50 epochs under selective pro
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{UAVDT Benchmark ($1280\times 1280$)}}} \\
 \midrule
-Faster R-CNN~\cite{FasterRCNN} & \textit{[TBD]} & 41.5 & \textit{[TBD]} & \textit{[TBD]} & -- & \textit{[TBD]} \\
-RetinaNet~\cite{RetinaNet}       & \textit{[TBD]} & 34.0 & \textit{[TBD]} & \textit{[TBD]} & -- & \textit{[TBD]} \\
-ESOD~\cite{ESOD}                 & 0.385 & 35.9 & \textbf{68.2} & 85.17\% & 0.884 & \textbf{117.8} \\
+Faster R-CNN~\cite{FasterRCNN} & 0.336 & 43.3 & 772.5 & 79.68\% & -- & 18.8 \\
+RetinaNet~\cite{RetinaNet}       & 0.296 & 36.4 & 360.9 & 83.44\% & -- & 19.8 \\
+ESOD~\cite{ESOD}                 & \underline{0.385} & 35.9 & \textbf{68.2} & 85.17\% & 0.884 & \textbf{117.8} \\
 \textbf{HESOD (Ours)}            & \textbf{0.394} & \textbf{26.0} & \underline{74.9} & \textbf{88.83\%} & \textbf{0.940} & \underline{106.1} \\
 \midrule
 \textit{$\Delta$ vs. ESOD} & \textbf{+0.9\,pp} & \textbf{-27.5\%} & +9.8\% & \textbf{+3.66\,pp} & \textbf{+5.6\,pp} & -9.9\% \\
@@ -85,7 +85,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 \vspace{-1.5mm}
 \end{table*}
 
-\textbf{Comparison with Dense Baselines.} As shown in Table~\ref{tab:main_results}, dense detectors incur prohibitive overhead on high-resolution grids. Compared to Faster R-CNN and RetinaNet on SeaPerson ($2048\times 2048$), selective detection yields massive gains of \textbf{+22.2\,pp} and \textbf{+30.0\,pp} $\mathrm{mAP@.5}$ while slashing GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} at \textbf{80.6}\,FPS, confirming the necessity of selective computation for resource-efficient high-resolution inference. The recall gap is equally stark: at a fixed matching protocol, both dense detectors miss roughly a third of all instances (67.27\%/65.98\% total recall vs. HESOD's \textbf{87.75\%}), with the gap concentrated on Very Tiny targets (46.07\%/50.05\% vs. \textbf{75.71\%}).
+\textbf{Comparison with Dense Baselines.} As shown in Table~\ref{tab:main_results}, dense detectors incur prohibitive computational overhead on multi-megapixel grids. On \textbf{UAVDT} ($1280\times 1280$), HESOD outperforms Faster R-CNN and RetinaNet by \textbf{+5.8\,pp} and \textbf{+9.8\,pp} $\mathrm{mAP@.5}$ while slashing GFLOPs by \textbf{10.3$\times$} and \textbf{4.8$\times$} at \textbf{5.5$\times$} faster inference (\textbf{106.1}\,FPS vs.~18.8/19.8\,FPS), lifting total recall from 79.68\%/83.44\% to \textbf{88.83\%} (and Very Tiny recall from 70.35\%/72.77\% to \textbf{80.76\%}). On \textbf{SeaPerson} ($2048\times 2048$), the gains are even larger: HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+22.2\,pp} and \textbf{+30.0\,pp} while cutting GFLOPs by \textbf{7.4$\times$} and \textbf{4.5$\times$} at \textbf{80.6}\,FPS. The recall gap is equally stark: dense detectors miss roughly a third of maritime instances (67.27\%/65.98\% vs.~\textbf{87.75\%}), particularly on Very Tiny targets (46.07\%/50.05\% vs.~\textbf{75.71\%}), confirming the necessity of dual-evidence selective computation.
 
 \textbf{Comparison with Selective Baseline (ESOD).} Against ESOD, HESOD achieves substantial instance recall recovery and efficiency gains across both benchmarks (Table~\ref{tab:main_results}). The performance gains are particularly pronounced on the more challenging \textbf{SeaPerson} ($2048\times 2048$), where extreme scale disparity ($>85\%$ targets $<32$ px) causes severe baseline dropouts: HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+2.3\,pp} ($0.750 \to \mathbf{0.773}$) and BPR by \textbf{+4.4\,pp} to a near-perfect \textbf{0.991} (total recall $+3.33$\,pp to \textbf{87.75\%}), while staged ISPP compression slashes parameters by \textbf{27.6\%} (25.92M vs. 35.78M) and sustains 80.6 FPS at 208.5 GFLOPs. On \textbf{UAVDT} ($1280\times 1280$), HESOD improves $\mathrm{mAP@.5}$ to \textbf{0.394} (+0.9\,pp) and BPR to \textbf{0.940} (+5.6\,pp, rescuing +13,700 targets), while staged training cuts parameters by \textbf{27.5\%} at 106.1 FPS (+3.66\,pp total recall). Recall improves across all aerial classes: \emph{car} ($85.6\% \to 89.0\%$), \emph{truck} ($81.1\% \to 86.5\%$), and \emph{bus} ($67.7\% \to 81.4\%$, \textbf{+13.7\,pp}).
 

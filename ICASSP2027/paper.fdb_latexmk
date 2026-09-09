@@ -1,14 +1,14 @@
 # Fdb version 4
-["bibtex paper"] 1788799183.93485 "paper.aux" "paper.bbl" "paper" 1788799186.62258 0
+["bibtex paper"] 1788842529.39743 "paper.aux" "paper.bbl" "paper" 1788979840.36443 0
   "./IEEEbib.bst" 1788588454 17903 9ff833f4bf67f47893e44ee17b52d211 ""
   "./refs.bib" 1788596354 6633 12860429423824e0890648738c6dae55 ""
-  "paper.aux" 1788799185 6303 e4e0315811353cedab41473279595202 "pdflatex"
+  "paper.aux" 1788979839 6462 6a60c4e0deb4837b6e3b7fb56799372f "pdflatex"
   (generated)
   "paper.bbl"
   "paper.blg"
   (rewritten before read)
-["pdflatex"] 1788799184.45731 "c:/Users/jiawe/Repos/BCRS/ICASSP2027/paper.tex" "paper.pdf" "paper" 1788799186.62297 0
-  "c:/Users/jiawe/Repos/BCRS/ICASSP2027/paper.tex" 1788799178 4601 21fdc5488d61d8221c82614501b19247 ""
+["pdflatex"] 1788979838.00308 "c:/Users/jiawe/Repos/BCRS/ICASSP2027/paper.tex" "paper.pdf" "paper" 1788979840.36486 0
+  "c:/Users/jiawe/Repos/BCRS/ICASSP2027/paper.tex" 1788979836 4697 3dde59489ea179bc7f1538b547ffb3f0 ""
   "c:/texlive/2025/texmf-dist/fonts/enc/dvips/base/8r.enc" 1748311205 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "c:/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1748311790 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "c:/texlive/2025/texmf-dist/fonts/tfm/adobe/times/ptmb7t.tfm" 1748406248 2172 fd0c924230362ff848a33632ed45dc23 ""
@@ -32,6 +32,7 @@
   "c:/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmbx5.tfm" 1748310434 1332 f817c21a1ba54560425663374f1b651a ""
   "c:/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmbx6.tfm" 1748310434 1344 8a0be4fe4d376203000810ad4dc81558 ""
   "c:/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmbx7.tfm" 1748310434 1336 3125ccb448c1a09074e3aa4a9832f130 ""
+  "c:/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmbx8.tfm" 1748310434 1332 1fde11373e221473104d6cc5993f046e ""
   "c:/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmbx9.tfm" 1748310434 1328 5442e22a7072966dbaf88ca900acf3f0 ""
   "c:/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmex10.tfm" 1748310434 992 662f679a0b3d2d53c1b94050fdaa3f50 ""
   "c:/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmmi12.tfm" 1748310434 1524 4414a8315f39513458b80dfc63bff03a ""
@@ -50,6 +51,7 @@
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb" 1748309315 37912 07513ec114ac737ab54cea0152f4424b ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi6.pfb" 1748309315 37166 8ab3487cbe3ab49ebce74c29ea2418db ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb" 1748309315 36281 c355509802a035cadc5f15869451dcee ""
+  "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb" 1748309315 35469 dcf3a5f2fc1862f5952e3ee5eb1d98c4 ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb" 1748309315 36094 798f80770b3b148ceedd006d487db67c ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb" 1748309315 31809 8670ca339bf94e56da1fc21c80635e2a ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb" 1748309315 32734 69e00a6b65cedb993666e42eedb3d48f ""
@@ -59,6 +61,7 @@
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy5.pfb" 1748309315 32915 7bf7720c61a5b3a7ff25b0964421c9b6 ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb" 1748309315 32587 65067f817f408bc71a7312f3d9828a9b ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb" 1748309315 32716 08e384dc442464e7285e891af9f45947 ""
+  "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb" 1748309315 32626 5abc8bb2f28aa647d4c70f8ea38cc0d3 ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb" 1748309315 32442 c975af247b6702f7ca0c299af3616b80 ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmex9.pfb" 1748309315 30212 f7062d6da71d1ec66ffb8906891648f7 ""
   "c:/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb" 1748309315 34694 870c211f62cb72718a00e353f14f254d ""
@@ -128,6 +131,7 @@
   "c:/texlive/2025/texmf-dist/tex/latex/refcount/refcount.sty" 1748405032 9878 9e94e8fa600d95f9c7731bb21dfb67a4 ""
   "c:/texlive/2025/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty" 1748405075 9714 ba3194bd52c8499b3f1e3eb91d409670 ""
   "c:/texlive/2025/texmf-dist/tex/latex/tools/array.sty" 1748406378 14552 27664839421e418b87f56fa4c6f66b1a ""
+  "c:/texlive/2025/texmf-dist/tex/latex/tools/tabularx.sty" 1748406378 7243 e5dac1240636811edb77568b81818372 ""
   "c:/texlive/2025/texmf-dist/tex/latex/url/url.sty" 1748406707 12796 8edb7d69a20b857904dd0ea757c14ec9 ""
   "c:/texlive/2025/texmf-dist/web2c/texmf.cnf" 1748309113 42148 61becc7c670cd061bb319c643c27fdd4 ""
   "c:/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1748454785 5569470 f263a82cf6bb394f5bc87b63f38b78df ""
@@ -141,14 +145,14 @@
   "figures/uavdt-img000015/img000015-esod.jpg" 1788664766 29689 a73cdae307a11e27df6cef5878dfaaac ""
   "figures/uavdt-img000015/img000015-hesod.jpg" 1788726968 30468 4cc2eace5a567a1f09ad10d089a72fcf ""
   "figures/uavdt-img000015/img000015-label.jpg" 1788664716 29161 cf8cdeaf382a91a83e68256a7b0b63aa ""
-  "paper.aux" 1788799185 6303 e4e0315811353cedab41473279595202 "pdflatex"
-  "paper.bbl" 1788799184 4822 4fbb1a855b03e9088052c27037e36f61 "bibtex paper"
-  "paper.out" 1788799185 2887 ed3caa2cb080ba006daf7bfff3d9b59b "pdflatex"
-  "paper.tex" 1788799178 4601 21fdc5488d61d8221c82614501b19247 ""
+  "paper.aux" 1788979839 6462 6a60c4e0deb4837b6e3b7fb56799372f "pdflatex"
+  "paper.bbl" 1788842529 4822 4fbb1a855b03e9088052c27037e36f61 "bibtex paper"
+  "paper.out" 1788979839 2887 ed3caa2cb080ba006daf7bfff3d9b59b "pdflatex"
+  "paper.tex" 1788979836 4697 3dde59489ea179bc7f1538b547ffb3f0 ""
   "sections/conclusion.tex" 1788765661 904 58d911bf8149a3236a4052cc452c45bc ""
-  "sections/experiments.tex" 1788766660 11944 6dbae3d8223559df297de940bba1a02a ""
-  "sections/intro.tex" 1788765653 5613 37006423af0263d556b34ce9b6c3d006 ""
-  "sections/method.tex" 1788765610 7132 dd38487df59938ed43a6a7484599c28b ""
+  "sections/experiments.tex" 1788977312 12385 ced35f4da09dc7fe61ef3ce0d28ad9d4 ""
+  "sections/intro.tex" 1788809716 5449 f056f0deb8847613780d87855d691dbb ""
+  "sections/method.tex" 1788806327 7134 7ca2a02c59b8ff0d1df93f00dc2c5945 ""
   "sections/related.tex" 1788765597 2353 6f805ac9b38d33c17bc3535f6936da30 ""
   "spconf.sty" 1788588454 8798 121ab5e33850ab4cf48fc2795d92b250 ""
   (generated)

@@ -140,7 +140,19 @@ UAVDT exhibits roughly 2--4 pp run-to-run variation, including about a 4 pp swin
 
 ## 4. UAVDT Evidence
 
-### 4.1 Minimal ablation supporting the paper
+### 4.1 Dense baselines and ESOD family
+
+| Method | Type | mAP@.5 | mAP@.5:.95 | Total recall | Params (M) | GFLOPs | FPS |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Faster R-CNN, ResNet-50-FPN | Dense two-stage | 0.336 | 0.203 | 79.68% | 43.27 | 772.5 | 18.8 |
+| RetinaNet, ResNet-50-FPN | Dense one-stage | 0.296 | 0.183 | 83.44% | 36.37 | 360.9 | 19.8 |
+| ESOD R0 | Selective, single evidence | 0.385 | 0.214 | 85.17% | 35.85 | **68.2** | **117.8** |
+| Dual-Max selector reference | Selective, dual evidence | **0.395** | **0.218** | **90.36%** | 35.85 | 90.1 | 102.3 |
+| **HESOD (Ours)** | Selective, dual evidence, staged | 0.394 | 0.215 | 88.83% | **25.98** | 74.9 | 106.1 |
+
+On UAVDT ($1280\times 1280$), selective inference provides critical compute reduction over dense baselines: HESOD slashes GFLOPs by **10.3$\times$** versus Faster R-CNN (772.5 $\to$ 74.9) and **4.8$\times$** versus RetinaNet (360.9 $\to$ 74.9), while running **5.4$\times$--5.6$\times$ faster** (106.1 FPS vs. 18.8/19.8 FPS). Concurrently, HESOD achieves +5.8 pp and +9.8 pp higher mAP@.5, and improves total recall to 88.83% (+9.15 pp over Faster R-CNN, +5.39 pp over RetinaNet), with the largest recall gains concentrated on micro targets (Very Tiny recall: 80.76% vs. 70.35%/72.77%).
+
+### 4.2 Minimal ablation supporting the paper
 
 | Configuration | Selector loss | Head / box loss | mAP@.5 | mAP@.5:.95 | BPR | Recall | GFLOPs | Params (M) | FPS |
 |---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -156,16 +168,18 @@ The single-evidence rows establish complementarity: spectral evidence recovers m
 
 The ISPP comparison isolates a training interaction. Joint optimization perturbs the selector and loses 4.37 pp recall relative to Dual-Max. Freezing the converged selector before head fine-tuning restores BPR to 0.940 and mAP@.5 to 0.394 while cutting 16.9% GFLOPs and 27.5% parameters relative to Dual-Max. This staged row is the current UAVDT flagship: ISPPHead substantially offsets the cost introduced by better routing, although it does not beat R0's absolute GFLOPs.
 
-### 4.2 Relevant size-bucket recall
+### 4.3 Relevant size-bucket recall
 
 | Configuration | Very Tiny | Tiny | Small | Medium/Large | Total recall |
 |---|:---:|:---:|:---:|:---:|:---:|
+| Faster R-CNN, ResNet-50-FPN | 70.35% | 76.06% | 96.52% | 77.69% | 79.68% |
+| RetinaNet, ResNet-50-FPN | 72.77% | 81.98% | 96.18% | **82.95%** | 83.44% |
 | ESOD R0 | 79.43% | 84.21% | 94.54% | 59.78% | 85.17% |
 | Dual-Concat | 79.09% | 85.85% | 95.85% | 62.66% | 86.35% |
 | **Dual-Max** | **85.69%** | **89.97%** | **97.37%** | 65.99% | **90.36%** |
-| **HESOD: Dual-Max + ISPP, staged** | 80.76% | 88.98% | 97.11% | **69.16%** | 88.83% |
+| **HESOD: Dual-Max + ISPP, staged** | 80.76% | 88.98% | 97.11% | 69.16% | 88.83% |
 
-Dual-Max's largest gain over R0 is on Very Tiny objects (+6.26 pp), matching the paper's intended failure mode. The staged full model gives back part of this extreme-scale recall in exchange for its compute reduction; the paper should present this as the selector-efficiency trade-off rather than hiding the recall change.
+Dual-Max's largest gain over R0 is on Very Tiny objects (+6.26 pp), matching the paper's intended failure mode. The staged full model gives back part of this extreme-scale recall in exchange for its compute reduction; the paper should present this as the selector-efficiency trade-off rather than hiding the recall change. Dense baselines show pronounced dropouts on micro scales (70.35% and 72.77% on Very Tiny).
 
 ## 5. SeaPerson Evidence
 
@@ -311,8 +325,10 @@ This supplement preserves completed diagnostics, negative controls, superseded r
 
 ### A.2 UAVDT complete physical-size recall
 
-| Arm | Configuration | Very Tiny | Tiny | Small | Medium/Large | Total recall | Car | Truck | Bus |
+| Arm / Model | Configuration | Very Tiny | Tiny | Small | Medium/Large | Total recall | Car | Truck | Bus |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| D1 | Faster R-CNN, ResNet-50-FPN | 70.35% | 76.06% | 96.52% | 77.69% | 79.68% | 80.01% | 73.29% | 69.65% |
+| D2 | RetinaNet, ResNet-50-FPN | 72.77% | 81.98% | 96.18% | 82.95% | 83.44% | 84.24% | 66.02% | 61.88% |
 | 1 | ESOD R0 | 79.43% | 84.21% | 94.54% | 59.78% | 85.17% | 85.61% | 81.05% | 67.67% |
 | 2 | Semantic-only | 79.13% | 83.91% | 94.00% | 59.95% | 84.82% | 85.20% | 77.74% | 73.27% |
 | 3 | Spectral-only, full-width | 83.78% | 87.83% | 97.62% | 64.68% | 88.83% | 89.11% | 83.89% | 79.74% |
