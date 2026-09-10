@@ -140,17 +140,20 @@ UAVDT exhibits roughly 2--4 pp run-to-run variation, including about a 4 pp swin
 
 ## 4. UAVDT Evidence
 
-### 4.1 Dense baselines and ESOD family
+### 4.1 Dense and sparse baselines and ESOD family
 
 | Method | Type | mAP@.5 | mAP@.5:.95 | Total recall | Params (M) | GFLOPs | FPS |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Faster R-CNN, ResNet-50-FPN | Dense two-stage | 0.336 | 0.203 | 79.68% | 43.27 | 772.5 | 18.8 |
 | RetinaNet, ResNet-50-FPN | Dense one-stage | 0.296 | 0.183 | 83.44% | 36.37 | 360.9 | 19.8 |
+| QueryDet (CSQ)~\cite{QueryDet}, R50-FPN | Cascaded sparse query | 0.257 | 0.135 | 41.89% | 39.34 | —$^{\S}$ | 21.14 |
 | ESOD R0 | Selective, single evidence | 0.385 | 0.214 | 85.17% | 35.85 | **68.2** | **117.8** |
 | Dual-Max selector reference | Selective, dual evidence | **0.395** | **0.218** | **90.36%** | 35.85 | 90.1 | 102.3 |
 | **HESOD (Ours)** | Selective, dual evidence, staged | 0.394 | 0.215 | 88.83% | **25.98** | 74.9 | 106.1 |
 
-On UAVDT ($1280\times 1280$), selective inference provides critical compute reduction over dense baselines: HESOD slashes GFLOPs by **10.3$\times$** versus Faster R-CNN (772.5 $\to$ 74.9) and **4.8$\times$** versus RetinaNet (360.9 $\to$ 74.9), while running **5.4$\times$--5.6$\times$ faster** (106.1 FPS vs. 18.8/19.8 FPS). Concurrently, HESOD achieves +5.8 pp and +9.8 pp higher mAP@.5, and improves total recall to 88.83% (+9.15 pp over Faster R-CNN, +5.39 pp over RetinaNet), with the largest recall gains concentrated on micro targets (Very Tiny recall: 80.76% vs. 70.35%/72.77%).
+$^{\S}$QueryDet CSQ uses dynamic sparse convolution (`spconv`), whose input-dependent FLOPs are unamenable to static profiling (dense query counterpart: 973.48 GFLOPs at 12.51 FPS).
+
+On UAVDT ($1280\times 1280$), selective inference provides critical compute reduction over dense and sparse query baselines: HESOD slashes GFLOPs by **10.3$\times$** versus Faster R-CNN (772.5 $\to$ 74.9) and **4.8$\times$** versus RetinaNet (360.9 $\to$ 74.9), while running **5.0$\times$--5.6$\times$ faster** (106.1 FPS vs. 18.8/19.8/21.1 FPS). Concurrently, HESOD achieves +5.8 pp, +9.8 pp, and +13.7 pp higher mAP@.5 over Faster R-CNN, RetinaNet, and QueryDet, and improves total recall to 88.83% (+9.15 pp over Faster R-CNN, +5.39 pp over RetinaNet, +46.94 pp over QueryDet). Micro targets on UAVDT expose severe feature collapse in standard sparse FPN queries (QueryDet recall only 41.89%), validating early patch-level dual-evidence routing.
 
 ### 4.2 Minimal ablation supporting the paper
 
@@ -331,6 +334,7 @@ Arm 3 (`uavdt_yolov5m_spectral_only`, full-width spectral filtering) was re-audi
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | D1 | Faster R-CNN, ResNet-50-FPN | 70.35% | 76.06% | 96.52% | 77.69% | 79.68% | 80.01% | 73.29% | 69.65% |
 | D2 | RetinaNet, ResNet-50-FPN | 72.77% | 81.98% | 96.18% | 82.95% | 83.44% | 84.24% | 66.02% | 61.88% |
+| D3 | QueryDet (CSQ)~\cite{QueryDet}, R50-FPN | — | — | — | — | 41.89% | — | — | — |
 | 1 | ESOD R0 | 79.43% | 84.21% | 94.54% | 59.78% | 85.17% | 85.61% | 81.05% | 67.67% |
 | 2 | Semantic-only | 79.13% | 83.91% | 94.00% | 59.95% | 84.82% | 85.20% | 77.74% | 73.27% |
 | 3 | Spectral-only, full-width | 82.43% | 88.72% | 96.66% | 66.80% | 88.87% | 89.16% | 83.56% | 80.10% |
