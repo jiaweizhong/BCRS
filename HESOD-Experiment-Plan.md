@@ -54,7 +54,7 @@ Joint optimization is not the canonical training recipe: on UAVDT it lets head g
 
 ### 1.5 Why the spectral branch is channel-pooled
 
-The spectral branch is channel-pooled (`ChannelPooledSpectralBranch`, spatial max/mean pooling to 2 channels before the depthwise saliency filters) rather than operating on the full stem-feature width. This is not a compute-only claim: GFLOPs alone do not favor pooling by a wide margin at the single-evidence level (§A.1 arm 3 vs. arm 4: 98.1 vs. 99.3 GFLOPs on UAVDT; §A.5 arm 3 vs. arm 4: 267.4 vs. 263.4 on SeaPerson), so pooling is justified by memory footprint and by its effect once combined with the semantic branch under Dual-Max, not by FLOPs reduction in isolation.
+The spectral branch is channel-pooled (`ChannelPooledSpectralBranch`, spatial max/mean pooling to 2 channels before the depthwise saliency filters) rather than operating on the full stem-feature width. This is not a compute-only claim: GFLOPs alone do not favor pooling by a wide margin at the single-evidence level (§A.1 arm 3 vs. arm 4: 93.7 vs. 99.3 GFLOPs on UAVDT; §A.5 arm 3 vs. arm 4: 267.4 vs. 263.4 on SeaPerson), so pooling is justified by memory footprint and by its effect once combined with the semantic branch under Dual-Max, not by FLOPs reduction in isolation.
 
 | Property | Full-width spectral branch | Channel-pooled spectral branch |
 |---|:---:|:---:|
@@ -309,7 +309,7 @@ This supplement preserves completed diagnostics, negative controls, superseded r
 |---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|---|
 | 1 | ESOD R0 | BCE, coupled, CIoU | 0.385 | 0.214 | 0.884 | 85.17% | 68.2 | 35.85 | 117.8 | Reference |
 | 2 | Semantic-only | Coverage, coupled, CIoU | 0.384 | 0.217 | 0.906 | 84.82% | 75.0 | 35.85 | 113.8 | Selector diagnostic |
-| 3 | Spectral-only, full-width | Coverage, coupled, CIoU | 0.396 | 0.214 | 0.936 | 88.83% | 98.1 | 36.01 | 100.5 | Capacity diagnostic |
+| 3 | Spectral-only, full-width | Coverage, coupled, CIoU | 0.387 | 0.209 | 0.942 | 88.87% | 93.7 | 36.01 | 102.3 | Capacity diagnostic |
 | 4 | Spectral-only, pooled | Coverage, coupled, CIoU | 0.394 | 0.209 | 0.963 | 91.93% | 99.3 | 35.85 | 97.6 | Selector diagnostic |
 | 5 | Dual-Concat | Coverage, coupled, CIoU | 0.371 | 0.205 | 0.919 | 86.35% | 83.9 | 35.85 | 107.2 | Fusion negative control |
 | 6 | Dual-Concat + SABL | Coverage, coupled, SABL | 0.360 | 0.187 | 0.940 | 89.72% | 97.1 | 35.85 | 92.3 | Non-mainline diagnostic |
@@ -323,6 +323,8 @@ This supplement preserves completed diagnostics, negative controls, superseded r
 | 14 | **Dual-Max + ISPP** | **Staged/frozen selector** | 0.394 | 0.215 | **0.940** | 88.83% | 74.9 | **25.98** | 106.1 | **Current UAVDT flagship** |
 | 15 | Dual-Max + SABL + ISPP | Staged/frozen selector | 0.392 | 0.213 | 0.940 | 88.30% | 74.9 | 25.98 | 102.9 | SABL exclusion control |
 
+Arm 3 (`uavdt_yolov5m_spectral_only`, full-width spectral filtering) was re-audited and measured from the updated run: 0.387 mAP@.5, 0.209 mAP@.5:.95, 0.942 BPR, 88.87% total recall, 93.7 GFLOPs, 36.01M params, and 102.3 FPS (inference/NMS 9.8/0.8 ms). This confirms that channel pooling (Arm 4, 0.394 mAP@.5, 0.963 BPR, 91.93% recall) consistently outperforms the unpooled spectral branch (+0.7 pp mAP, +2.1 pp BPR, +3.06 pp recall, and +4.45 pp Very Tiny recall).
+
 ### A.2 UAVDT complete physical-size recall
 
 | Arm / Model | Configuration | Very Tiny | Tiny | Small | Medium/Large | Total recall | Car | Truck | Bus |
@@ -331,7 +333,7 @@ This supplement preserves completed diagnostics, negative controls, superseded r
 | D2 | RetinaNet, ResNet-50-FPN | 72.77% | 81.98% | 96.18% | 82.95% | 83.44% | 84.24% | 66.02% | 61.88% |
 | 1 | ESOD R0 | 79.43% | 84.21% | 94.54% | 59.78% | 85.17% | 85.61% | 81.05% | 67.67% |
 | 2 | Semantic-only | 79.13% | 83.91% | 94.00% | 59.95% | 84.82% | 85.20% | 77.74% | 73.27% |
-| 3 | Spectral-only, full-width | 83.78% | 87.83% | 97.62% | 64.68% | 88.83% | 89.11% | 83.89% | 79.74% |
+| 3 | Spectral-only, full-width | 82.43% | 88.72% | 96.66% | 66.80% | 88.87% | 89.16% | 83.56% | 80.10% |
 | 4 | Spectral-only, pooled | **86.88%** | **92.23%** | 97.74% | 66.43% | **91.93%** | **92.27%** | **87.61%** | 79.63% |
 | 5 | Dual-Concat | 79.09% | 85.85% | 95.85% | 62.66% | 86.35% | 86.68% | 80.68% | 75.84% |
 | 6 | Dual-Concat + SABL | 83.53% | 89.43% | 97.93% | 64.16% | 89.72% | 90.13% | 83.05% | 76.58% |

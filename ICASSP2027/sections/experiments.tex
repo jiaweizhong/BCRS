@@ -63,11 +63,11 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 \midrule
 (1) ESOD Baseline$^*$        & 0.385 & 0.214 & 0.884 & 35.9 & \textbf{68.2} & \textbf{117.8} & 79.43\% & 84.21\% & 94.54\% & 59.78\% & 85.17\% \\
 (2) Semantic-only            & 0.384 & 0.217 & 0.906 & 35.9 & 75.0 & 113.8 & 79.13\% & 83.91\% & 94.00\% & 59.95\% & 84.82\% \\
-(3) Spectral-only            & \textbf{0.396} & 0.214 & 0.936 & 36.0 & 98.1 & 100.5 & 83.78\% & 87.83\% & 97.62\% & 64.68\% & 88.83\% \\
-(4) (3) + Channel-Pooled     & 0.394 & 0.209 & \textbf{0.963} & 35.9 & 99.3 & 97.6 & \textbf{86.88\%} & \textbf{92.23\%} & \textbf{97.74\%} & 66.43\% & \textbf{91.93\%} \\
+(3) Spectral-only            & 0.387 & 0.209 & \underline{0.942} & 36.0 & 93.7 & 102.3 & 82.43\% & 88.72\% & 96.66\% & \underline{66.80\%} & 88.87\% \\
+(4) (3) + Channel-Pooled     & \underline{0.394} & 0.209 & \textbf{0.963} & 35.9 & 99.3 & 97.6 & \textbf{86.88\%} & \textbf{92.23\%} & \textbf{97.74\%} & 66.43\% & \textbf{91.93\%} \\
 (5) Dual-Concat              & 0.371 & 0.205 & 0.919 & 35.9 & 83.9 & 107.2 & 79.09\% & 85.85\% & 95.85\% & 62.66\% & 86.35\% \\
-(6) Dual-Max                 & \underline{0.395} & \textbf{0.218} & \underline{0.940} & 35.9 & 90.1 & 102.3 & \underline{85.69\%} & \underline{89.97\%} & 97.37\% & \underline{65.99\%} & \underline{90.36\%} \\
-(7) \textbf{HESOD (Ours)}    & 0.394 & \underline{0.215} & \underline{0.940} & \textbf{26.0} & \underline{74.9} & \underline{106.1} & 80.76\% & 88.98\% & \underline{97.11\%} & \textbf{69.16\%} & 88.83\% \\
+(6) Dual-Max                 & \textbf{0.395} & \textbf{0.218} & 0.940 & 35.9 & 90.1 & 102.3 & \underline{85.69\%} & \underline{89.97\%} & \underline{97.37\%} & 65.99\% & \underline{90.36\%} \\
+(7) \textbf{HESOD (Ours)}    & \underline{0.394} & \underline{0.215} & 0.940 & \textbf{26.0} & \underline{74.9} & \underline{106.1} & 80.76\% & 88.98\% & 97.11\% & \textbf{69.16\%} & 88.83\% \\
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{SeaPerson Benchmark ($2048\times 2048$)}}} & \scriptsize(82,417) & \scriptsize(174,816) & \scriptsize(42,987) & \scriptsize(155) & \scriptsize(300,375) \\
 \midrule
@@ -98,7 +98,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 
 \textbf{Micro-Scale Recall Recovery.} In the scale breakdown of Table~\ref{tab:ablation_and_recall}, baseline ESOD suffers severe degradation on \emph{Very Tiny} targets ($<16^2$ px), dropping to $79.43\%$ on UAVDT and $74.03\%$ on SeaPerson due to early semantic collapse. Dual-Max routing restores extreme-scale sensitivity across both domains, boosting \emph{Very Tiny} recall by \textbf{+6.26\,pp} on UAVDT and improving \emph{Tiny} recall by \textbf{+5.28\,pp} on SeaPerson ($92.06\%$ vs. $86.78\%$, with Very Tiny recall reaching \textbf{75.71\%}).
 
-\textbf{Channel Pooling Benefit.} Crucially, channel pooling demonstrates its decisive advantage when integrated into the unified Dual-Max selector. On SeaPerson, full-width spectral filtering suffers severe memory pressure (forcing training batch size to 2 due to VRAM OOM) and reaches only $0.763$ $\mathrm{mAP@.5}$ at 277.8 GFLOPs. Compressing features to 2 channels enables standard batch-8 training, lifting $\mathrm{mAP@.5}$ by \textbf{+1.5\,pp} ($0.763 \to \mathbf{0.778}$), boosting BPR to \textbf{0.991}, and cutting GFLOPs by \textbf{8.9\%} (277.8 $\to$ 255.1) with 5.0\% higher FPS. Single-branch diagnostics (Arms 3 vs.~4) further confirm that channel pooling suppresses intra-channel noise and lifts \emph{Very Tiny} recall across both benchmarks (+3.10\,pp on UAVDT, +0.90\,pp on SeaPerson).
+\textbf{Channel Pooling Benefit.} Crucially, channel pooling demonstrates its decisive advantage when integrated into the unified Dual-Max selector. On SeaPerson, full-width spectral filtering suffers severe memory pressure (forcing training batch size to 2 due to VRAM OOM) and reaches only $0.763$ $\mathrm{mAP@.5}$ at 277.8 GFLOPs. Compressing features to 2 channels enables standard batch-8 training, lifting $\mathrm{mAP@.5}$ by \textbf{+1.5\,pp} ($0.763 \to \mathbf{0.778}$), boosting BPR to \textbf{0.991}, and cutting GFLOPs by \textbf{8.9\%} (277.8 $\to$ 255.1) with 5.0\% higher FPS. Single-branch diagnostics (Arms 3 vs.~4) further confirm that channel pooling suppresses intra-channel noise and lifts \emph{Very Tiny} recall across both benchmarks (+4.45\,pp on UAVDT, +0.90\,pp on SeaPerson).
 
 \textbf{Error Bottleneck Diagnosis.} Error analysis reveals that dual-evidence routing and coverage optimization slash selector false negatives from $25.6\%$ to \textbf{$19.2\%$} on SeaPerson (achieving a near-flawless \textbf{99.1\%} BPR) and rescue over 13,700 dropped instances on UAVDT (BPR $0.884 \to \mathbf{0.940}$), virtually eliminating early selector dropouts and shifting the remaining challenge to downstream regression refinement.
 
