@@ -24,10 +24,11 @@ All models employ YOLOv5m in PyTorch and train for 50 epochs under selective pro
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{UAVDT Benchmark ($1280\times 1280$)}}} \\
 \midrule
-Faster R-CNN~\cite{FasterRCNN} & 0.336 & 43.3 & 772.5 & 79.68\% & -- & 18.8 \\
-RetinaNet~\cite{RetinaNet}       & 0.296 & 36.4 & 360.9 & 83.44\% & -- & 19.8 \\
-ESOD~\cite{ESOD}                 & \underline{0.385} & 35.9 & \textbf{68.2} & 85.17\% & 0.884 & \textbf{117.8} \\
-\textbf{HESOD (Ours)}            & \textbf{0.394} & \textbf{26.0} & \underline{74.9} & \textbf{88.83\%} & \textbf{0.940} & \underline{106.1} \\
+Faster R-CNN~\cite{FasterRCNN}     & 0.336 & 43.3 & 772.5 & 79.68\% & -- & 18.8 \\
+RetinaNet~\cite{RetinaNet}           & 0.296 & 36.4 & 360.9 & 83.44\% & -- & 19.8 \\
+QueryDet$^\dagger$~\cite{QueryDet}   & 0.257 & 39.3 & --$^\dagger$ & 41.89\% & -- & 21.1 \\
+ESOD~\cite{ESOD}                     & \underline{0.385} & 35.9 & \textbf{68.2} & 85.17\% & 0.884 & \textbf{117.8} \\
+\textbf{HESOD (Ours)}                & \textbf{0.394} & \textbf{26.0} & \underline{74.9} & \textbf{88.83\%} & \textbf{0.940} & \underline{106.1} \\
 \midrule
 \textit{$\Delta$ vs. ESOD} & \textbf{+0.9\,pp} & \textbf{-27.5\%} & +9.8\% & \textbf{+3.66\,pp} & \textbf{+5.6\,pp} & -9.9\% \\
 \midrule
@@ -42,8 +43,9 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 \bottomrule
 \end{tabular*}
 \vspace{0.4mm}
-\parbox{\columnwidth}{\scriptsize BPR: Bounding Patch Recall. \textbf{Bold}: best; \underline{underline}: second-best (selective models).}
-\vspace{-1.5mm}
+\parbox{\columnwidth}{\scriptsize BPR: Bounding Patch Recall. \textbf{Bold}: best; \underline{underline}: second-best (selective models).\\
+$^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling; dense query counterpart: 973.5 GFLOPs at 12.5 FPS).}
+\vspace{-2.0mm}
 \end{table}
 
 \begin{table*}[t]
@@ -85,7 +87,7 @@ ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 8
 \vspace{-1.5mm}
 \end{table*}
 
-\textbf{Comparison with Dense Baselines.} As shown in Table~\ref{tab:main_results}, dense detectors incur prohibitive computational overhead on multi-megapixel grids. On \textbf{UAVDT}, HESOD outperforms Faster R-CNN and RetinaNet by \textbf{+5.8\,pp} and \textbf{+9.8\,pp} $\mathrm{mAP@.5}$, slashing GFLOPs by \textbf{10.3$\times$}/\textbf{4.8$\times$} at \textbf{5.5$\times$} higher FPS (106.1 vs.~18.8/19.8) and raising Very Tiny recall to \textbf{80.76\%} (vs.~70.35\%/72.77\%). On \textbf{SeaPerson}, HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+22.2\,pp}/\textbf{+30.0\,pp} while cutting GFLOPs by \textbf{7.4$\times$}/\textbf{4.5$\times$} at \textbf{80.6}\,FPS, lifting recall from 67.27\%/65.98\% to \textbf{87.75\%} (Very Tiny: 46.07\%/50.05\% $\to$ \textbf{75.71\%}), confirming the necessity of selective computation.
+\textbf{Comparison with Dense and Sparse Baselines.} As shown in Table~\ref{tab:main_results}, standard detectors incur prohibitive overhead on multi-megapixel grids. On \textbf{UAVDT}, HESOD outperforms Faster R-CNN, RetinaNet, and QueryDet~\cite{QueryDet} by \textbf{+5.8\,pp}, \textbf{+9.8\,pp}, and \textbf{+13.7\,pp} $\mathrm{mAP@.5}$, running at \textbf{5.0$\times$--5.6$\times$} higher FPS (106.1 vs.~18.8/19.8/21.1) with higher recall (88.83\% vs.~79.68\%/83.44\%/41.89\%). On \textbf{SeaPerson}, HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+22.2\,pp}/\textbf{+30.0\,pp} while cutting GFLOPs by \textbf{7.4$\times$}/\textbf{4.5$\times$} at \textbf{80.6}\,FPS, lifting recall from 67.27\%/65.98\% to \textbf{87.75\%} (Very Tiny: 46.07\%/50.05\% $\to$ \textbf{75.71\%}), confirming selective computation efficacy.
 
 \textbf{Comparison with Selective Baseline (ESOD).} Against ESOD, HESOD achieves substantial recall recovery and parameter compression with only fractional FLOPs overhead (Table~\ref{tab:main_results}). On \textbf{SeaPerson} ($>85\%$ targets $<32$\,px), HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+2.3\,pp} ($0.750 \to \mathbf{0.773}$) and BPR by \textbf{+4.4\,pp} to \textbf{0.991} (total recall $+3.33$\,pp to \textbf{87.75\%}), while compressing parameters by \textbf{27.6\%} (25.92M vs.~35.78M) at 80.6\,FPS. On \textbf{UAVDT} ($1280\times 1280$), HESOD improves $\mathrm{mAP@.5}$ to \textbf{0.394} (+0.9\,pp) and BPR to \textbf{0.940} (+5.6\,pp, rescuing +13,700 targets), cutting parameters by \textbf{27.5\%} at 106.1\,FPS (+3.66\,pp total recall) with class-wide recall gains: \emph{car} ($85.6\% \to 89.0\%$), \emph{truck} ($81.1\% \to 86.5\%$), and \emph{bus} ($67.7\% \to 81.4\%$, \textbf{+13.7\,pp}).
 
