@@ -27,7 +27,7 @@ All models employ YOLOv5m in PyTorch and train for 50 epochs under selective pro
 Faster R-CNN~\cite{FasterRCNN}     & 0.336 & 43.3 & 772.5 & 79.68\% & -- & 18.8 \\
 RetinaNet~\cite{RetinaNet}           & 0.296 & 36.4 & 360.9 & 83.44\% & -- & 19.8 \\
 QueryDet$^\dagger$~\cite{QueryDet}   & 0.257 & 39.3 & --$^\dagger$ & 41.89\% & -- & 21.1 \\
-ESOD~\cite{ESOD}                     & \underline{0.385} & 35.9 & \textbf{68.2} & 85.17\% & 0.884 & \textbf{117.8} \\
+ESOD~\cite{ESOD}                     & \underline{0.385} & \underline{35.9} & \textbf{68.2} & \underline{85.17\%} & \underline{0.884} & \textbf{117.8} \\
 \textbf{HESOD (Ours)}                & \textbf{0.394} & \textbf{26.0} & \underline{74.9} & \textbf{88.83\%} & \textbf{0.940} & \underline{106.1} \\
 \midrule
 \textit{$\Delta$ vs. ESOD} & \textbf{+0.9\,pp} & \textbf{-27.5\%} & +9.8\% & \textbf{+3.66\,pp} & \textbf{+5.6\,pp} & -9.9\% \\
@@ -36,7 +36,7 @@ ESOD~\cite{ESOD}                     & \underline{0.385} & 35.9 & \textbf{68.2} 
 \midrule
 Faster R-CNN~\cite{FasterRCNN}   & 0.551 & 43.3 & 1546.8 & 67.27\% & -- & 23.1 \\
 RetinaNet~\cite{RetinaNet}       & 0.473 & 36.4 & 942.7  & 65.98\% & -- & 28.0 \\
-ESOD~\cite{ESOD}                 & \underline{0.750} & 35.8 & \textbf{202.4} & 84.42\% & 0.947 & \textbf{85.7} \\
+ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{35.8} & \textbf{202.4} & \underline{84.42\%} & \underline{0.947} & \textbf{85.7} \\
 \textbf{HESOD (Ours)}            & \textbf{0.773} & \textbf{25.9} & \underline{208.5} & \textbf{87.75\%} & \textbf{0.991} & \underline{80.6} \\
 \midrule
 \textit{$\Delta$ vs. ESOD} & \textbf{+2.3\,pp} & \textbf{-27.6\%} & +3.0\% & \textbf{+3.33\,pp} & \textbf{+4.4\,pp} & -6.0\% \\
@@ -64,22 +64,22 @@ $^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling
 \multicolumn{7}{l}{\textit{\textbf{UAVDT Benchmark ($1280\times 1280$)}}} & \scriptsize(74,375) & \scriptsize(206,015) & \scriptsize(86,282) & \scriptsize(7,325) & \scriptsize(373,997) \\
 \midrule
 (1) ESOD Baseline$^*$        & 0.385 & 0.214 & 0.884 & 35.9 & \textbf{68.2} & \textbf{117.8} & 79.43\% & 84.21\% & 94.54\% & 59.78\% & 85.17\% \\
-(2) Semantic-only            & 0.384 & 0.217 & 0.906 & 35.9 & 75.0 & 113.8 & 79.13\% & 83.91\% & 94.00\% & 59.95\% & 84.82\% \\
+(2) Semantic-only            & 0.384 & \underline{0.217} & 0.906 & 35.9 & 75.0 & \underline{113.8} & 79.13\% & 83.91\% & 94.00\% & 59.95\% & 84.82\% \\
 (3) Spectral-only            & 0.387 & 0.209 & \underline{0.942} & 36.0 & 93.7 & 102.3 & 82.43\% & 88.72\% & 96.66\% & \underline{66.80\%} & 88.87\% \\
 (4) (3) + Channel-Pooled     & \underline{0.394} & 0.209 & \textbf{0.963} & 35.9 & 99.3 & 97.6 & \textbf{86.88\%} & \textbf{92.23\%} & \textbf{97.74\%} & 66.43\% & \textbf{91.93\%} \\
 (5) Dual-Concat              & 0.371 & 0.205 & 0.919 & 35.9 & 83.9 & 107.2 & 79.09\% & 85.85\% & 95.85\% & 62.66\% & 86.35\% \\
 (6) Dual-Max                 & \textbf{0.395} & \textbf{0.218} & 0.940 & 35.9 & 90.1 & 102.3 & \underline{85.69\%} & \underline{89.97\%} & \underline{97.37\%} & 65.99\% & \underline{90.36\%} \\
-(7) \textbf{HESOD (Ours)}    & \underline{0.394} & \underline{0.215} & 0.940 & \textbf{26.0} & \underline{74.9} & \underline{106.1} & 80.76\% & 88.98\% & 97.11\% & \textbf{69.16\%} & 88.83\% \\
+(7) \textbf{HESOD (Ours)}    & \underline{0.394} & 0.215 & 0.940 & \textbf{26.0} & \underline{74.9} & 106.1 & 80.76\% & 88.98\% & 97.11\% & \textbf{69.16\%} & 88.83\% \\
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{SeaPerson Benchmark ($2048\times 2048$)}}} & \scriptsize(82,417) & \scriptsize(174,816) & \scriptsize(42,987) & \scriptsize(155) & \scriptsize(300,375) \\
 \midrule
 (1) ESOD Baseline$^*$        & 0.750 & 0.320 & 0.947 & 35.8 & \textbf{202.4} & \textbf{85.7} & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
-(2) Semantic-only            & 0.769 & 0.325 & 0.991 & 35.8 & 266.8 & 73.5 & 75.49\% & 91.57\% & 95.71\% & 81.94\% & 87.75\% \\
-(3) Spectral-only            & 0.770 & 0.327 & \textbf{0.992} & 35.8 & 267.4 & 71.7 & 75.23\% & 91.69\% & \textbf{95.89\%} & \underline{86.45\%} & 87.77\% \\
+(2) Semantic-only            & 0.769 & 0.325 & \underline{0.991} & 35.8 & 266.8 & 73.5 & 75.49\% & 91.57\% & 95.71\% & 81.94\% & 87.75\% \\
+(3) Spectral-only            & 0.770 & \underline{0.327} & \textbf{0.992} & 35.8 & 267.4 & 71.7 & 75.23\% & \underline{91.69\%} & \textbf{95.89\%} & \underline{86.45\%} & 87.77\% \\
 (4) (3) + Channel-Pooled     & 0.767 & 0.324 & 0.988 & 35.8 & 263.4 & 72.7 & \textbf{76.13\%} & 91.36\% & 95.50\% & \textbf{87.10\%} & 87.77\% \\
 (5) Dual-Concat              & 0.772 & 0.326 & 0.986 & 35.8 & 281.2 & 69.8 & \underline{76.00\%} & 91.50\% & 95.68\% & 80.00\% & \underline{87.84\%} \\
 (6) Dual-Max                 & \textbf{0.778} & \textbf{0.330} & \underline{0.991} & 35.8 & 255.1 & 73.8 & 75.65\% & \textbf{92.06\%} & \underline{95.85\%} & 81.94\% & \textbf{88.10\%} \\
-(7) \textbf{HESOD (Ours)}    & \underline{0.773} & \underline{0.327} & \underline{0.991} & \textbf{25.9} & \underline{208.5} & \underline{80.6} & 75.71\% & \underline{91.47\%} & 95.72\% & 80.65\% & 87.75\% \\
+(7) \textbf{HESOD (Ours)}    & \underline{0.773} & \underline{0.327} & \underline{0.991} & \textbf{25.9} & \underline{208.5} & \underline{80.6} & 75.71\% & 91.47\% & 95.72\% & 80.65\% & 87.75\% \\
 \bottomrule
 \end{tabularx}
 \vspace{0.4mm}
