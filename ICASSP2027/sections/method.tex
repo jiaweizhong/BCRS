@@ -13,28 +13,23 @@ Let $\mathbf{f}_i \in \mathbb{R}^C$ denote the feature vector at spatial locatio
 \mathbf{F}_{\mathrm{pooled}} = \left[ \max_c \mathbf{F}_{:,:,c} \,\|\, \frac{1}{C}\sum_{c=1}^C \mathbf{F}_{:,:,c} \right] \in \mathbb{R}^{H_s \times W_s \times 2},
 \label{eq:channel_pool}
 \end{equation}
-where $[\cdot \,\|\, \cdot]$ denotes channel concatenation. Compressing $\mathbf{F}$ to 2 channels retains peak edge activation and background energy while ensuring $\mathcal{O}(H_s W_s)$ spatial filtering complexity independent of backbone width $C$. Next, a learnable depthwise $3\times 3$ convolution bank---initialized with discrete Laplacian (isotropic second-order edge transitions) and directional horizontal/vertical Sobel operators---filters $\mathbf{F}_{\mathrm{pooled}}$ into 6 structural channels. A $1\times 1$ projection layer maps the filtered channels to dimension $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
+where $[\cdot \,\|\, \cdot]$ denotes channel concatenation. Compressing $\mathbf{F}$ to 2 channels retains peak edge activation and background energy with $\mathcal{O}(H_s W_s)$ complexity independent of width $C$. Next, a learnable depthwise $3\times 3$ convolution bank---initialized with discrete Laplacian and directional Sobel operators---filters $\mathbf{F}_{\mathrm{pooled}}$ into 6 structural channels. In the 2D spatial frequency domain, the discrete Laplacian acts as an isotropic high-pass filter with $|H(\mathbf{\omega})| \propto \|\mathbf{\omega}\|^2$, naturally amplifying edge transitions. Because micro targets ($<16^2$\,px) manifest as localized high-frequency spatial impulses whose gradient energy resists downsampling~\cite{Zhao2025TGRS}, this branch supplies a constant-bandwidth prior independent of deep semantic capacity. A $1\times 1$ projection maps features to $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
 
-To prevent confidence dilution on weak targets, evidence fusion enforces \emph{evidence preservation} via a parameter-free elementwise maximum:
+To prevent confidence dilution on faint targets, evidence fusion enforces \emph{evidence preservation}. Linear combinations across heterogeneous evidence spaces are ill-posed because uncalibrated semantic and gradient responses exhibit disparate scales, diluting confident cues. Instead, we formulate a parameter-free elementwise maximum:
 \begin{equation}
 z_{i,c} = \max\!\left(z^{\mathrm{sem}}_{i,c},\, z^{\mathrm{spec}}_{i,c}\right), \quad s_i = \max_{c=1}^{N_c} \sigma(z_{i,c}),
 \label{eq:fusion}
 \end{equation}
-where taking the elementwise maximum guarantees monotonic evidence preservation ($z_{i,c} \ge z^{\mathrm{sem}}_{i,c}$ and $z_{i,c} \ge z^{\mathrm{spec}}_{i,c}$) at every spatial grid cell. Candidate cells with routing priority $s_i > \tau$ are clustered into bounding patches $\mathcal{P}$ and forwarded downstream.
+which guarantees strict monotonic evidence preservation ($z_{i,c} \ge \max(z^{\mathrm{sem}}_{i,c}, z^{\mathrm{spec}}_{i,c})$) across all cells, functioning as an evidence-preserving OR gate. Candidate cells with routing priority $s_i > \tau$ are clustered into bounding patches $\mathcal{P}$ and forwarded downstream.
 
 \subsection{Object-Level Soft-Coverage Loss}
 \label{ssec:coverage}
 
 Standard pixel-wise binary cross-entropy (BCE) evaluates grid cells independently, failing to guarantee instance-level coverage: a selector may over-allocate cells to large objects while dropping micro objects whose receptive fields contain only weak responses. To prevent premature false negatives, we formulate a differentiable object-level soft-coverage loss.
 
-Let $\mathcal{N}(j)$ denote the set of selector cells overlapping ground-truth box $j \in \{1, \dots, N_{\mathrm{gt}}\}$. We formulate a noisy-OR-inspired differentiable coverage surrogate for instance $j$ being covered by at least one selected cell:
+Let $\mathcal{N}(j)$ denote the set of selector cells overlapping ground-truth box $j \in \{1, \dots, N_{\mathrm{gt}}\}$. We formulate a noisy-OR differentiable coverage surrogate and its weighted instance loss:
 \begin{equation}
-p_j^{\mathrm{cover}} = 1 - \prod_{i \in \mathcal{N}(j)} (1 - s_i).
-\label{eq:cover_prob}
-\end{equation}
-The per-instance coverage loss is defined as:
-\begin{equation}
-\ell_j = -w_j \log\left( p_j^{\mathrm{cover}} + \epsilon \right),
+p_j^{\mathrm{cover}} = 1 - \prod_{i \in \mathcal{N}(j)} (1 - s_i), \quad \ell_j = -w_j \log\left( p_j^{\mathrm{cover}} + \epsilon \right),
 \label{eq:cover_loss}
 \end{equation}
 where $w_j = \operatorname{clip}(4/a_j, 1, 5)$ is a scale-adaptive weight based on bounding box area $a_j$ in cells, penalizing misses on micro targets ($a_j < 4$). For any cell $i \in \mathcal{N}(j)$, the gradient of $\ell_j$ with respect to cell score $s_i$ is:
@@ -49,10 +44,12 @@ When neighboring candidate cells have low scores ($s_k \to 0$), the product term
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.92\columnwidth]{figures/ISPPHead.pdf}
-\vspace{-2mm}
+\vspace{-1mm}
+\includegraphics[width=0.78\columnwidth]{figures/ISPPHead.pdf}
+\vspace{-2.5mm}
 \caption{Inverted Residual Decoupled Head (ISPP) with Partial Convolution (\textcircled{\scriptsize C} denotes channel concatenation).}
 \label{fig:ispphead}
+\vspace{-2mm}
 \end{figure}
 
 While dual-evidence routing substantially improves patch coverage by retaining faint foreground regions, evaluating more candidate patches increases downstream detector computation. To recover this overhead without sacrificing selector gains, HESOD incorporates an inverted residual partial-convolution (ISPP) decoupled head~\cite{ESODYOLO} as a dedicated compute compensator.

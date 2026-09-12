@@ -40,6 +40,21 @@ Hao Sun, Rui Wang, Yufeng Li, Chenhongyi Yang, Zehao Huang, Naiyan Wang, and Lin
 \newblock ``{SET}: Spectral enhancement for tiny object detection,''
 \newblock in {\em Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition}, 2025, pp. 1--10.
 
+\bibitem{Guo2025DualDomain}
+Fangrui Guo, Junwei Wu, and Quan Zhang,
+\newblock ``Dual-domain feature-guided task alignment for enhanced small object detection,''
+\newblock in {\em Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing}, 2025, pp. 1--5.
+
+\bibitem{Zhao2025TGRS}
+M.~Zhao et~al.,
+\newblock ``Frequency-gradient collaborative network for infrared small target detection,''
+\newblock {\em IEEE Transactions on Geoscience and Remote Sensing}, vol. 63, pp. 1--14, 2025.
+
+\bibitem{ESODYOLO}
+Xiaocong Xu, Qi~Li, Jeng-Shyang Pan, Linfeng Wei, and Xiao-Zhi Gao,
+\newblock ``{ESOD-YOLO}: An enhanced efficient small object detection framework for aerial images,''
+\newblock {\em Computing}, vol. 107, pp. 54, 2025.
+
 \bibitem{SeaDronesSee}
 Leon~A. Varga, Benjamin Kiefer, Martin Messmer, and Andreas Zell,
 \newblock ``{SeaDronesSee}: A maritime benchmark for detecting humans in open water,''
@@ -70,10 +85,20 @@ Chen Guo, Yang Li, Jiaman Ma, Zhenyu Fang, Zuoang Niu, and Hongbo Xu,
 \newblock ``{RESBIDET}: Efficient dual-branch small object detection for {UAVs} under resource-constrained conditions,''
 \newblock in {\em Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing}, 2026, pp. 3156--3160.
 
-\bibitem{ESODYOLO}
-Xiaocong Xu, Qi~Li, Jeng-Shyang Pan, Linfeng Wei, and Xiao-Zhi Gao,
-\newblock ``{ESOD-YOLO}: An enhanced efficient small object detection framework for aerial images,''
-\newblock {\em Computing}, vol. 107, pp. 54, 2025.
+\bibitem{Li2025Sparse}
+Yixuan Li et~al.,
+\newblock ``Adaptive sparse feature location activation strategy for sparse detectors on drone images,''
+\newblock in {\em Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing}, 2025, pp. 1--5.
+
+\bibitem{Wang2026OSDT}
+Shigeng Wang et~al.,
+\newblock ``Foreground-enhanced coarse-to-fine detection for {UAV} small objects,''
+\newblock in {\em Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing}, 2026, pp. 1--5.
+
+\bibitem{Wang2026HighFreq}
+Kai Wang et~al.,
+\newblock ``High-frequency detail compensation and multi-scale feature fusion net for {UAV} remote sensing object detection,''
+\newblock in {\em Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing}, 2026, pp. 1--5.
 
 \bibitem{FasterRCNN}
 Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun,
