@@ -15,12 +15,12 @@ Let $\mathbf{f}_i \in \mathbb{R}^C$ denote the feature vector at spatial locatio
 \end{equation}
 where $[\cdot \,\|\, \cdot]$ denotes channel concatenation. Compressing $\mathbf{F}$ to 2 channels retains peak edge activation and background energy with $\mathcal{O}(H_s W_s)$ complexity independent of width $C$. Next, a learnable depthwise $3\times 3$ convolution bank---initialized with discrete Laplacian and directional Sobel operators---filters $\mathbf{F}_{\mathrm{pooled}}$ into 6 structural channels. In the 2D spatial frequency domain, the discrete Laplacian acts as an isotropic high-pass filter with $|H(\mathbf{\omega})| \propto \|\mathbf{\omega}\|^2$, naturally amplifying edge transitions. Because micro targets ($<16^2$\,px) manifest as localized high-frequency spatial impulses whose gradient energy resists downsampling~\cite{Zhao2025TGRS}, this branch supplies a constant-bandwidth prior independent of deep semantic capacity. A $1\times 1$ projection maps features to $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
 
-To prevent confidence dilution on faint targets, evidence fusion enforces \emph{evidence preservation}. Linear combinations across heterogeneous evidence spaces are ill-posed because uncalibrated semantic and gradient responses exhibit disparate scales, diluting confident cues. Instead, we formulate a parameter-free elementwise maximum:
+To prevent confidence dilution on faint targets, evidence fusion enforces \emph{evidence preservation}. Linear combinations risk destructive interference: an unconfident or negative activation in one branch can drag down a confident signal in the other below the routing threshold. Instead, we formulate a parameter-free elementwise maximum:
 \begin{equation}
 z_{i,c} = \max\!\left(z^{\mathrm{sem}}_{i,c},\, z^{\mathrm{spec}}_{i,c}\right), \quad s_i = \max_{c=1}^{N_c} \sigma(z_{i,c}),
 \label{eq:fusion}
 \end{equation}
-which guarantees strict monotonic evidence preservation ($z_{i,c} \ge \max(z^{\mathrm{sem}}_{i,c}, z^{\mathrm{spec}}_{i,c})$) across all cells, functioning as an evidence-preserving OR gate. Candidate cells with routing priority $s_i > \tau$ are clustered into bounding patches $\mathcal{P}$ and forwarded downstream.
+which guarantees monotonic evidence preservation ($z_{i,c} \ge z^{\mathrm{sem}}_{i,c}, z^{\mathrm{spec}}_{i,c}$), functioning as an OR gate where neither branch can suppress candidate cues. Cells with priority $s_i > \tau$ are clustered into bounding patches $\mathcal{P}$ for downstream detection.
 
 \subsection{Object-Level Soft-Coverage Loss}
 \label{ssec:coverage}
