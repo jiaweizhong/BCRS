@@ -20,7 +20,7 @@ To prevent confidence dilution on faint targets, evidence fusion enforces \emph{
 z_{i,c} = \max\!\left(z^{\mathrm{sem}}_{i,c},\, z^{\mathrm{spec}}_{i,c}\right), \quad s_i = \max_{c=1}^{N_c} \sigma(z_{i,c}),
 \label{eq:fusion}
 \end{equation}
-which guarantees monotonic evidence preservation ($z_{i,c} \ge z^{\mathrm{sem}}_{i,c}, z^{\mathrm{spec}}_{i,c}$), functioning as an OR gate where neither branch can suppress candidate cues. Cells with priority $s_i > \tau$ are clustered into bounding patches $\mathcal{P}$ for downstream detection.
+This operation functions as an evidence-preserving OR gate: since $z_{i,c} \ge z^{\mathrm{sem}}_{i,c}$ and $z_{i,c} \ge z^{\mathrm{spec}}_{i,c}$, neither branch can ever suppress genuine candidate cues. Cells with priority $s_i > \tau$ are clustered into bounding patches $\mathcal{P}$ for downstream detection.
 
 \subsection{Object-Level Soft-Coverage Loss}
 \label{ssec:coverage}
