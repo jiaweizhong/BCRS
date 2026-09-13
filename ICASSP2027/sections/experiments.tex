@@ -17,34 +17,31 @@ All models employ YOLOv5m in PyTorch 2.8 and train for 50 epochs under selective
 \label{tab:main_results}
 \scriptsize
 \setlength{\tabcolsep}{0pt}
-\renewcommand{\arraystretch}{0.88}
+\renewcommand{\arraystretch}{1.02}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
-\textbf{Method} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{Params}\\\textbf{(M)}} & \textbf{GFLOPs} & \shortstack{\textbf{Total}\\\textbf{Recall}} & \textbf{BPR} & \textbf{FPS} \\
+\textbf{Method} & \textbf{mAP@.5} & \shortstack{\textbf{Params}\\\textbf{(M)}} & \textbf{GFLOPs} & \shortstack{\textbf{Total}\\\textbf{Recall}} & \textbf{BPR} & \textbf{FPS} \\
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{UAVDT Benchmark ($1280\times 1280$)}}} \\
-\midrule
 Faster R-CNN~\cite{FasterRCNN}     & 0.336 & 43.3 & 772.5 & 79.68\% & -- & 18.8 \\
 RetinaNet~\cite{RetinaNet}           & 0.296 & 36.4 & 360.9 & 83.44\% & -- & 19.8 \\
 QueryDet$^\dagger$~\cite{QueryDet}   & 0.257 & 39.3 & --$^\dagger$ & 41.89\% & -- & 21.1 \\
 ESOD~\cite{ESOD}                     & \underline{0.385} & \underline{35.9} & \textbf{68.2} & \underline{85.17\%} & \underline{0.884} & \textbf{117.8} \\
 \textbf{HESOD (Ours)}                & \textbf{0.394} & \textbf{26.0} & \underline{74.9} & \textbf{88.83\%} & \textbf{0.940} & \underline{106.1} \\
-\midrule
 \textit{$\Delta$ vs. ESOD} & \textbf{+0.9\,pp} & \textbf{-27.5\%} & +9.8\% & \textbf{+3.66\,pp} & \textbf{+5.6\,pp} & -9.9\% \\
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{SeaPerson Benchmark ($2048\times 2048$)}}} \\
-\midrule
-Faster R-CNN~\cite{FasterRCNN}   & 0.551 & 43.3 & 1546.8 & 67.27\% & -- & 23.1 \\
-RetinaNet~\cite{RetinaNet}       & 0.473 & 36.4 & 942.7  & 65.98\% & -- & 28.0 \\
-ESOD~\cite{ESOD}                 & \underline{0.750} & \underline{35.8} & \textbf{202.4} & \underline{84.42\%} & \underline{0.947} & \textbf{85.7} \\
-\textbf{HESOD (Ours)}            & \textbf{0.773} & \textbf{25.9} & \underline{208.5} & \textbf{87.75\%} & \textbf{0.991} & \underline{80.6} \\
-\midrule
+Faster R-CNN~\cite{FasterRCNN}     & 0.551 & 43.3 & 1546.8 & 67.27\% & -- & 23.1 \\
+RetinaNet~\cite{RetinaNet}         & 0.473 & 36.4 & 942.7  & 65.98\% & -- & 28.0 \\
+QueryDet$^\dagger$~\cite{QueryDet} & 0.627 & 39.3 & --$^\dagger$ & 61.56\% & -- & 14.0 \\
+ESOD~\cite{ESOD}                   & \underline{0.750} & \underline{35.8} & \textbf{202.4} & \underline{84.42\%} & \underline{0.947} & \textbf{85.7} \\
+\textbf{HESOD (Ours)}              & \textbf{0.773} & \textbf{25.9} & \underline{208.5} & \textbf{87.75\%} & \textbf{0.991} & \underline{80.6} \\
 \textit{$\Delta$ vs. ESOD} & \textbf{+2.3\,pp} & \textbf{-27.6\%} & +3.0\% & \textbf{+3.33\,pp} & \textbf{+4.4\,pp} & -6.0\% \\
 \bottomrule
 \end{tabular*}
 \vspace{0.4mm}
 \parbox{\columnwidth}{\scriptsize BPR: Bounding Patch Recall. \textbf{Bold}: best; \underline{underline}: second-best (selective models).\\
-$^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling; dense query counterpart: 973.5 GFLOPs at 12.5 FPS).}
+$^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling; dense query counterparts: 973.5 / 2539.0 GFLOPs at 12.5 / 10.6 FPS on UAVDT / SeaPerson).}
 \vspace{0.5mm}
 \end{table}
 
@@ -55,15 +52,14 @@ $^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling
 \label{tab:ablation_and_recall}
 \scriptsize
 \setlength{\tabcolsep}{1.8pt}
-\renewcommand{\arraystretch}{0.90}
-\begin{tabularx}{\textwidth}{l*{6}{C}|*{5}{W}}
+\renewcommand{\arraystretch}{1.00}
+\begin{tabularx}{\textwidth}{l*{6}{C}*{5}{W}}
 \toprule
- & \multicolumn{6}{c|}{\textbf{Detection Accuracy and Computational Efficiency}} & \multicolumn{5}{c}{\textbf{Physical-Scale Recall Breakdown}} \\
+ & \multicolumn{6}{c}{\textbf{Detection Accuracy and Computational Efficiency}} & \multicolumn{5}{c}{\textbf{Physical-Scale Recall Breakdown}} \\
 \cmidrule(lr){2-7} \cmidrule(lr){8-12}
 \textbf{Configuration} & \shortstack{\textbf{mAP}\\\textbf{@.5}} & \shortstack{\textbf{mAP}\\\textbf{@.5:.95}} & \textbf{BPR} & \shortstack{\textbf{Params}\\\textbf{(M)}} & \textbf{GFLOPs} & \textbf{FPS} & \shortstack{\textbf{Very Tiny}\\\textbf{($<16^2$)}} & \shortstack{\textbf{Tiny}\\\textbf{($16^2\text{--}32^2$)}} & \shortstack{\textbf{Small}\\\textbf{($32^2\text{--}96^2$)}} & \shortstack{\textbf{Med/Lrg}\\\textbf{($>96^2$)}} & \shortstack{\textbf{Total}\\\textbf{Recall}} \\
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{UAVDT Benchmark ($1280\times 1280$)}}} & \scriptsize(74,375) & \scriptsize(206,015) & \scriptsize(86,282) & \scriptsize(7,325) & \scriptsize(373,997) \\
-\midrule
 (1) ESOD Baseline$^*$        & 0.385 & 0.214 & 0.884 & 35.9 & \textbf{68.2} & \textbf{117.8} & 79.43\% & 84.21\% & 94.54\% & 59.78\% & 85.17\% \\
 (2) Semantic-only            & 0.384 & \underline{0.217} & 0.906 & 35.9 & 75.0 & \underline{113.8} & 79.13\% & 83.91\% & 94.00\% & 59.95\% & 84.82\% \\
 (3) Spectral-only            & 0.387 & 0.209 & \underline{0.942} & 36.0 & 93.7 & 102.3 & 82.43\% & 88.72\% & 96.66\% & \underline{66.80\%} & 88.87\% \\
@@ -73,7 +69,6 @@ $^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling
 (7) \textbf{HESOD (Ours)}    & \underline{0.394} & 0.215 & 0.940 & \textbf{26.0} & \underline{74.9} & 106.1 & 80.76\% & 88.98\% & 97.11\% & \textbf{69.16\%} & 88.83\% \\
 \midrule
 \multicolumn{7}{l}{\textit{\textbf{SeaPerson Benchmark ($2048\times 2048$)}}} & \scriptsize(82,417) & \scriptsize(174,816) & \scriptsize(42,987) & \scriptsize(155) & \scriptsize(300,375) \\
-\midrule
 (1) ESOD Baseline$^*$        & 0.750 & 0.320 & 0.947 & 35.8 & \textbf{202.4} & \textbf{85.7} & 74.03\% & 86.78\% & 94.74\% & 79.35\% & 84.42\% \\
 (2) Semantic-only            & 0.769 & 0.325 & \underline{0.991} & 35.8 & 266.8 & 73.5 & 75.49\% & 91.57\% & 95.71\% & 81.94\% & 87.75\% \\
 (3) Spectral-only            & 0.770 & \underline{0.327} & \textbf{0.992} & 35.8 & 267.4 & 71.7 & 75.23\% & \underline{91.69\%} & \textbf{95.89\%} & \underline{86.45\%} & 87.77\% \\
@@ -88,21 +83,21 @@ $^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling
 \vspace{0.5mm}
 \end{table*}
 
-\textbf{Comparison with Dense and Sparse Baselines.} As shown in Table~\ref{tab:main_results}, standard detectors incur prohibitive overhead on multi-megapixel grids. On \textbf{UAVDT}, HESOD outperforms Faster R-CNN, RetinaNet, and QueryDet~\cite{QueryDet} by \textbf{+5.8\,pp}, \textbf{+9.8\,pp}, and \textbf{+13.7\,pp} $\mathrm{mAP@.5}$, running at \textbf{5.0$\times$--5.6$\times$} higher FPS (106.1 vs.~18.8--21.1) with higher recall (88.83\% vs.~41.89\%--83.44\%). On \textbf{SeaPerson}, HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+22.2\,pp}/\textbf{+30.0\,pp} while cutting GFLOPs by \textbf{7.4$\times$}/\textbf{4.5$\times$} at \textbf{80.6}\,FPS, lifting recall to \textbf{87.75\%} (Very Tiny: 46.07\%--50.05\% $\to$ \textbf{75.71\%}), confirming selective computation efficacy.
+\textbf{Comparison with Dense and Sparse Baselines.} As shown in Table~\ref{tab:main_results}, standard detectors incur prohibitive latency on multi-megapixel grids. On \textbf{UAVDT}, HESOD outperforms Faster R-CNN, RetinaNet, and QueryDet~\cite{QueryDet} by \textbf{+5.8\,pp}, \textbf{+9.8\,pp}, and \textbf{+13.7\,pp} $\mathrm{mAP@.5}$ at \textbf{5.0$\times$--5.6$\times$} higher FPS (106.1 vs.~18.8--21.1) with higher recall (88.83\% vs.~41.89\%--83.44\%). On \textbf{SeaPerson}, HESOD surpasses all baselines by \textbf{+14.6$\sim$+30.0\,pp} $\mathrm{mAP@.5}$ at \textbf{2.9$\times$--5.8$\times$} higher FPS (80.6 vs.~14.0--28.0), lifting total recall to \textbf{87.75\%} (vs.~61.56\%--67.27\%; on Very Tiny: 48.73\% $\to$ \textbf{75.71\%}, \textbf{+27.0\,pp} over QueryDet), confirming selective routing efficacy.
 
-\textbf{Comparison with Selective Baseline (ESOD).} Against ESOD, HESOD achieves substantial recall recovery and parameter compression under strict recall-safe efficiency (Table~\ref{tab:main_results}). Because selective inference evaluates only routed regions, baseline ESOD achieves lower FLOPs only by prematurely discarding tens of thousands of micro targets (rescuing $>13,700$ targets on UAVDT). Forwarding these genuine candidate regions downstream naturally requires slightly more compute. On \textbf{SeaPerson} ($>85\%$ targets $<32$\,px), HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+2.3\,pp} ($0.750 \to \mathbf{0.773}$) and BPR by \textbf{+4.4\,pp} to \textbf{0.991} (total recall $+3.33$\,pp to \textbf{87.75\%}), while compressing parameters by \textbf{27.6\%} at 80.6\,FPS with only $+3.0\%$ net GFLOPs. On \textbf{UAVDT}, HESOD improves $\mathrm{mAP@.5}$ to \textbf{0.394} (+0.9\,pp) and BPR to \textbf{0.940} (+5.6\,pp, total recall $+3.66$\,pp), cutting parameters by \textbf{27.5\%} at 106.1\,FPS with class-wide recall gains: \emph{car} ($+3.4$\,pp), \emph{truck} ($+5.4$\,pp), and \emph{bus} ($67.7\% \to 81.4\%$, \textbf{+13.7\,pp}).
+\textbf{Comparison with Selective Baseline (ESOD).} Against ESOD, HESOD achieves substantial recall recovery and parameter compression under strict recall-safe efficiency (Table~\ref{tab:main_results}). Because selective models evaluate only routed regions, baseline ESOD achieves lower FLOPs only by prematurely discarding micro targets (HESOD rescues $>13,700$ targets on UAVDT). Forwarding these genuine candidate regions downstream naturally consumes modest compute. On \textbf{SeaPerson} ($>85\%$ targets $<32$\,px), HESOD boosts $\mathrm{mAP@.5}$ by \textbf{+2.3\,pp} ($0.750 \to \mathbf{0.773}$) and BPR by \textbf{+4.4\,pp} to \textbf{0.991} (total recall $+3.33$\,pp to \textbf{87.75\%}), while cutting parameters by \textbf{27.6\%} at 80.6\,FPS with only $+3.0\%$ net GFLOPs. On \textbf{UAVDT}, HESOD improves $\mathrm{mAP@.5}$ to \textbf{0.394} (+0.9\,pp) and BPR to \textbf{0.940} (+5.6\,pp), cutting parameters by \textbf{27.5\%} at 106.1\,FPS with marked recall gains across \emph{car} ($+3.4$\,pp), \emph{truck} ($+5.4$\,pp), and \emph{bus} ($67.7\% \to 81.4\%$, \textbf{+13.7\,pp}).
 
 \subsection{Ablation Studies and Scale Analysis}
 \label{ssec:ablation_analysis}
 
-\textbf{Evidence Preservation Principle.} As reported in Table~\ref{tab:ablation_and_recall}, unconstrained affine concatenation (Arm 5, 0.371 $\mathrm{mAP}$) degrades performance below single-evidence branches (0.384 and 0.387). This degradation reveals that linear projections across heterogeneous evidence spaces are ill-posed: semantic logits and gradient saliency exhibit disparate dynamic ranges, causing uncalibrated linear combinations to dilute confident signals. In sharp contrast, parameter-free Elementwise Max (Arm 6) enforces strict monotonic evidence preservation ($z_{i,c} \ge \max(z^{\mathrm{sem}}_{i,c}, z^{\mathrm{spec}}_{i,c})$) as an evidence-preserving OR gate, achieving peak selector accuracy of \textbf{0.395} $\mathrm{mAP}$ on UAVDT and \textbf{0.778} $\mathrm{mAP}$ on SeaPerson (0.991 BPR) with stable high-IoU localization ($\mathrm{mAP@.5:.95}$ of 0.218 and 0.330).
+\textbf{Evidence Preservation Principle.} As reported in Table~\ref{tab:ablation_and_recall}, unconstrained affine concatenation (Arm 5, 0.371 $\mathrm{mAP}$) degrades performance below single-evidence branches (0.384 and 0.387), confirming that linear projections across heterogeneous evidence spaces dilute confident signals due to disparate dynamic ranges. In sharp contrast, parameter-free Elementwise Max (Arm 6) enforces strict monotonic evidence preservation ($z_{i,c} \ge \max(z^{\mathrm{sem}}_{i,c}, z^{\mathrm{spec}}_{i,c})$) as an evidence-preserving OR gate, achieving peak selector accuracy of \textbf{0.395} $\mathrm{mAP}$ on UAVDT and \textbf{0.778} $\mathrm{mAP}$ on SeaPerson (0.991 BPR) with stable high-IoU localization ($\mathrm{mAP@.5:.95}$ of 0.218 and 0.330).
 
-\textbf{Efficiency Recovery via Lightweight Head.} The inverted residual ISPP head serves as a dedicated compute compensator to amortize the arithmetic cost of evaluating rescued candidate regions. Without ISPP, uncompressed Dual-Max incurs 90.1 GFLOPs on UAVDT and 255.1 GFLOPs on SeaPerson. On UAVDT, integrating ISPP (Arm 7) preserves 0.394 $\mathrm{mAP@.5}$ and 0.940 BPR while slashing GFLOPs by 16.9\% (90.1 $\to$ 74.9) and parameters by \textbf{27.5\%} at 106.1 FPS. On SeaPerson, ISPP similarly slashes GFLOPs by \textbf{18.2\%} (255.1 $\to$ 208.5) and parameters by \textbf{27.6\%} with BPR fully preserved at 0.991, raising FPS from 73.8 to 80.6 (+9.2\%) with negligible accuracy cost (0.778 $\to$ 0.773 mAP).
+\textbf{Efficiency Recovery via Lightweight Head.} The inverted residual ISPP head serves as a dedicated compute compensator to amortize the arithmetic cost of evaluating rescued candidate regions. Without ISPP, uncompressed Dual-Max incurs 90.1 GFLOPs on UAVDT and 255.1 GFLOPs on SeaPerson. On UAVDT, integrating ISPP (Arm 7) preserves 0.394 $\mathrm{mAP@.5}$ and 0.940 BPR while slashing GFLOPs by 16.9\% (90.1 $\to$ 74.9) and parameters by \textbf{27.5\%} at 106.1 FPS. On SeaPerson, ISPP slashes GFLOPs by \textbf{18.2\%} (255.1 $\to$ 208.5) and parameters by \textbf{27.6\%} with BPR fully preserved at 0.991, raising FPS from 73.8 to 80.6 with negligible accuracy cost (0.778 $\to$ 0.773 mAP).
 
 \textbf{Micro-Scale Recall Recovery.} In Table~\ref{tab:ablation_and_recall}, baseline ESOD suffers severe degradation on \emph{Very Tiny} targets ($<16^2$ px), dropping to $79.43\%$ on UAVDT and $74.03\%$ on SeaPerson due to early semantic collapse. Dual-Max routing restores extreme-scale sensitivity across both domains, boosting \emph{Very Tiny} recall by \textbf{+6.26\,pp} on UAVDT and improving \emph{Tiny} recall by \textbf{+5.28\,pp} on SeaPerson ($92.06\%$ vs. $86.78\%$, with Very Tiny recall reaching \textbf{75.71\%}).
 
-\textbf{Channel Pooling Benefit.} Crucially, channel pooling demonstrates decisive advantages in the unified Dual-Max selector. On SeaPerson, full-width spectral filtering incurs severe memory pressure (forcing training batch size to 2 due to VRAM OOM) and reaches only $0.763$ $\mathrm{mAP@.5}$ at 277.8 GFLOPs. Compressing features to 2 channels enables standard batch-8 training, lifting $\mathrm{mAP@.5}$ by \textbf{+1.5\,pp} ($0.763 \to \mathbf{0.778}$), boosting BPR to \textbf{0.991}, and cutting GFLOPs by \textbf{8.9\%} (277.8 $\to$ 255.1). Diagnostics (Arms 3 vs.~4) confirm that channel pooling suppresses intra-channel noise and lifts \emph{Very Tiny} recall on both benchmarks (+4.45\,pp on UAVDT, +0.90\,pp on SeaPerson).
+\textbf{Channel Pooling Benefit.} Crucially, channel pooling resolves memory bottlenecks in the Dual-Max selector. On SeaPerson, full-width spectral filtering causes severe memory pressure (limiting batch size to 2) and yields only $0.763$ $\mathrm{mAP@.5}$ at 277.8 GFLOPs. Compressing features to 2 channels enables batch-8 training, lifting $\mathrm{mAP@.5}$ by \textbf{+1.5\,pp} ($0.763 \to \mathbf{0.778}$), boosting BPR to \textbf{0.991}, and cutting GFLOPs by \textbf{8.9\%}. Diagnostics (Arms 3 vs.~4) confirm that channel pooling suppresses noise and lifts \emph{Very Tiny} recall on both benchmarks (+4.45\,pp on UAVDT, +0.90\,pp on SeaPerson).
 
-\textbf{Error Bottleneck Diagnosis.} Dual-evidence routing and coverage optimization slash selector false negatives from $25.6\%$ to \textbf{$19.2\%$} on SeaPerson (\textbf{99.1\%} BPR) and rescue $>13,700$ dropped instances on UAVDT (BPR $0.884 \to \mathbf{0.940}$), virtually eliminating early selector dropouts and shifting the remaining bottleneck to downstream regression refinement.
+\textbf{Error Bottleneck Diagnosis.} Dual-evidence routing and coverage optimization slash selector false negatives from $25.6\%$ to \textbf{$19.2\%$} on SeaPerson (\textbf{99.1\%} BPR) and rescue $>13,700$ dropped instances on UAVDT (BPR $0.884 \to \mathbf{0.940}$), shifting the remaining bottleneck to downstream regression refinement.
 
 \textbf{Latency and Qualitative Profiling.} On an RTX 5090 GPU, stem extraction takes 1.2\,ms, selector 1.8\,ms, AdaSlicer 0.9\,ms, and ISPP 5.5\,ms (106.1/80.6\,FPS on UAVDT/SeaPerson). As visualized in Fig.~\ref{fig:teaser}, HESOD reliably detects faint micro targets missed by ESOD without generating false alarms.

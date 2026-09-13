@@ -194,11 +194,14 @@ SeaPerson contains 300,375 test instances, more than 85% of which are tiny or mi
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Faster R-CNN, ResNet-50-FPN | Dense two-stage | 0.551 | 0.246 | 67.27% | 43.26 | 1546.8 | 23.1 |
 | RetinaNet, ResNet-50-FPN | Dense one-stage | 0.473 | 0.201 | 65.98% | 36.35 | 942.7 | 28.0 |
+| QueryDet (CSQ)~\cite{QueryDet}, R50-FPN | Cascaded sparse query | 0.627 | 0.262 | 61.56% | 39.30 | —$^{\S}$ | 14.01 |
 | ESOD R0 | Selective, single evidence | 0.750 | 0.320 | 84.42% | 35.78 | **202.4** | **85.7** |
 | Dual-Max selector reference | Selective, dual evidence | **0.778** | **0.330** | **88.10%** | 35.79 | 255.1 | 73.8 |
 | **HESOD (Ours)** | Selective, dual evidence, staged | 0.773 | 0.327 | 87.75% | **25.92** | 208.5 | 80.6 |
 
-The Dual-Max selector reference exceeds R0 by 2.8 pp mAP@.5 and 1.0 pp mAP@.5:.95. The staged HESOD row trades 0.5 pp of that back for compute (255.1$\to$208.5 GFLOPs) but still exceeds R0 by 2.3 pp mAP@.5 at lower parameter count. Against the dense detectors, HESOD improves mAP@.5 by 22.2 pp over Faster R-CNN and 30.0 pp over RetinaNet, total recall by 20.48 pp and 21.77 pp respectively, while cutting GFLOPs by 7.4$\times$ and 4.5$\times$ respectively, at 80.6 FPS. The recall gap is the more striking number here: at a fixed IoU/confidence matching protocol, both dense detectors miss roughly a third of all instances (particularly Very Tiny: 46.07%/50.05% recall vs. HESOD's 75.71%), consistent with the selective-computation motivation this comparison exists to support. The dense detectors provide conventional reference points, but they are not evidence for the selector ablation because their training and inference structures differ substantially; BPR is left blank for them since it is a selector-routing metric with no analog in a dense detector.
+$^{\S}$QueryDet CSQ uses dynamic sparse convolution (`spconv`), whose input-dependent FLOPs are unamenable to static profiling (dense query counterpart: 2539.02 GFLOPs at 10.55 FPS).
+
+The Dual-Max selector reference exceeds R0 by 2.8 pp mAP@.5 and 1.0 pp mAP@.5:.95. The staged HESOD row trades 0.5 pp of that back for compute (255.1$\to$208.5 GFLOPs) but still exceeds R0 by 2.3 pp mAP@.5 at lower parameter count. Against the dense detectors, HESOD improves mAP@.5 by 22.2 pp over Faster R-CNN and 30.0 pp over RetinaNet, total recall by 20.48 pp and 21.77 pp respectively, while cutting GFLOPs by 7.4$\times$ and 4.5$\times$ respectively, at 80.6 FPS. Against QueryDet (CSQ), HESOD improves mAP@.5 by +14.6 pp (0.773 vs. 0.627) and total recall by +26.19 pp (87.75% vs. 61.56%) while running 5.8$\times$ faster (80.6 vs. 14.01 FPS). The recall gap is the more striking number here: at a fixed IoU/confidence matching protocol, both dense detectors and sparse query baselines miss roughly a third to 40% of all instances (particularly Very Tiny: 46.07%/50.05%/48.73% recall vs. HESOD's 75.71%), consistent with the selective-computation motivation this comparison exists to support. The dense detectors provide conventional reference points, but they are not evidence for the selector ablation because their training and inference structures differ substantially; BPR is left blank for them since it is a selector-routing metric with no analog in a dense detector.
 
 ### 5.2 Minimal selector ablation
 
@@ -220,6 +223,9 @@ ISPPHead's mainline purpose is supported by two matched comparisons that isolate
 
 | Configuration | Very Tiny | Tiny | Small | Medium/Large | Total recall |
 |---|:---:|:---:|:---:|:---:|:---:|
+| Faster R-CNN, ResNet-50-FPN | 46.07% | 71.05% | 91.24% | 88.39% | 67.27% |
+| RetinaNet, ResNet-50-FPN | 50.05% | 70.88% | 87.45% | 85.16% | 65.98% |
+| QueryDet (CSQ), R50-FPN | 48.73% | 73.62% | 93.50% | 93.59% | 61.56% |
 | ESOD R0 | 74.03% | 86.78% | 94.74% | 79.35% | 84.42% |
 | Dual-Concat | **76.00%** | 91.50% | 95.68% | 80.00% | 87.84% |
 | **Dual-Max** | 75.65% | **92.06%** | **95.85%** | **81.94%** | **88.10%** |
