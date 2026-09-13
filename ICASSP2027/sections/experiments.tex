@@ -4,7 +4,7 @@
 
 We evaluate HESOD on two demanding high-resolution small-object benchmarks: \textbf{UAVDT}~\cite{UAVDT} ($1280 \times 1280$ px, urban vehicle surveillance across 3 classes, 19.9\% extremely tiny targets $< 16^2$ px) and \textbf{SeaPerson}~\cite{SeaDronesSee, TinyPerson} ($2048 \times 2048$ px, maritime search-and-rescue with $>85\%$ targets $< 32$ px). Both benchmarks use full-resolution images without artificial cropping.
 
-Selective detectors (ESOD family and our ablations) employ YOLOv5m backbones in PyTorch 2.8 trained for 50 epochs under selective protocols~\cite{ESOD}. Dense and query baselines (Faster R-CNN, RetinaNet, QueryDet) retain canonical ResNet-50-FPN backbones, evaluated on identical test splits and resolutions. All models are benchmarked on an NVIDIA RTX 5090 GPU. Metrics include COCO $\mathrm{mAP@.5}$ and $\mathrm{mAP@.5:.95}$, scale-stratified recall across four bins (Very Tiny $< 16^2$, Tiny $16^2\text{--}32^2$, Small $32^2\text{--}96^2$, Med/Large $> 96^2$ px), and Bounding Patch Recall (BPR), measuring the fraction of ground-truth targets covered ($>50\%$ overlap) by selected patches.
+Selective detectors (ESOD family and our ablations) employ YOLOv5m backbones in PyTorch 2.8 trained for 50 epochs under selective protocols~\cite{ESOD}. Dense and query baselines (Faster R-CNN, RetinaNet, QueryDet) retain canonical ResNet-50-FPN backbones, evaluated on identical test splits and resolutions. All models are benchmarked on an NVIDIA RTX 5090 GPU. Metrics include COCO $\mathrm{mAP@.5}$ and $\mathrm{mAP@.5:.95}$, scale-stratified recall across four bins (Very Tiny $< 16^2$, Tiny $16^2\text{--}32^2$, Small $32^2\text{--}96^2$, Med/Large $> 96^2$ px), and, following ESOD~\cite{ESOD}, Best Possible Recall for objects' bounding boxes ($\mathrm{BPR}^{\mathrm{box}}$), measuring the fraction of ground-truth targets covered ($>50\%$ overlap) by selected patches.
 
 \subsection{Main Benchmark Comparisons}
 
@@ -37,7 +37,7 @@ ESOD~\cite{ESOD}                   & \underline{0.750} & \underline{35.8} & \tex
 \bottomrule
 \end{tabular*}
 \vspace{0.4mm}
-\parbox{\columnwidth}{\scriptsize BPR: Bounding Patch Recall. \textbf{Bold}: best; \underline{underline}: second-best (selective models).\\
+\parbox{\columnwidth}{\scriptsize BPR: Best Possible Recall for objects' bounding boxes ($\mathrm{BPR}^{\mathrm{box}}$), following ESOD~\cite{ESOD}. \textbf{Bold}: best; \underline{underline}: second-best (selective models).\\
 $^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling; dense query counterparts: 973.5 / 2539.0 GFLOPs at 12.5 / 10.6 FPS on UAVDT / SeaPerson).}
 \vspace{0.5mm}
 \end{table}
