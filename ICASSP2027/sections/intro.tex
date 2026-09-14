@@ -73,7 +73,7 @@ However, spatial selection operates under a severe \emph{asymmetric error cost}:
 \begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}\setlength{\topsep}{1pt}
     \item \textbf{Dual-Evidence Spatial Routing}: We uncover single-semantic routers' vulnerability to feature collapse, coupling semantic objectness with constant-width gradient filtering for scale-robust structural priors independent of backbone capacity.
     \item \textbf{Evidence Preservation and Soft Coverage}: We formulate a monotonic max-fusion rule preventing multi-cue evidence dilution, paired with an object-level noisy-OR soft-coverage loss directly optimizing joint instance recall.
-    \item \textbf{Compute Compensation and Empirical Gains}: We co-design an ISPP head that reduces detector parameters by \textgreater27\% while improving $\mathrm{mAP@.5}$ by 0.9/2.3\,pp on UAVDT and SeaPerson, boosting total instance recall by 3.66/3.33\,pp.
+    \item \textbf{Compute Compensation and Empirical Gains}: We integrate an ISPP head that cuts detector parameters by \textgreater27\% while largely retaining dual-evidence routing's gains; the resulting HESOD improves $\mathrm{mAP@.5}$ by 0.9/2.3\,pp and total instance recall by 3.66/3.33\,pp on UAVDT/SeaPerson.
 \end{enumerate}
 
 \begin{figure*}[t]
