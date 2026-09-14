@@ -12,9 +12,10 @@ Selective detectors (ESOD family and our ablations) employ YOLOv5m backbones in 
 \centering
 \caption{Benchmark results on UAVDT and SeaPerson.}
 \label{tab:main_results}
+\vspace{1mm}
 \scriptsize
 \setlength{\tabcolsep}{0pt}
-\renewcommand{\arraystretch}{1.02}
+\renewcommand{\arraystretch}{1.12}
 \begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
 \textbf{Method} & \textbf{mAP@.5} & \shortstack{\textbf{Params}\\\textbf{(M)}} & \textbf{GFLOPs} & \shortstack{\textbf{Total}\\\textbf{Recall}} & \textbf{BPR} & \textbf{FPS} \\
@@ -38,7 +39,7 @@ ESOD~\cite{ESOD}                   & \underline{0.750} & \underline{35.8} & \tex
 \end{tabular*}
 \vspace{0.4mm}
 \parbox{\columnwidth}{\scriptsize BPR: Best Possible Recall for objects' bounding boxes ($\mathrm{BPR}^{\mathrm{box}}$), following ESOD~\cite{ESOD}. \textbf{Bold}: best; \underline{underline}: second-best (selective models).\\
-$^\dagger$QueryDet uses CSQ (dynamic sparse FLOPs unamenable to static profiling; dense query counterparts: 973.5 / 2539.0 GFLOPs at 12.5 / 10.6 FPS on UAVDT / SeaPerson).}
+$^\dagger$QueryDet uses CSQ (sparse FLOPs unamenable to static profiling; dense query counterparts: 973.5 / 2539.0 GFLOPs at 12.5 / 10.6 FPS on UAVDT / SeaPerson).}
 \vspace{0.5mm}
 \end{table}
 
