@@ -4,7 +4,7 @@
 \subsection{Small Object Detection in High-Resolution Vision}
 \label{ssec:related_sod}
 
-Detecting tiny targets in high-resolution aerial and maritime imagery is severely challenged by extreme scale disparity, low contrast, and massive background areas ($>70\%\text{--}80\%$)~\cite{VisDrone,UAVDT,TinyPerson,SeaDronesSee}. Classical approaches utilize density-guided cropping (ClusDet~\cite{ClusDet}, DMNet~\cite{DMNet}) or scale-adaptive label assignment (NWD~\cite{NWD}, RFLA~\cite{RFLA}). Recently, ResBiDet~\cite{ResBiDet} introduced a coarse-to-fine framework using global heatmap guidance for region cropping. However, it relies on multi-scale image-level slicing and boundary stitching. In contrast, HESOD performs early feature-level selective routing directly within the detector trunk and explicitly optimizes instance coverage under irreversible pruning.
+Detecting tiny targets in high-resolution aerial and maritime imagery is severely challenged by extreme scale disparity, low contrast, and massive background areas (\textgreater70\%--80\%)~\cite{VisDrone,UAVDT,TinyPerson,SeaDronesSee}. Classical approaches utilize density-guided cropping (ClusDet~\cite{ClusDet}, DMNet~\cite{DMNet}) or scale-adaptive label assignment (NWD~\cite{NWD}, RFLA~\cite{RFLA}). Recently, ResBiDet~\cite{ResBiDet} introduced a coarse-to-fine framework using global heatmap guidance for region cropping. However, it relies on multi-scale image-level slicing and boundary stitching. In contrast, HESOD performs early feature-level selective routing directly within the detector trunk and explicitly optimizes instance coverage under irreversible pruning.
 
 \subsection{Selective and Dynamic Computation}
 \label{ssec:related_selective}
