@@ -1,7 +1,7 @@
 \section{Proposed Method}
 \label{sec:method}
 
-The architecture of HESOD is shown in Fig.~\ref{fig:overview}. From input $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense features $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then coordinates: (i) a priority head fusing semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) into spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer module (unchanged from ESOD~\cite{ESOD}) clustering candidate foreground cells into bounding patches $\mathcal{P}$. Downstream backbone stages and lightweight decoupled heads evaluate only retained patches $\mathcal{P}$, trained end-to-end under the soft-coverage supervision detailed in Sec.~\ref{ssec:coverage}.
+The architecture of HESOD is shown in Fig.~\ref{fig:overview}. From input $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense features $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then coordinates: (i) a priority head fusing semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) into spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer module (unchanged from ESOD~\cite{ESOD}) clustering candidate foreground cells into bounding patches $\mathcal{P}$. Downstream backbone stages and lightweight decoupled heads evaluate only retained patches $\mathcal{P}$, trained under the soft-coverage supervision (Sec.~\ref{ssec:coverage}) via the two-stage protocol (Sec.~\ref{ssec:head}).
 
 \subsection{Dual-Evidence Priority Estimation}
 \label{ssec:evidence}
