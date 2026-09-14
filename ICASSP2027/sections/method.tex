@@ -1,7 +1,7 @@
 \section{Proposed Method}
 \label{sec:method}
 
-The architecture of HESOD is shown in Fig.~\ref{fig:overview}(a). From input $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense features $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then coordinates: (i) a priority head fusing semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) into spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer module (unchanged from ESOD~\cite{ESOD}) clustering candidate foreground cells into bounding patches $\mathcal{P}$. Downstream backbone stages and lightweight decoupled heads evaluate only retained patches $\mathcal{P}$ under soft-coverage supervision (\S\ref{ssec:coverage}).
+The architecture of HESOD is shown in Fig.~\ref{fig:overview}. From input $\mathbf{I} \in \mathbb{R}^{H \times W \times 3}$, a shallow stem extracts dense features $\mathbf{F} \in \mathbb{R}^{H_s \times W_s \times C}$. The \emph{Dual-Evidence Spatial Selector} then coordinates: (i) a priority head fusing semantic objectness with channel-pooled spectral saliency (Fig.~\ref{fig:overview}(b)) into spatial priority map $\mathbf{S} \in [0, 1]^{H_s \times W_s}$; and (ii) an AdaSlicer module (unchanged from ESOD~\cite{ESOD}) clustering candidate foreground cells into bounding patches $\mathcal{P}$. Downstream backbone stages and lightweight decoupled heads evaluate only retained patches $\mathcal{P}$, trained end-to-end under the soft-coverage supervision detailed in Sec.~\ref{ssec:coverage}.
 
 \subsection{Dual-Evidence Priority Estimation}
 \label{ssec:evidence}
@@ -13,7 +13,7 @@ Let $\mathbf{f}_i \in \mathbb{R}^C$ denote the feature vector at spatial locatio
 \mathbf{F}_{\mathrm{pooled}} = \left[ \max_c \mathbf{F}_{:,:,c} \,\|\, \frac{1}{C}\sum_{c=1}^C \mathbf{F}_{:,:,c} \right] \in \mathbb{R}^{H_s \times W_s \times 2},
 \label{eq:channel_pool}
 \end{equation}
-where $[\cdot \,\|\, \cdot]$ denotes channel concatenation. Compressing $\mathbf{F}$ to 2 channels retains peak edge activation and background energy, after which a learnable depthwise $3\times 3$ convolution bank---initialized with discrete Laplacian and directional Sobel operators---filters $\mathbf{F}_{\mathrm{pooled}}$ into 6 structural channels at $\mathcal{O}(H_s W_s)$ cost independent of width $C$. In the 2D spatial frequency domain, the discrete Laplacian is approximately isotropic in the low-frequency limit, with $|H(\mathbf{\omega})| \propto \|\mathbf{\omega}\|^2$, naturally amplifying edge transitions. Because micro targets (\textless$16^2$\,px) manifest as localized high-frequency spatial impulses whose gradient energy resists downsampling~\cite{Zhao2025TGRS}, this branch supplies a constant-width prior independent of deep semantic capacity. A $1\times 1$ projection maps features to $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
+where $\mathbf{F}_{:,:,c} \in \mathbb{R}^{H_s \times W_s}$ is the $c$-th channel of $\mathbf{F}$ and $\|$ denotes channel-wise concatenation. Compressing $\mathbf{F}$ to 2 channels retains peak edge activation and background energy, after which a learnable depthwise $3\times 3$ convolution bank---initialized with discrete Laplacian and directional Sobel operators---filters $\mathbf{F}_{\mathrm{pooled}}$ into 6 structural channels at $\mathcal{O}(H_s W_s)$ cost independent of width $C$. In the 2D spatial frequency domain, the discrete Laplacian is approximately isotropic in the low-frequency limit, with $|H(\mathbf{\omega})| \propto \|\mathbf{\omega}\|^2$, naturally amplifying edge transitions. Because micro targets (\textless$16^2$\,px) manifest as localized high-frequency spatial impulses whose gradient energy resists downsampling~\cite{Zhao2025TGRS}, this branch supplies a constant-width prior independent of deep semantic capacity. A $1\times 1$ projection maps features to $N_c$, yielding spectral logits $\mathbf{z}^{\mathrm{spec}}_i \in \mathbb{R}^{N_c}$.
 
 To prevent confidence dilution on faint targets, evidence fusion enforces \emph{evidence preservation}. Linear combinations risk destructive interference: an unconfident or negative activation in one branch can drag down a confident signal in the other below the routing threshold. Instead, we formulate a parameter-free elementwise maximum:
 \begin{equation}
@@ -45,11 +45,11 @@ When neighboring candidate cells have low scores ($s_k \to 0$), the product term
 \begin{figure}[t]
 \centering
 \vspace{-1mm}
-\includegraphics[width=0.78\columnwidth]{figures/ISPPHead.pdf}
-\vspace{-2.5mm}
+\includegraphics[width=\columnwidth]{figures/ISPPHead.pdf}
+\vspace{-6mm}
 \caption{Inverse-Residual Shared-Parameter Partial-Convolution (ISPP) Head (\textcircled{\scriptsize C} denotes channel concatenation).}
 \label{fig:ispphead}
-\vspace{-2mm}
+\vspace{7pt}
 \end{figure}
 
 While dual-evidence routing substantially improves patch coverage by retaining faint foreground regions, evaluating more candidate patches increases downstream detector computation. To recover this overhead without sacrificing selector gains, HESOD incorporates an ISPP decoupled head~\cite{ESODYOLO} as a dedicated compute compensator.

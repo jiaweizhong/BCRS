@@ -14,6 +14,6 @@ Dynamic computation accelerates inference by allocating compute strictly to pros
 \subsection{Spectral Saliency and Frequency Methods}
 \label{ssec:related_spectral}
 
-High-frequency edge gradients persist for micro targets even as photometric semantics fade~\cite{SET,Zhao2025TGRS}; recent methods exploit this via dense frequency transforms~\cite{SET}, frequency-gradient networks~\cite{Zhao2025TGRS}, dual-domain alignment~\cite{Guo2025DualDomain}, or multi-scale compensation~\cite{Wang2026HighFreq}, but all apply spectral cues \emph{downstream}, incurring substantial latency. In sharp contrast, HESOD repurposes high-frequency gradient saliency \emph{upstream} as an ultra-lightweight routing cue: channel pooling compresses stem features to 2 channels, enabling directional Laplacian and Sobel gradient filtering at constant width.
+High-frequency edge gradients persist for micro targets even as photometric semantics fade; recent methods exploit this via dense frequency transforms~\cite{SET}, frequency-gradient networks~\cite{Zhao2025TGRS}, dual-domain alignment~\cite{Guo2025DualDomain}, or multi-scale compensation~\cite{Wang2026HighFreq}, but all apply spectral cues \emph{downstream}, incurring substantial latency. In sharp contrast, HESOD repurposes high-frequency gradient saliency \emph{upstream} as an ultra-lightweight routing cue: channel pooling compresses stem features to 2 channels, enabling directional Laplacian and Sobel gradient filtering at constant width.
 
 
