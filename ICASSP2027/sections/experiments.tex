@@ -1,4 +1,4 @@
-\section{EXPERIMENTS}
+\section{Experiments}
 
 \subsection{Experimental Setup}
 
@@ -92,7 +92,7 @@ The modest GFLOPs overhead stems from the selector routing more genuine target r
 We conduct controlled ablation experiments on the ESOD baseline by adding components incrementally, with results in Table~\ref{tab:ablation_and_recall}.
 
 \textbf{Dual-Evidence Fusion.} Using only the semantic branch yields 0.906 BPR and 84.82\% total recall on UAVDT, showing limited improvement due to semantic feature collapse during downsampling; the spectral-only branch achieves stronger BPR of 0.942 and 88.87\% total recall, as gradient features remain robust on micro targets.
-Comparing fusion strategies, linear concatenation (Arm 5) achieves only 0.371 mAP@.5---lower than either single branch---because weak semantic responses introduce destructive interference that suppresses confident spectral activations. In contrast, element-wise maximum (Dual-Max, Arm 6) implements an evidence-preserving OR gate, achieving 0.395/0.778 mAP@.5 and 0.940/0.991 BPR on UAVDT/SeaPerson, the best among all single-stage selector configurations.
+Comparing fusion strategies, linear concatenation (config.\,5) achieves only 0.371 mAP@.5---lower than either single branch---because weak semantic responses introduce destructive interference that suppresses confident spectral activations. In contrast, element-wise maximum (Dual-Max, config.\,6) implements an evidence-preserving OR gate, achieving 0.395/0.778 mAP@.5 and 0.940/0.991 BPR on UAVDT/SeaPerson, the best among all single-stage selector configurations.
 
 \textbf{Soft-Coverage Loss.} The ESOD baseline trained with per-pixel BCE achieves only 0.884 BPR and 79.43\% Very Tiny recall on UAVDT. With the proposed $\mathcal{L}_{\mathrm{cover}}$, the semantic branch's Very Tiny recall is flat at 79.13\%, while the spectral branch's rises to 82.43\%; under Dual-Max fusion it reaches 85.69\% (+6.26 pp). The noisy-OR formulation provides strong gradients to low-scoring covering cells when a target is under-covered, encouraging at least one cell to exceed the routing threshold and reducing unrecoverable missed detections.
 
@@ -100,6 +100,6 @@ Comparing fusion strategies, linear concatenation (Arm 5) achieves only 0.371 mA
 
 \textbf{Channel Pooling.} Without channel pooling, full-width spectral filtering limits batch size to 2 on SeaPerson due to memory constraints, yielding only 0.763 mAP@.5. Compressing features to 2 channels enables batch-8 training, boosting mAP@.5 by +1.5 pp to 0.778, reducing GFLOPs by 8.2\%, and further lifting Very Tiny recall by +1.2 pp.
 
-\textbf{Error Bottleneck Diagnosis.} Coverage-loss supervision alone reduces selector false negatives from 25.6\% to 19.2\% on SeaPerson's semantic branch (BPR 0.947$\to$0.991), while dual-evidence routing adds more than 13,600 detections on UAVDT (total recall 85.17\%$\to$88.83\%), with BPR rising from 0.884 to 0.940, shifting the bottleneck to downstream regression.
+\textbf{Error Bottleneck Diagnosis.} Coverage-loss supervision alone reduces selector false negatives from 25.6\% to 19.2\% on SeaPerson's semantic branch (BPR 0.947$\to$0.991), while HESOD adds more than 13,600 detections on UAVDT (total recall 85.17\%$\to$88.83\%), with BPR rising from 0.884 to 0.940, shifting the bottleneck to downstream regression.
 
 \textbf{Latency Profiling.} On an RTX 5090 GPU, stem extraction takes 1.2 ms, selector 1.8 ms, AdaSlicer 0.9 ms, and ISPP 5.5 ms, achieving 106.1/80.6 FPS on UAVDT/SeaPerson respectively, demonstrating real-time throughput under this evaluation setup.

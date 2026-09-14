@@ -10,27 +10,16 @@
 
 \title{HESOD: High-Resolution Efficient Small Object Detection via Semantic-Spectral Dual Selection}
 
-% -- Blind-review submission block (active). Swap for the camera-ready
-% block below only after acceptance -- do not fill in real names/
-% affiliations before then, this would break anonymity.
-\name{Anonymous Authors\thanks{Source code and weights will be available upon acceptance.}}
-\address{Affiliation(s) omitted for blind review}
-
-% -- Camera-ready block (inactive, kept ready for post-acceptance).
-% Uncomment this and comment out the blind-review block above once the
-% paper is accepted and real author/affiliation info can be disclosed.
-% Superscript numbers on \name map each author to their \address line;
-% add or remove $^{n}$ entries if the final author count/affiliation
-% count differs from 3. \twoauthors is NOT used here -- it renders a
-% fixed two-column side-by-side layout meant for exactly two addresses,
-% not a numbered list of three-plus.
-%
-% \name{Author One$^{1}$, Author Two$^{2}$, Author Three$^{3}$}
-% \address{
-%   $^{1}$Affiliation One, City, Country \\
-%   $^{2}$Affiliation Two, City, Country \\
-%   $^{3}$Affiliation Three, City, Country
-% }
+% ICASSP 2027 does not perform blind review (confirmed via the official
+% Paper-kit.md), so the author list is included directly. Superscript
+% numbers on \name map each author to their \address line; $^{\ast}$ marks
+% the corresponding author (Hui Zhang).
+\name{Jiawei Zhong$^{1}$\thanks{Source code at \url{https://github.com/deepsota-ai/HESOD}.}, Sicheng Chen$^{2}$, DanDan Liu$^{3}$, Hui Zhang$^{2}$\sthanks{Corresponding author.}}
+\address{
+  $^{1}$DeepSOTA AI, San Jose, CA, USA \\
+  $^{2}$College of Information, Mechanical and Electrical Engineering, Shanghai Normal University, China \\
+  $^{3}$College of Electronics and Information Engineering, Shanghai University of Electric Power, China
+}
 
 % Spacing tweaks for tight 4+1 page layout
 \setlength{\floatsep}{4pt plus 1pt minus 1pt}
@@ -64,7 +53,7 @@
 \maketitle
 
 \begin{abstract}
-Tiny-object detection in high-resolution aerial and maritime imagery must contend with vast, redundant backgrounds and extreme scale variation. While spatial selective computation routes foreground regions to cut latency, existing single-evidence selectors suffer from severe semantic collapse on micro targets, causing irrecoverable coarse-stage pruning. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a dual-evidence framework featuring semantic-spectral routing, coverage-constrained spatial optimization, and lightweight downstream detection. HESOD couples semantic objectness with constant-width spectral saliency under a monotonic evidence-preserving max-fusion rule to rescue degraded targets. To promote recall-safe routing, an object-level soft-coverage loss directly optimizes multi-cell joint instance coverage across ground-truth objects. To recover downstream efficiency, an inverted residual decoupled head (ISPP) is integrated to compress parameters by $>27\%$ with only fractional FLOPs overhead. Experiments show that HESOD improves $\mathrm{mAP@.5}$ by 0.9\,pp and 2.3\,pp (boosting total recall by 3.66\,pp and 3.33\,pp) on UAVDT and SeaPerson, respectively, at up to 106 FPS, making it well suited to resource-constrained deployment.
+Tiny-object detection in high-resolution aerial and maritime imagery must contend with vast, redundant backgrounds and extreme scale variation. While spatial selective computation routes foreground regions to cut latency, existing single-evidence selectors suffer severe semantic collapse on micro targets, causing irrecoverable pruning. We propose \textbf{HESOD} (\textbf{H}igh-Resolution \textbf{E}fficient \textbf{S}mall \textbf{O}bject \textbf{D}etection), a dual-evidence framework unifying semantic-spectral routing, coverage-constrained optimization, and lightweight detection. HESOD couples semantic objectness with constant-width spectral saliency under a monotonic evidence-preserving max-fusion rule to rescue degraded targets. An object-level soft-coverage loss optimizes multi-cell instance coverage across ground-truth objects for recall-safe routing. To recover downstream efficiency, an Inverse-Residual Shared-Parameter Partial-Convolution (ISPP) head compresses parameters by $>27\%$ with only fractional FLOPs overhead. Experiments show that HESOD improves $\mathrm{mAP@.5}$ by 0.9\,pp and 2.3\,pp (boosting total instance recall by 3.66\,pp and 3.33\,pp) on UAVDT and SeaPerson, respectively, at up to 106 FPS, making it well suited to resource-constrained deployment.
 \end{abstract}
 
 \begin{keywords}
