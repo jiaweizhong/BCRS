@@ -5,42 +5,42 @@ The style file: IEEEbib.bst
 Database file #1: refs.bib
 You've used 22 entries,
             1838 wiz_defined-function locations,
-            588 strings with 7607 characters,
-and the built_in function-call counts, 7848 in all, are:
-= -- 710
-> -- 347
+            592 strings with 7971 characters,
+and the built_in function-call counts, 8305 in all, are:
+= -- 750
+> -- 380
 < -- 16
-+ -- 123
-- -- 101
-* -- 567
-:= -- 1085
++ -- 134
+- -- 112
+* -- 609
+:= -- 1140
 add.period$ -- 22
 call.type$ -- 22
 change.case$ -- 22
 chr.to.int$ -- 0
 cite$ -- 22
-duplicate$ -- 384
-empty$ -- 741
-format.name$ -- 101
-if$ -- 1847
+duplicate$ -- 403
+empty$ -- 764
+format.name$ -- 112
+if$ -- 1954
 int.to.chr$ -- 0
 int.to.str$ -- 22
 missing$ -- 22
 newline$ -- 113
 num.names$ -- 22
-pop$ -- 102
+pop$ -- 103
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 0
-skip$ -- 269
+skip$ -- 295
 stack$ -- 0
-substring$ -- 640
-swap$ -- 182
+substring$ -- 701
+swap$ -- 202
 text.length$ -- 16
 text.prefix$ -- 0
 top$ -- 0
 type$ -- 0
 warning$ -- 0
-while$ -- 81
+while$ -- 79
 width$ -- 24
-write$ -- 244
+write$ -- 243
